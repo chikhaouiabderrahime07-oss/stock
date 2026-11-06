@@ -191,6 +191,9 @@
                 </nav>
             </div>
             <div class="header-right">
+                <a href="/suivi-achats-premium/index.html" id="linkToAppro" class="header-nav-pill-compact header-nav-pill-blue" style="text-decoration:none;display:inline-flex;" title="Suivi Achats &amp; Bons de Commande">
+                    <i class="fas fa-cart-shopping"></i> <span>Achats</span>
+                </a>
 
                 <button type="button" id="btnQuickUserBt" onclick="if(window.PlanTravailModule) PlanTravailModule.openUserWorkPlanModal();" style="display:none;" aria-hidden="true"></button>
                 <button type="button" id="btnReparationHistory" onclick="window.showReparationHistory();" style="display:none;" aria-hidden="true"></button>
@@ -247,7 +250,7 @@
                         <a href="#parametres" onclick="if(typeof App!=='undefined') App.showSettings(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-cog"></i> Préférences</a>
                         <a href="javascript:void(0)" class="dropdown-item" onclick="if(window.UI && UI.startStockTutorial) UI.startStockTutorial();"><i class="fas fa-graduation-cap me-2 text-warning"></i> <span>Visite Guidée & Tutoriel</span></a>
                         <a href="#" id="udropGdsScanLink" class="udrop-gds-link" style="display:none;" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-qrcode" style="color:#059669;"></i> Scanner Sortie GDS</a>
-                        <a href="../suivi-achats-premium/index.html" id="udropAchatsLink" class="udrop-achats-link" style="display:none;"><i class="fas fa-cart-shopping" style="color:var(--primary, #2563eb);"></i> Suivi Achats & BC</a>
+                        <a href="/suivi-achats-premium/index.html" id="udropAchatsLink" class="udrop-achats-link"><i class="fas fa-cart-shopping" style="color:var(--primary, #2563eb);"></i> Suivi Achats &amp; BC</a>
                         <div class="dropdown-divider"></div>
                         <a href="#" id="btnLogout" class="logout-link"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
                     </div>

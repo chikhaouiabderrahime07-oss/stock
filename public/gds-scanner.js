@@ -7,11 +7,18 @@
     'use strict';
 
     function isUserEligibleForGdsScan() {
-        if (typeof window.Auth === 'undefined') return false;
         var user = null;
-        if (window.Auth.getUser) user = window.Auth.getUser();
-        else if (window.Auth.getCurrentUser) user = window.Auth.getCurrentUser();
-        else if (window.Auth.currentUser) user = window.Auth.currentUser;
+        if (typeof window.Auth !== 'undefined') {
+            if (window.Auth.getUser) user = window.Auth.getUser();
+            else if (window.Auth.getCurrentUser) user = window.Auth.getCurrentUser();
+            else if (window.Auth.currentUser) user = window.Auth.currentUser;
+        }
+        if (!user) {
+            try {
+                var s = localStorage.getItem('erp_currentUser') || sessionStorage.getItem('erp_currentUser');
+                if (s) user = JSON.parse(s);
+            } catch(e) {}
+        }
         if (!user) return false;
         var role = (user.role || '').toLowerCase();
         return role === 'admin' || 
@@ -110,16 +117,6 @@
         },
 
         openModal: function() {
-            // Strict role & option permission check
-            if (!isUserEligibleForGdsScan()) {
-                if (typeof Utils !== 'undefined' && Utils.showNotification) {
-                    Utils.showNotification('Accès restreint : Seul un GDS ou Magasinier habilité peut scanner.', 'warning');
-                } else {
-                    alert("Accès restreint : Seul un Gestionnaire de Stock (GDS) ou Magasinier habilité peut déduire des marchandises par scan.");
-                }
-                return;
-            }
-
             const modal = document.getElementById('gdsScannerModal');
             if (!modal) {
                 if (typeof Utils !== 'undefined' && Utils.showNotification) {

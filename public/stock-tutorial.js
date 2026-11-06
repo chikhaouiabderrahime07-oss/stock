@@ -2729,13 +2729,16 @@
 
     function initAutoTourPrompt() {
         setTimeout(() => {
+            // Only show if user is authenticated and login screen is hidden
+            const loginScreen = document.getElementById('loginScreen');
+            if (loginScreen && loginScreen.style.display !== 'none') return;
             if (typeof window.Auth !== 'undefined' && window.Auth.isLoggedIn && window.Auth.isLoggedIn()) {
                 const u = window.Auth.getCurrentUser();
                 if (u && u.username) {
                     StockTutorialModule.checkFirstLoginAutoPrompt(u.username);
                 }
             }
-        }, 1200);
+        }, 3000);
     }
 
     if (document.readyState === 'loading') {

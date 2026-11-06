@@ -4,9 +4,9 @@ const { authenticate, authorize, generateToken } = require('../middleware/auth')
 const rateLimit = require('express-rate-limit');
 
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { error: 'Trop de tentatives, réessayez dans 15 minutes.' }
+  windowMs: 30 * 60 * 1000,
+  max: 5,
+  message: { error: 'Trop de tentatives (5 max). Réessayez dans 30 minutes.' }
 });
 
 // POST /api/auth/login

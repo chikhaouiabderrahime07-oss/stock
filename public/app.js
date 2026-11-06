@@ -695,18 +695,7 @@ const App = {
             });
         }
 
-        // Cross-app navigation links dynamic resolution
-        const isHttp = (typeof window !== 'undefined' && window.location && window.location.protocol) ? window.location.protocol.startsWith('http') : false;
-        const approLink = document.getElementById('linkToAppro');
-        if (approLink) {
-            approLink.href = isHttp ? '/appro' : '../suivi-achats-premium/index.html';
-            approLink.style.display = 'inline-flex';
-        }
-        const portalLink = document.getElementById('linkToPortal');
-        if (portalLink) {
-            portalLink.href = isHttp ? '/' : '../index.html';
-            portalLink.style.display = 'inline-flex';
-        }
+
 
         // Top Header Quick Action Buttons
         const quickBtBtn = document.getElementById('btnQuickUserBt');
