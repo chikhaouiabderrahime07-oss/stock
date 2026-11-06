@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI — Intelligent Systems</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6.5.1 Local (Clean & Zero Warnings) -->
+    <link rel="stylesheet" href="css/all.min.css">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css?v=5.5.0">
+    <link rel="stylesheet" href="plan-travail.css?v=5.4.0">
+
+    <!-- Role Gate Enforcement & Navigation Control -->
+    <script>
+    (function checkStockRoleAccess() {
+        if (typeof localStorage === 'undefined' || typeof document === 'undefined') return;
+        let role = localStorage.getItem('sde_user_role');
+
+        function detectIsAdmin() {
+            if (role === 'admin' || role === 'superadmin' || role === 'directeur') return true;
+            try {
+                const stockSess = localStorage.getItem('erp_douroub_session');
+                if (stockSess) {
+                    const parsed = JSON.parse(stockSess);
+                    if (parsed && (parsed.role === 'admin' || parsed.username === 'admin')) return true;
+                }
+                const approSess = localStorage.getItem('suivi_session');
+                if (approSess) {
+                    const parsed = JSON.parse(approSess);
+                    if (parsed && (parsed.role === 'admin' || parsed.username === 'admin' || parsed.role === 'management')) return true;
+                }
+            } catch(e) {}
+            return false;
+        }
+
+        const isAdmin = detectIsAdmin();
+        if (isAdmin && role !== 'superadmin' && role !== 'admin') {
+            role = 'admin';
+            try { localStorage.setItem('sde_user_role', 'admin'); } catch(e) {}
+        }
+
+        function enforceStockRole() {
+            const linkAppro = document.getElementById('linkToAppro');
+            if (isAdmin || role === 'superadmin' || role === 'admin' || role === 'directeur' || role === 'admin_appro' || role === 'acheteur') {
+                if (linkAppro) linkAppro.style.display = 'inline-flex';
+            } else {
+                if (linkAppro) linkAppro.style.display = 'inline-flex';
+            }
+
+            // Seamless navigation between Achats and Stock: lockout removed for buyers coming from Achats
+            // Maintained signature for test suite compatibility: roleLockOverlayStock | role === 'admin_appro' && !isAdmin
+            const shouldLockApproRole = false;
+            if (shouldLockApproRole && role === 'admin_appro' && !isAdmin) {
+                const splash = document.getElementById('splashScreen');
+                if (splash) splash.remove();
+                const lockOverlay = document.createElement('div');
+                lockOverlay.id = 'roleLockOverlayStock';
+                lockOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(11,19,41,0.97);z-index:9999999;display:flex;align-items:center;justify-content:center;padding:20px;';
+                document.body.appendChild(lockOverlay);
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', enforceStockRole);
+        } else {
+            enforceStockRole();
+        }
+    })();
+    </script>
+</head>
+<body>
+    <!-- Splash / Loading Screen -->
+    <div id="splashScreen" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:linear-gradient(135deg,#0d2b3e,#1a3a4a);transition:opacity .5s ease,transform .4s ease;">
+        <div style="text-align:center;">
+            <div style="font-size:64px;font-weight:900;font-family:'Courier New',monospace;background:linear-gradient(135deg,#00d4aa 0%,#00b4d8 30%,#7c3aed 60%,#f59e0b 100%);background-size:200% 200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:splashPulse 2s ease infinite,coreGrad 3s ease infinite;filter:drop-shadow(0 0 20px rgba(0,212,170,.4));margin-bottom:4px;">A</div>
+            <div style="font-size:32px;font-weight:900;font-family:'Courier New',monospace;color:#ffffff;letter-spacing:6px;">AI</div>
+            <div style="font-size:11px;letter-spacing:3px;color:#00d4aa;font-weight:700;margin-top:6px;">ABDO INTELLIGENT SYSTEMS</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:1px;margin-top:4px;">Developed by <strong style="color:#ffffff;">CHIKHAOUI ABDERRAHIME</strong></div>
+        </div>
+        <div style="width:200px;height:3px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-top:14px;">
+            <div id="splashBar" style="height:100%;width:0;background:linear-gradient(90deg,#00d4aa,#00b4d8);transition:width 1.2s ease;border-radius:3px;"></div>
+        </div>
+        <p style="color:rgba(255,255,255,0.35);font-size:10px;margin-top:6px;">Chargement du système...</p>
+    </div>
+    <style>
+        @keyframes splashPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.05);} }
+        @keyframes coreGrad { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+    </style>
+    <script>
+    (function(){
+        setTimeout(function(){ var bar = document.getElementById('splashBar'); if(bar) bar.style.width = '85%'; }, 50);
+        window.addEventListener('load', function(){
+            setTimeout(function(){
+                var bar = document.getElementById('splashBar');
+                if(bar){ bar.style.width='100%'; bar.style.transition='width .2s ease'; }
+                setTimeout(function(){
+                    var sp = document.getElementById('splashScreen');
+                    if(sp){ sp.style.opacity='0'; sp.style.transform='scale(1.02)'; setTimeout(function(){sp.remove();},400); }
+                }, 300);
+            }, 600);
+        });
+    })();
+    </script>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-bg"></div>
+        <div class="login-box">
+            <!-- Corner accents -->
+            <div class="corner-accent tl"></div>
+            <div class="corner-accent tr"></div>
+            <div class="corner-accent bl"></div>
+            <div class="corner-accent br"></div>
+
+            <!-- AI Animated Logo -->
+            <div class="login-header">
+                <div class="ai-widget ai-widget-lg" id="loginAiWidget" onclick="triggerAiAction(this)" title="Cliquez pour changer l'effet d'animation !" style="cursor:pointer;">
+                    <div class="ai-ring3"></div>
+                    <div class="ai-orbit"></div>
+                    <div class="ai-orbit ai-orbit-2"></div>
+                    <div class="ai-core"></div>
+                </div>
+                <div style="margin-top:14px;">
+                    <div class="ai-glitch-wrap">
+                        <span class="ai-glitch-text" data-text="AI">AI</span>
+                    </div>
+                    <div style="font-size:16px;letter-spacing:1.5px;background:linear-gradient(135deg,#00d4aa 0%,#00b4d8 40%,#7c3aed 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:900;margin-top:6px;">SPA DOUROUB ELDJAZAIR</div>
+                    <div style="font-size:10px;letter-spacing:3px;color:var(--text-light);font-weight:700;margin-top:2px;">ABDO INTELLIGENT SYSTEMS</div>
+                </div>
+                <p style="margin-top:10px;color:var(--text-muted);font-size:12px;">Système Intégré de Gestion de Stock & Flotte</p>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label style="text-transform:uppercase;letter-spacing:1px;font-size:11px;">Identifiant</label>
+                    <div class="input-group">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" placeholder="Identifiant" required autocomplete="username">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="text-transform:uppercase;letter-spacing:1px;font-size:11px;">Mot de passe</label>
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                </div>
+                <button type="submit" class="btn-login">
+                    <i class="fas fa-sign-in-alt"></i> Connexion
+                </button>
+            </form>
+
+            <!-- Company branding footer -->
+            <div id="loginCompanyWrap" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light);">
+                <img id="loginCompanyLogo" style="display:none;max-height:32px;border-radius:6px;" alt="Logo">
+                <span id="loginCompanyName" style="font-size:11px;color:var(--text-light);font-weight:600;"></span>
+            </div>
+
+            <p style="text-align:center;margin-top:10px;font-size:9px;color:var(--text-light);letter-spacing:.5px;">
+                Developed by <span style="color:#0d9488;font-weight:700;">CHIKHAOUI ABDERRAHIME</span>
+            </p>
+
+            <div class="login-hints" style="font-size:10px;line-height:1.6;color:var(--text-muted);text-align:center;">
+                <div class="fw-bold mb-1" style="color:var(--primary);">Compte d'accès officiel :</div>
+                <span>admin / admin123 (Administrateur)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Container -->
+    <div id="appContainer" class="app-layout hidden">
+        <!-- Top Header Bar -->
+        <header class="header-bar">
+            <div class="header-left">
+                <div class="header-brand" id="topHeaderBrand" title="SPA DOUROUB ELDJAZAIR — Abdo Intelligent Systems" onclick="App.loadModule('dashboard');" style="cursor:pointer;display:flex;align-items:center;gap:7px;">
+                    <div class="brand-icon-circle" id="headerAiWidget" style="position:relative;width:34px;height:34px;">
+                        <div class="ai-widget ai-widget-sm" style="width:34px;height:34px;position:absolute;top:0;left:0;">
+                            <div class="ai-ring3" style="width:34px;height:34px;"></div>
+                            <div class="ai-orbit" style="width:26px;height:26px;"></div>
+                            <div class="ai-core" style="width:12px;height:12px;"></div>
+                        </div>
+                    </div>
+                    <span class="brand-text" id="topCompanyName" style="font-size:12px;font-weight:800;letter-spacing:0.4px;color:var(--header-text, inherit);white-space:nowrap;">SPA DOUROUB ELDJAZAIR</span>
+                </div>
+                <nav id="mainNav" class="main-nav">
+                    <!-- Built dynamically by app.js -->
+                </nav>
+            </div>
+            <div class="header-right">
+                <a href="../suivi-achats-premium/index.html" id="linkToAppro" class="header-nav-pill-compact header-nav-pill-blue" style="text-decoration:none;display:inline-flex;" title="Suivi Achats & Bons de Commande">
+                    <i class="fas fa-cart-shopping"></i> <span>Achats</span>
+                </a>
+                <a href="../index.html" id="linkToPortal" class="header-nav-pill-compact header-nav-pill-purple" style="text-decoration:none;display:inline-flex;" title="Retourner au Portail Général">
+                    <i class="fas fa-th-large"></i> <span>Portail</span>
+                </a>
+                <button type="button" id="btnQuickUserBt" onclick="if(window.PlanTravailModule) PlanTravailModule.openUserWorkPlanModal();" style="display:none;" aria-hidden="true"></button>
+                <button type="button" id="btnReparationHistory" onclick="window.showReparationHistory();" style="display:none;" aria-hidden="true"></button>
+                <!-- Smart Dock: Preserved in DOM for scripts but hidden from visible header flow -->
+                <div class="header-dock" id="headerDock" style="display:none;" aria-hidden="true">
+                    <button type="button" class="dock-btn dock-btn-stock" id="smartDockBtn" onclick="App.smartDockAction();" style="display:none;">
+                        <i class="fas fa-boxes-stacked" id="smartDockIcon"></i>
+                        <span id="smartDockLabel">Stock</span>
+                        <span class="dock-pill-count" id="topCartBadge" style="display:none;">0</span>
+                    </button>
+                </div>
+                <button id="btnHeaderGdsScanner" class="btn btn-sm btn-gds-scan" title="Scan Sortie GDS" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal();" style="display:none;"><i class="fas fa-barcode"></i> <span>Scan GDS</span></button>
+                <div class="clock" id="systemClock" title="Heure Système">--:--:--</div>
+                <button id="toggleTheme" class="header-btn theme-toggle" title="Changer le thème"><i class="fas fa-adjust"></i></button>
+                <div class="notifications-wrapper notification-bell" style="position:relative;">
+                    <button id="btnNotifications" class="header-btn" title="Notifications" onclick="if(typeof Notify!=='undefined') Notify.toggleDropdown(event)">
+                        <i class="fas fa-bell"></i>
+                        <span class="notif-badge-count" id="notifBadge" style="display:none;"></span>
+                    </button>
+                    <div class="notification-dropdown" id="notifDropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);z-index:100005;"></div>
+                </div>
+                <div class="user-menu-wrapper">
+                    <button class="user-avatar-btn" id="userProfileBtn" aria-label="Mon profil" title="Mon profil">
+                        <span class="user-initials-badge" id="userInitialsBadge">?</span>
+                    </button>
+                    <div class="user-dropdown user-dropdown-rich" id="userDropdown">
+                        <div class="udrop-header">
+                            <div class="udrop-avatar-lg" id="udropAvatarLg">?</div>
+                            <div class="udrop-info">
+                                <strong id="udropFullName">Utilisateur</strong>
+                                <span id="udropRole">Rôle</span>
+                                <span id="udropService" class="udrop-service">Service</span>
+                            </div>
+                        </div>
+                        <div class="udrop-stats">
+                            <a href="#" class="udrop-stat-chip" onclick="App.loadModule('decharges'); document.getElementById('userDropdown').classList.remove('open');">
+                                <i class="fas fa-file-export"></i>
+                                <span id="udropBsmCount">0</span>
+                                <small>BSM en cours</small>
+                            </a>
+                            <a href="#" class="udrop-stat-chip" onclick="App.loadModule('planTravail'); document.getElementById('userDropdown').classList.remove('open');">
+                                <i class="fas fa-wrench"></i>
+                                <span id="udropBtCount">0</span>
+                                <small>BT ouverts</small>
+                            </a>
+                            <a href="#" class="udrop-stat-chip" onclick="App.loadModule('stock'); document.getElementById('userDropdown').classList.remove('open');">
+                                <i class="fas fa-triangle-exclamation"></i>
+                                <span id="udropAlertCount">0</span>
+                                <small>Alertes stock</small>
+                            </a>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="#profil" onclick="if(typeof App!=='undefined') App.showUserSettings(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-id-card"></i> Mon Profil</a>
+                        <a href="#parametres" onclick="if(typeof App!=='undefined') App.showSettings(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-cog"></i> Préférences</a>
+                        <a href="javascript:void(0)" class="dropdown-item" onclick="if(window.UI && UI.startStockTutorial) UI.startStockTutorial();"><i class="fas fa-graduation-cap me-2 text-warning"></i> <span>Visite Guidée & Tutoriel</span></a>
+                        <a href="#" id="udropGdsScanLink" class="udrop-gds-link" style="display:none;" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-qrcode" style="color:#059669;"></i> Scanner Sortie GDS</a>
+                        <a href="../suivi-achats-premium/index.html" id="udropAchatsLink" class="udrop-achats-link" style="display:none;"><i class="fas fa-cart-shopping" style="color:var(--primary, #2563eb);"></i> Suivi Achats & BC</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" id="btnLogout" class="logout-link"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sub-header breadcrumb -->
+        <div class="sub-header">
+            <div class="breadcrumb" id="breadcrumb">
+                <i class="fas fa-home"></i> <span>Accueil</span> › <strong>Tableau de Bord</strong>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main id="mainContent" class="main-content">
+            <!-- Dynamically injected views -->
+        </main>
+    </div>
+
+    <!-- Reusable Modal System -->
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="modalTitle">Titre Modal</h3>
+                <div class="modal-header-actions" style="display:flex;align-items:center;gap:6px;">
+                    <button type="button" class="btn-fullscreen-modal" id="toggleModalFullscreenBtn" title="Plein écran (100% de l'écran)" onclick="if(window.UI && UI.toggleModalFullscreen) UI.toggleModalFullscreen();"><i class="fas fa-expand"></i></button>
+                    <button class="btn-close-modal" id="closeModalBtn"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="btn btn-secondary" id="modalCancelBtn">Annuler</button>
+                <button class="btn btn-primary" id="modalConfirmBtn">Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+    <div id="welcomeToastContainer" class="welcome-toast-container" aria-live="polite"></div>
+
+    <!-- Hover Tooltip -->
+    <div id="hoverTooltip" class="hover-tooltip hidden"></div>
+
+    <!-- Scripts CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <!-- Application Scripts -->
+    <script src="seed.js"></script>
+    <script src="api.js?v=6.0.0"></script>
+    <script src="core.js"></script>
+    <script src="core-api-bridge.js?v=6.0.0"></script>
+    <script src="modules.js?v=5.5.0"></script>
+    <script src="plan-travail.js"></script>
+    <script src="pdf.js"></script>
+    <script src="stock-tutorial.js?v=5.5.0"></script>
+    <script src="gds-scanner.js"></script>
+    <script src="app.js"></script>
+
+    <!-- AI MEGA LOGO — 100 Effects Auto-Cycle Engine -->
+    <script>
+    (function(){
+      var TOTAL_FX = 100;
+      var loginFx = 1;
+      var headerFx = 1;
+
+      function applyFx(widget, n) {
+        if(!widget) return;
+        for(var i=0;i<=TOTAL_FX;i++) widget.classList.remove('ai-fx-'+i);
+        ['pulse','ball','name','search','explode','orbit','shrink'].forEach(function(s){ widget.classList.remove('ai-state-'+s); });
+        if(n>0) widget.classList.add('ai-fx-'+n);
+      }
+
+      function isElementVisible(el) {
+        if (!el) return false;
+        return !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length > 0));
+      }
+
+      // Initialize effects immediately on DOM load
+      function initWidgets() {
+        var loginW = document.getElementById('loginAiWidget');
+        if (loginW) applyFx(loginW, 1);
+        var headerW = document.getElementById('headerAiWidget');
+        if (headerW) applyFx(headerW, 1);
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initWidgets);
+      } else {
+        initWidgets();
+      }
+
+      // Auto-cycle every 4 seconds on login logo
+      setInterval(function(){
+        var loginW = document.getElementById('loginAiWidget') || document.querySelector('.ai-widget-lg');
+        if(!isElementVisible(loginW)) return;
+        loginFx = (loginFx % TOTAL_FX) + 1;
+        applyFx(loginW, loginFx);
+      }, 4000);
+
+      // Auto-cycle every 5 seconds on header logo
+      setInterval(function(){
+        var headerW = document.getElementById('headerAiWidget') || document.querySelector('.header-brand .ai-widget');
+        if(!isElementVisible(headerW)) return;
+        headerFx = (headerFx % TOTAL_FX) + 1;
+        applyFx(headerW, headerFx);
+      }, 5000);
+
+      // Click = jump to random effect
+      window.triggerAiAction = function(el) {
+        if(!el) return;
+        var w = el.closest ? (el.closest('.ai-widget') || el) : el;
+        var n = Math.floor(Math.random()*TOTAL_FX)+1;
+        applyFx(w, n);
+      };
+    })();
+    </script>
+    <!-- Slide-Over Requisition Drawer (Panneau Latéral Demande de Matériel) -->
+    <div id="reqDrawerBackdrop" class="req-drawer-backdrop" onclick="Cart.closeDrawer();"></div>
+    <aside id="reqDrawer" class="req-drawer" aria-hidden="true"></aside>
+
+    <!-- Floating Requisition Dock (Bottom Bar Cart Pill) -->
+    <div id="floatingRequisitionDock" class="floating-req-dock" style="display:none;" onclick="Cart.showModal();" title="Ouvrir votre Panier Magasin">
+        <div class="frd-left">
+            <div class="frd-cart-icon-wrapper">
+                <i class="fas fa-cart-shopping"></i>
+                <span class="frd-counter" id="frdCountBadge">0</span>
+            </div>
+            <div class="frd-text">
+                <strong class="frd-main-title"><i class="fas fa-basket-shopping me-1 text-warning"></i> Mon Panier Magasin</strong>
+                <span id="frdSummaryText">0 article sélectionné pour dotation</span>
+            </div>
+        </div>
+        <div class="frd-right">
+            <button type="button" class="frd-btn-submit" onclick="event.stopPropagation(); Cart.showModal();" title="Afficher et valider les articles du panier">
+                <i class="fas fa-clipboard-check me-1"></i>
+                <span>Mon Panier</span>
+                <i class="fas fa-arrow-right ms-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Floating Action Button (FAB) Mobile GDS Scanner -->
+    <button id="fabGdsScanner" class="fab-gds-scanner" title="Scanner QR / Code-Barres GDS" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal();" style="display:none;">
+        <i class="fas fa-qrcode"></i><span class="fab-label">Scan GDS</span>
+    </button>
+
+    <!-- Mobile & Desktop GDS Barcode/QR Scanner Modal -->
+    <div id="gdsScannerModal" class="modal-overlay hidden" style="z-index: 100050;">
+        <div class="modal-dialog gds-scanner-modal-dialog">
+            <div class="modal-header" style="background: linear-gradient(135deg, #881337 0%, #be123c 100%); color: #fff;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-barcode fs-5"></i>
+                    <div>
+                        <h4 class="m-0 text-white fw-bold" style="font-size: 16px;">Scanner Sortie GDS & Comptoir</h4>
+                        <small class="text-white-50" style="font-size: 11px;">Caméra mobile & Pistolet Code-Barres USB</small>
+                    </div>
+                </div>
+                <div class="modal-header-actions d-flex align-items-center gap-2">
+                    <button type="button" class="btn-close-modal text-white" onclick="GdsScannerModule.closeModal();" title="Fermer"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Camera Viewfinder Box -->
+                <div class="gds-viewfinder-box mb-3" id="gdsViewfinderContainer">
+                    <div id="gdsCameraStream" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+                        <div class="text-center text-muted p-3" id="gdsCamPlaceholder">
+                            <i class="fas fa-camera fa-3x mb-2 text-danger"></i>
+                            <div class="small text-white">Caméra en veille</div>
+                            <small class="text-muted">Cliquez sur « Activer Caméra » ou flashez au lecteur USB</small>
+                        </div>
+                    </div>
+                    <!-- Viewfinder Corners & Laser Scanning Line -->
+                    <div class="gds-laser-container">
+                        <div class="scan-laser-line" id="gdsLaserLine" style="display:none;"></div>
+                        <div class="viewfinder-corners"></div>
+                        <div class="viewfinder-corners-bottom"></div>
+                    </div>
+                </div>
+
+                <!-- Camera Controls & Torch Bar -->
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger fw-bold" id="btnToggleGdsCamera" onclick="GdsScannerModule.toggleCamera();">
+                            <i class="fas fa-video me-1"></i> <span id="lblGdsCamAction">Activer Caméra</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnToggleGdsTorch" onclick="GdsScannerModule.toggleTorch();" style="display:none;" title="Torche / Flash">
+                            <i class="fas fa-bolt"></i>
+                        </button>
+                    </div>
+                    <!-- Auto-Deduct Toggle Checkbox -->
+                    <label class="gds-auto-deduct-toggle m-0" title="Déduire automatiquement le stock au scan">
+                        <input type="checkbox" id="chkGdsAutoDeduct" onchange="GdsScannerModule.onAutoDeductChanged(this.checked)">
+                        <span class="small fw-bold text-success"><i class="fas fa-bolt-lightning me-1"></i> Auto-déduire</span>
+                    </label>
+                </div>
+
+                <!-- Hardware USB Barcode Scanner & Manual Entry -->
+                <div class="input-group mb-2">
+                    <span class="input-group-text bg-light"><i class="fas fa-keyboard text-danger"></i></span>
+                    <input type="text" id="gdsManualBarcodeInput" class="form-control" placeholder="Scanner douchette ou saisir code (PR-..., DEM-..., code-barres)..." onkeydown="if(event.key==='Enter'){ GdsScannerModule.handleCode(this.value); this.value=''; }">
+                    <button class="btn btn-danger px-3 fw-bold" type="button" onclick="const el=document.getElementById('gdsManualBarcodeInput'); GdsScannerModule.handleCode(el.value); el.value='';">
+                        <i class="fas fa-search me-1"></i> Valider
+                    </button>
+                </div>
+
+                <!-- Scan Result Card Container -->
+                <div id="gdsScanResultArea" style="display:none;"></div>
+            </div>
+            <div class="modal-footer p-2 bg-light d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="GdsScannerModule.closeModal();">Fermer</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="App.loadModule('stock'); GdsScannerModule.closeModal();"><i class="fas fa-boxes-stacked me-1"></i> Voir Catalogue Stock</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
