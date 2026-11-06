@@ -133,15 +133,37 @@ const App = {
         try {
             const loginEl = document.getElementById('loginScreen');
             const appEl = document.getElementById('appContainer');
+
+            // --- MODULE GATE: Check where user should go BEFORE showing anything ---
+            try {
+                const currentUser = (typeof Auth !== 'undefined') ? Auth.getCurrentUser() : null;
+                if (currentUser) {
+                    const role = (currentUser.role || '').toLowerCase();
+                    const isAdmin = role === 'admin' || role === 'superadmin' || role === 'directeur';
+                    const defMod = currentUser.defaultModule || 'stock';
+
+                    if (isAdmin) {
+                        // Hide login, keep app hidden, show fullscreen gate
+                        if (loginEl) loginEl.style.display = 'none';
+                        this.showModulePickerModal();
+                        return; // Do NOT load app yet — gate handles navigation
+                    } else if (defMod === 'bc' && localStorage.getItem('erp_jwt_token')) {
+                        window.location.href = '/suivi-achats-premium/';
+                        return;
+                    }
+                    // defMod === 'stock' or 'both' → fall through and load app
+                }
+            } catch (gateErr) {}
+
             if (loginEl) loginEl.style.display = 'none';
             if (appEl) { appEl.style.display = ''; appEl.classList.remove('hidden'); }
-            
+
             // Show sync status
             if (typeof Utils !== 'undefined' && Utils.showNotification) {
                 const artCount = (DB && DB.data && DB.data.articles) ? DB.data.articles.length : 0;
                 Utils.showNotification('✅ Connecté — ' + artCount + ' articles chargés depuis MongoDB', 'success');
             }
-            
+
             // Branding: Top company name dynamically updated from settings
             const topComp = document.getElementById('topCompanyName');
             if (topComp) {
@@ -169,17 +191,6 @@ const App = {
                 Cart.updateBadge();
             }
 
-            // Load restored module from previous session or default to dashboard
-            const savedModule = localStorage.getItem('erp_active_module') || 'dashboard';
-            let savedTab = localStorage.getItem('erp_active_tab') || undefined;
-            // Never auto-open modals on app startup
-            if (savedTab === 'new') {
-                savedTab = 'kpi';
-                try { localStorage.setItem('erp_active_tab', 'kpi'); } catch (e) {}
-            }
-            const targetMod = (typeof Auth !== 'undefined' && Auth.canView(savedModule)) ? savedModule : 'dashboard';
-            this.loadModule(targetMod, savedTab, false);
-
             // FIX 1: Redirect to BC module if ?redirect=bc is present AND we have a JWT token
             try {
                 const urlParams = new URLSearchParams(window.location.search);
@@ -189,22 +200,15 @@ const App = {
                 }
             } catch (err) {}
 
-            // MODULE ROUTING: Admin gets picker, normal users auto-redirect by defaultModule
-            try {
-                const currentUser = (typeof Auth !== 'undefined') ? Auth.getCurrentUser() : null;
-                if (currentUser) {
-                    const role = (currentUser.role || '').toLowerCase();
-                    const isAdmin = role === 'admin' || role === 'superadmin' || role === 'directeur';
-                    const defMod = currentUser.defaultModule || 'stock';
-                    if (isAdmin) {
-                        // Show module picker modal for admin
-                        setTimeout(() => { this.showModulePickerModal(); }, 300);
-                    } else if (defMod === 'bc' && localStorage.getItem('erp_jwt_token')) {
-                        window.location.href = '/suivi-achats-premium/';
-                        return;
-                    }
-                }
-            } catch (err) {}
+            // Load restored module from previous session or default to dashboard
+            const savedModule = localStorage.getItem('erp_active_module') || 'dashboard';
+            let savedTab = localStorage.getItem('erp_active_tab') || undefined;
+            if (savedTab === 'new') {
+                savedTab = 'kpi';
+                try { localStorage.setItem('erp_active_tab', 'kpi'); } catch (e) {}
+            }
+            const targetMod = (typeof Auth !== 'undefined' && Auth.canView(savedModule)) ? savedModule : 'dashboard';
+            this.loadModule(targetMod, savedTab, false);
 
             // Auto-open GDS Scanner if query param ?scan_gds=1 is present
             try {
@@ -873,9 +877,15 @@ const App = {
 
     showModulePickerModal() {
         const modal = document.getElementById('modulePickerModal');
-        if (modal) {
-            modal.style.display = 'flex';
-        }
+        if (!modal) return;
+        // Update greeting with user name
+        try {
+            const user = (typeof Auth !== 'undefined') ? Auth.getCurrentUser() : null;
+            const name = user ? (user.name || user.username || 'Administrateur') : 'Administrateur';
+            const titleEl = document.getElementById('gateWelcomeTitle');
+            if (titleEl) titleEl.textContent = 'Bienvenue, ' + name.split(' ')[0];
+        } catch(e) {}
+        modal.style.display = 'flex';
     },
 
     hideModulePickerModal() {
@@ -890,6 +900,23 @@ const App = {
         } else if (mod === 'settings') {
             window.location.href = '/general-settings.html';
         } else {
+            // Load stock app
+            const appEl = document.getElementById('appContainer');
+            if (appEl) { appEl.style.display = ''; appEl.classList.remove('hidden'); }
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                const artCount = (DB && DB.data && DB.data.articles) ? DB.data.articles.length : 0;
+                Utils.showNotification('✅ Connecté — ' + artCount + ' articles chargés', 'success');
+            }
+            const topComp = document.getElementById('topCompanyName');
+            if (topComp) {
+                const s = (typeof DB !== 'undefined' && DB.getSettings) ? DB.getSettings() : {};
+                topComp.textContent = s.companyName || 'SPA DOUROUB ELDJAZAIR';
+            }
+            this.updateUserInfo();
+            this.buildSidebar();
+            if (typeof UI !== 'undefined' && UI.startClock) UI.startClock();
+            if (typeof Notify !== 'undefined') { Notify.init(); Notify.updateBadge(); }
+            if (typeof Cart !== 'undefined' && Cart.updateBadge) Cart.updateBadge();
             this.loadModule('dashboard');
         }
     },

@@ -17,7 +17,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // PUT /api/settings
-router.put('/', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+router.put('/', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
     const updateData = { ...req.body };
     delete updateData.key;

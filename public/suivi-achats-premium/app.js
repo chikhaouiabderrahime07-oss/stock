@@ -599,6 +599,45 @@ function logout() {
   } catch (e) {}
   window.location.href = '../index.html';
 }
+
+window.bcShowModuleGate = function() {
+  const u = state.session;
+  const name = u ? (u.name || u.username || 'Administrateur') : 'Administrateur';
+  const firstName = name.split(' ')[0];
+  const existing = document.getElementById('bcModuleGate');
+  if (existing) { existing.style.display = 'flex'; return; }
+  const gate = document.createElement('div');
+  gate.id = 'bcModuleGate';
+  gate.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f172a,#1e1b4b);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:inherit;';
+  gate.innerHTML = `
+    <div style="text-align:center;margin-bottom:36px;">
+      <div style="width:68px;height:68px;border-radius:18px;background:linear-gradient(135deg,#2563eb,#7c3aed);margin:0 auto 18px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-th-large" style="color:#fff;font-size:26px;"></i>
+      </div>
+      <h1 style="font-size:1.5rem;font-weight:800;color:#fff;margin-bottom:6px;">Bienvenue, ${firstName}</h1>
+      <p style="color:#94a3b8;font-size:0.92rem;">Choisissez votre espace de travail</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:580px;width:92%;">
+      <button onclick="window.location.href='/'" style="padding:28px 14px;border-radius:18px;border:2px solid rgba(37,99,235,0.5);background:rgba(37,99,235,0.12);cursor:pointer;color:#fff;" onmouseover="this.style.background='rgba(37,99,235,0.3)'" onmouseout="this.style.background='rgba(37,99,235,0.12)'">
+        <i class="fas fa-boxes fa-2x" style="color:#60a5fa;display:block;margin-bottom:10px;"></i>
+        <strong style="font-size:0.88rem;display:block;">Stock & Magasin</strong>
+        <small style="color:#94a3b8;font-size:0.72rem;margin-top:3px;display:block;">Catalogue, mouvements</small>
+      </button>
+      <button onclick="document.getElementById('bcModuleGate').style.display='none'" style="padding:28px 14px;border-radius:18px;border:2px solid rgba(16,185,129,0.6);background:rgba(16,185,129,0.2);cursor:pointer;color:#fff;">
+        <i class="fas fa-file-contract fa-2x" style="color:#34d399;display:block;margin-bottom:10px;"></i>
+        <strong style="font-size:0.88rem;display:block;">Bons de Commande</strong>
+        <small style="color:#94a3b8;font-size:0.72rem;margin-top:3px;display:block;">BC, paiements</small>
+      </button>
+      <button onclick="window.location.href='/general-settings.html'" style="padding:28px 14px;border-radius:18px;border:2px solid rgba(124,58,237,0.5);background:rgba(124,58,237,0.12);cursor:pointer;color:#fff;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(124,58,237,0.12)'">
+        <i class="fas fa-sliders fa-2x" style="color:#a78bfa;display:block;margin-bottom:10px;"></i>
+        <strong style="font-size:0.88rem;display:block;">Paramètres Généraux</strong>
+        <small style="color:#94a3b8;font-size:0.72rem;margin-top:3px;display:block;">Utilisateurs, DB</small>
+      </button>
+    </div>
+    <p style="color:#334155;font-size:0.76rem;margin-top:36px;">ERP Douroub v6 — CHIKHAOUI ABDERRAHIME</p>
+  `;
+  document.body.appendChild(gate);
+};
 function refreshAuthUi() {
   const logged = Boolean(state.session);
   const loginScreen = $('loginScreen');
@@ -620,6 +659,16 @@ function refreshAuthUi() {
     if (cname) cname.textContent = name;
     const crole = document.getElementById('ucardRole');
     if (crole) crole.textContent = u.role || u.poste || 'Utilisateur';
+    const cservice = document.getElementById('ucardService');
+    if (cservice) cservice.textContent = u.service || u.department || '';
+
+    // Show admin-only links
+    const role = (u.role || '').toLowerCase();
+    const isAdmin = role === 'admin' || role === 'superadmin' || role === 'directeur';
+    const settingsLink = document.getElementById('bcLinkToSettings');
+    if (settingsLink) settingsLink.style.display = isAdmin ? 'flex' : 'none';
+    const switchBtn = document.getElementById('bcSwitchModuleBtn');
+    if (switchBtn) switchBtn.style.display = isAdmin ? 'flex' : 'none';
 
     // Show GDS Scan shortcut if user is admin, magasinier, mag, gds, stock or has gdsOption
     const gdsLink = document.getElementById('linkToGdsScanner');

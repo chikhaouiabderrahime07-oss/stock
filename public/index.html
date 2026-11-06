@@ -407,99 +407,107 @@
         <i class="fas fa-qrcode"></i><span class="fab-label">Scan GDS</span>
     </button>
 
-    <!-- Mobile & Desktop GDS Barcode/QR Scanner Modal -->
-    <div id="gdsScannerModal" class="modal-overlay hidden" style="z-index: 100050;">
-        <div class="modal-dialog gds-scanner-modal-dialog">
-            <div class="modal-header" style="background: linear-gradient(135deg, #881337 0%, #be123c 100%); color: #fff;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="fas fa-barcode fs-5"></i>
-                    <div>
-                        <h4 class="m-0 text-white fw-bold" style="font-size: 16px;">Scanner Sortie GDS & Comptoir</h4>
-                        <small class="text-white-50" style="font-size: 11px;">Caméra mobile & Pistolet Code-Barres USB</small>
-                    </div>
-                </div>
-                <div class="modal-header-actions d-flex align-items-center gap-2">
-                    <button type="button" class="btn-close-modal text-white" onclick="GdsScannerModule.closeModal();" title="Fermer"><i class="fas fa-times"></i></button>
+    <!-- GDS SMART SCANNER — Mobile-First Fullscreen -->
+    <div id="gdsScannerModal" class="hidden" style="position:fixed;inset:0;z-index:100050;background:#0f172a;display:flex;flex-direction:column;overflow:hidden;">
+        <!-- HEADER -->
+        <div style="background:linear-gradient(135deg,#881337,#be123c);padding:12px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-barcode" style="color:#fff;font-size:16px;"></i>
+            </div>
+            <div style="flex:1;">
+                <div style="color:#fff;font-weight:700;font-size:0.95rem;">Scanner GDS</div>
+                <div style="color:rgba(255,255,255,0.7);font-size:0.72rem;" id="gdsScannerSubtitle">Prêt à scanner</div>
+            </div>
+            <button onclick="GdsScannerModule.closeModal()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;"><i class="fas fa-times"></i></button>
+        </div>
+
+        <!-- CAMERA AREA -->
+        <div style="flex-shrink:0;position:relative;background:#000;height:240px;overflow:hidden;" id="gdsViewfinderContainer">
+            <div id="gdsCameraStream" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+                <div id="gdsCamPlaceholder" style="text-align:center;color:#64748b;">
+                    <i class="fas fa-camera" style="font-size:2.5rem;display:block;margin-bottom:8px;color:#475569;"></i>
+                    <div style="font-size:0.8rem;">Caméra en veille</div>
                 </div>
             </div>
-            <div class="modal-body p-3">
-                <!-- Camera Viewfinder Box -->
-                <div class="gds-viewfinder-box mb-3" id="gdsViewfinderContainer">
-                    <div id="gdsCameraStream" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
-                        <div class="text-center text-muted p-3" id="gdsCamPlaceholder">
-                            <i class="fas fa-camera fa-3x mb-2 text-danger"></i>
-                            <div class="small text-white">Caméra en veille</div>
-                            <small class="text-muted">Cliquez sur « Activer Caméra » ou flashez au lecteur USB</small>
-                        </div>
-                    </div>
-                    <!-- Viewfinder Corners & Laser Scanning Line -->
-                    <div class="gds-laser-container">
-                        <div class="scan-laser-line" id="gdsLaserLine" style="display:none;"></div>
-                        <div class="viewfinder-corners"></div>
-                        <div class="viewfinder-corners-bottom"></div>
-                    </div>
-                </div>
-
-                <!-- Camera Controls & Torch Bar -->
-                <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-danger fw-bold" id="btnToggleGdsCamera" onclick="GdsScannerModule.toggleCamera();">
-                            <i class="fas fa-video me-1"></i> <span id="lblGdsCamAction">Activer Caméra</span>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnToggleGdsTorch" onclick="GdsScannerModule.toggleTorch();" style="display:none;" title="Torche / Flash">
-                            <i class="fas fa-bolt"></i>
-                        </button>
-                    </div>
-                    <!-- Auto-Deduct Toggle Checkbox -->
-                    <label class="gds-auto-deduct-toggle m-0" title="Déduire automatiquement le stock au scan">
-                        <input type="checkbox" id="chkGdsAutoDeduct" onchange="GdsScannerModule.onAutoDeductChanged(this.checked)">
-                        <span class="small fw-bold text-success"><i class="fas fa-bolt-lightning me-1"></i> Auto-déduire</span>
-                    </label>
-                </div>
-
-                <!-- Hardware USB Barcode Scanner & Manual Entry -->
-                <div class="input-group mb-2">
-                    <span class="input-group-text bg-light"><i class="fas fa-keyboard text-danger"></i></span>
-                    <input type="text" id="gdsManualBarcodeInput" class="form-control" placeholder="Scanner douchette ou saisir code (PR-..., DEM-..., code-barres)..." onkeydown="if(event.key==='Enter'){ GdsScannerModule.handleCode(this.value); this.value=''; }">
-                    <button class="btn btn-danger px-3 fw-bold" type="button" onclick="const el=document.getElementById('gdsManualBarcodeInput'); GdsScannerModule.handleCode(el.value); el.value='';">
-                        <i class="fas fa-search me-1"></i> Valider
-                    </button>
-                </div>
-
-                <!-- Scan Result Card Container -->
-                <div id="gdsScanResultArea" style="display:none;"></div>
+            <!-- Scanner corners overlay -->
+            <div style="position:absolute;inset:0;pointer-events:none;">
+                <div style="position:absolute;top:20px;left:20px;width:40px;height:40px;border-top:3px solid #ef4444;border-left:3px solid #ef4444;border-radius:4px 0 0 0;"></div>
+                <div style="position:absolute;top:20px;right:20px;width:40px;height:40px;border-top:3px solid #ef4444;border-right:3px solid #ef4444;border-radius:0 4px 0 0;"></div>
+                <div style="position:absolute;bottom:20px;left:20px;width:40px;height:40px;border-bottom:3px solid #ef4444;border-left:3px solid #ef4444;border-radius:0 0 0 4px;"></div>
+                <div style="position:absolute;bottom:20px;right:20px;width:40px;height:40px;border-bottom:3px solid #ef4444;border-right:3px solid #ef4444;border-radius:0 0 4px 0;"></div>
+                <div id="gdsLaserLine" style="display:none;position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,#ef4444,transparent);box-shadow:0 0 8px #ef4444;animation:laserScan 1.5s ease-in-out infinite;"></div>
             </div>
-            <div class="modal-footer p-2 bg-light d-flex justify-content-between">
-                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="GdsScannerModule.closeModal();">Fermer</button>
-                <button type="button" class="btn btn-sm btn-primary" onclick="App.loadModule('stock'); GdsScannerModule.closeModal();"><i class="fas fa-boxes-stacked me-1"></i> Voir Catalogue Stock</button>
+        </div>
+
+        <!-- CAMERA CONTROLS -->
+        <div style="background:#1e293b;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-bottom:1px solid #334155;">
+            <button id="btnToggleGdsCamera" onclick="GdsScannerModule.toggleCamera()" style="flex:1;padding:9px;border-radius:8px;border:1.5px solid #ef4444;background:transparent;color:#ef4444;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+                <i class="fas fa-video"></i> <span id="lblGdsCamAction">Activer Caméra</span>
+            </button>
+            <button id="btnToggleGdsTorch" onclick="GdsScannerModule.toggleTorch()" style="display:none;padding:9px 14px;border-radius:8px;border:1.5px solid #64748b;background:transparent;color:#94a3b8;cursor:pointer;">
+                <i class="fas fa-bolt"></i>
+            </button>
+        </div>
+
+        <!-- MANUAL INPUT -->
+        <div style="background:#1e293b;padding:10px 14px;display:flex;gap:8px;flex-shrink:0;border-bottom:1px solid #334155;">
+            <input id="gdsManualBarcodeInput" type="text" placeholder="Code-barres ou référence..." style="flex:1;padding:10px 12px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.88rem;outline:none;" onkeydown="if(event.key==='Enter'){GdsScannerModule.handleCode(this.value);this.value='';}">
+            <button onclick="const el=document.getElementById('gdsManualBarcodeInput');GdsScannerModule.handleCode(el.value);el.value='';" style="padding:10px 16px;border-radius:8px;background:#ef4444;color:#fff;border:none;font-weight:700;cursor:pointer;font-size:0.85rem;">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+
+        <!-- RESULT AREA — Scrollable -->
+        <div id="gdsScanResultArea" style="flex:1;overflow-y:auto;padding:14px;"></div>
+
+        <!-- FOOTER -->
+        <div style="background:#1e293b;padding:10px 14px;display:flex;gap:8px;flex-shrink:0;border-top:1px solid #334155;">
+            <div id="gdsSessionCounter" style="flex:1;font-size:0.78rem;color:#64748b;display:flex;align-items:center;gap:6px;">
+                <i class="fas fa-history"></i> <span id="gdsCountLabel">0 opération(s) cette session</span>
             </div>
+            <button onclick="App&&App.loadModule('stock');GdsScannerModule.closeModal();" style="padding:8px 14px;border-radius:8px;background:#1d4ed8;color:#fff;border:none;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                <i class="fas fa-boxes-stacked"></i> Stock
+            </button>
         </div>
     </div>
+    <style>
+    @keyframes laserScan{0%{top:30px}50%{top:calc(100% - 30px)}100%{top:30px}}
+    #gdsScannerModal.hidden{display:none!important;}
+    #gdsScannerModal:not(.hidden){display:flex!important;}
+    @media(min-width:768px){
+      #gdsScannerModal{max-width:480px;max-height:90vh;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:20px;right:auto;bottom:auto;}
+    }
+    .gds-action-btn{width:100%;padding:16px;border-radius:12px;border:2px solid;background:transparent;cursor:pointer;font-weight:700;font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:10px;transition:0.15s;font-family:inherit;}
+    .gds-action-btn:active{transform:scale(0.97);}
+    </style>
 
-    <!-- MODULE PICKER MODAL (Admin only) -->
-    <div id="modulePickerModal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;">
-        <div style="background:var(--surface,#fff);border-radius:20px;padding:40px 32px;max-width:520px;width:92%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.3);">
-            <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
-                <i class="fas fa-th-large" style="color:#fff;font-size:24px;"></i>
+    <!-- MODULE GATE — Fullscreen (Admin only, shown BEFORE app loads) -->
+    <div id="modulePickerModal" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);flex-direction:column;align-items:center;justify-content:center;font-family:inherit;">
+        <div style="text-align:center;margin-bottom:40px;">
+            <div style="width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#2563eb,#7c3aed);margin:0 auto 20px;display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-th-large" style="color:#fff;font-size:28px;"></i>
             </div>
-            <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:6px;color:var(--text,#111);">Choisissez votre espace</h2>
-            <p style="color:var(--text-muted,#666);font-size:0.92rem;margin-bottom:28px;">Administrateur — Accédez au module de votre choix</p>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px;">
-                <button onclick="App.goToModule('stock')" style="padding:22px 10px;border-radius:14px;border:2px solid #2563eb;background:#eff6ff;cursor:pointer;">
-                    <i class="fas fa-boxes fa-2x" style="color:#2563eb;display:block;margin-bottom:8px;"></i>
-                    <strong style="font-size:0.82rem;">Stock &amp; Magasin</strong>
-                </button>
-                <button onclick="App.goToModule('bc')" style="padding:22px 10px;border-radius:14px;border:2px solid #10b981;background:#f0fdf4;cursor:pointer;">
-                    <i class="fas fa-file-contract fa-2x" style="color:#10b981;display:block;margin-bottom:8px;"></i>
-                    <strong style="font-size:0.82rem;">Bons de Commande</strong>
-                </button>
-                <button onclick="App.goToModule('settings')" style="padding:22px 10px;border-radius:14px;border:2px solid #7c3aed;background:#f5f3ff;cursor:pointer;">
-                    <i class="fas fa-sliders fa-2x" style="color:#7c3aed;display:block;margin-bottom:8px;"></i>
-                    <strong style="font-size:0.82rem;">Parametres Generaux</strong>
-                </button>
-            </div>
-            <button onclick="App.hideModulePickerModal()" style="background:none;border:none;color:var(--text-muted,#888);font-size:0.85rem;cursor:pointer;text-decoration:underline;">Rester sur Stock et continuer</button>
+            <h1 style="font-size:1.6rem;font-weight:800;color:#fff;margin-bottom:8px;" id="gateWelcomeTitle">Bienvenue</h1>
+            <p style="color:#94a3b8;font-size:0.95rem;" id="gateWelcomeSubtitle">Choisissez votre espace de travail</p>
         </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:600px;width:92%;">
+            <button onclick="App.goToModule('stock')" style="padding:32px 16px;border-radius:20px;border:2px solid rgba(37,99,235,0.5);background:rgba(37,99,235,0.12);cursor:pointer;color:#fff;transition:all 0.2s;" onmouseover="this.style.background='rgba(37,99,235,0.3)';this.style.borderColor='#2563eb';" onmouseout="this.style.background='rgba(37,99,235,0.12)';this.style.borderColor='rgba(37,99,235,0.5)';">
+                <i class="fas fa-boxes fa-2x" style="color:#60a5fa;display:block;margin-bottom:12px;"></i>
+                <strong style="font-size:0.9rem;display:block;">Stock &amp; Magasin</strong>
+                <small style="color:#94a3b8;font-size:0.75rem;margin-top:4px;display:block;">Catalogue, mouvements, GDS</small>
+            </button>
+            <button onclick="App.goToModule('bc')" style="padding:32px 16px;border-radius:20px;border:2px solid rgba(16,185,129,0.5);background:rgba(16,185,129,0.12);cursor:pointer;color:#fff;transition:all 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.3)';this.style.borderColor='#10b981';" onmouseout="this.style.background='rgba(16,185,129,0.12)';this.style.borderColor='rgba(16,185,129,0.5)';">
+                <i class="fas fa-file-contract fa-2x" style="color:#34d399;display:block;margin-bottom:12px;"></i>
+                <strong style="font-size:0.9rem;display:block;">Bons de Commande</strong>
+                <small style="color:#94a3b8;font-size:0.75rem;margin-top:4px;display:block;">BC, paiements, fournisseurs</small>
+            </button>
+            <button onclick="App.goToModule('settings')" style="padding:32px 16px;border-radius:20px;border:2px solid rgba(124,58,237,0.5);background:rgba(124,58,237,0.12);cursor:pointer;color:#fff;transition:all 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)';this.style.borderColor='#7c3aed';" onmouseout="this.style.background='rgba(124,58,237,0.12)';this.style.borderColor='rgba(124,58,237,0.5)';">
+                <i class="fas fa-sliders fa-2x" style="color:#a78bfa;display:block;margin-bottom:12px;"></i>
+                <strong style="font-size:0.9rem;display:block;">Paramètres Généraux</strong>
+                <small style="color:#94a3b8;font-size:0.75rem;margin-top:4px;display:block;">Utilisateurs, DB, sauvegardes</small>
+            </button>
+        </div>
+        <p style="color:#475569;font-size:0.78rem;margin-top:40px;">ERP Douroub v6 — Developed by CHIKHAOUI ABDERRAHIME</p>
     </div>
 </body>
 </html>
