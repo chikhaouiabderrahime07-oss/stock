@@ -6,7 +6,9 @@ const rateLimit = require('express-rate-limit');
 const loginLimiter = rateLimit({
   windowMs: 30 * 60 * 1000,
   max: 5,
-  message: { error: 'Trop de tentatives (5 max). Réessayez dans 30 minutes.' }
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives (5 max). Réessayez dans 30 minutes.', remaining: 0 }
 });
 
 // POST /api/auth/login
@@ -19,12 +21,14 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const user = await User.findOne({ username: username.toLowerCase().trim() }).select('+password');
     if (!user) {
-      return res.status(401).json({ error: 'Identifiants incorrects' });
+      const remaining = parseInt(res.getHeader('RateLimit-Remaining')) || 0;
+      return res.status(401).json({ error: 'Identifiants incorrects', remaining });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Identifiants incorrects' });
+      const remaining = parseInt(res.getHeader('RateLimit-Remaining')) || 0;
+      return res.status(401).json({ error: 'Identifiants incorrects', remaining });
     }
 
     const token = generateToken(user);
@@ -158,22 +162,6 @@ router.delete('/users/:id', authenticate, authorize('superadmin'), async (req, r
     res.json({ message: 'Utilisateur supprimé' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// GET /api/auth/reset-admin — force reset admin password (REMOVE AFTER FIRST LOGIN)
-router.get('/reset-admin', async (req, res) => {
-  try {
-    await User.deleteMany({ username: 'admin' });
-    const admin = await User.create({
-      username: process.env.ADMIN_USERNAME || 'admin',
-      password: process.env.ADMIN_PASSWORD || 'admin123',
-      name: 'Administrateur',
-      role: 'superadmin'
-    });
-    res.json({ message: 'Admin reset OK', username: admin.username });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 

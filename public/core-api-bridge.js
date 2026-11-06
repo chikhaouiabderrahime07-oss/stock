@@ -220,7 +220,10 @@
       return false;
     } catch (err) {
       console.error('[BRIDGE] Login failed:', err.message);
-      if (err && (err.status === 429 || (err.message && err.message.toLowerCase().includes('tentatives')))) {
+      if (err && (err.status === 429 || err.remaining !== undefined || (err.message && err.message.toLowerCase().includes('tentatives')))) {
+        throw err;
+      }
+      if (err && err.status === 401) {
         throw err;
       }
       // Fallback to local auth for offline mode
@@ -373,6 +376,10 @@
       }
     } catch (e) {
       console.warn('[BRIDGE] Sync failed for', col, action, ':', e.message);
+      // Show visible error to user so they know sync failed
+      if (typeof Utils !== 'undefined' && Utils.showNotification) {
+        Utils.showNotification('⚠️ Sync serveur échouée: ' + (e.message || 'Erreur réseau'), 'error');
+      }
     }
   }
 

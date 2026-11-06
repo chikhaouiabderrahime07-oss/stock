@@ -76,12 +76,14 @@ window.API = {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const remaining = data.remaining !== undefined ? data.remaining : null;
         const defaultMsg = res.status === 429
           ? 'Trop de tentatives de connexion. Réessayez dans 30 minutes.'
           : 'Identifiants incorrects';
         const err = new Error(data.error || defaultMsg);
         err.status = res.status;
         err.data = data;
+        err.remaining = remaining;
         throw err;
       }
       API.setToken(data.token);

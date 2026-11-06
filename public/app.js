@@ -636,6 +636,22 @@ const App = {
         // Login form — use actual ID from index.html: loginForm
         const loginForm = document.getElementById('loginForm');
         if (loginForm) {
+            // Create attempt counter element
+            let attemptBadge = document.getElementById('loginAttemptBadge');
+            if (!attemptBadge) {
+                attemptBadge = document.createElement('div');
+                attemptBadge.id = 'loginAttemptBadge';
+                attemptBadge.style.cssText = 'display:none;text-align:center;padding:8px 12px;margin:8px 0;border-radius:8px;font-weight:600;font-size:14px;transition:all 0.3s;';
+                loginForm.insertBefore(attemptBadge, loginForm.querySelector('button[type="submit"]'));
+            }
+            // Add shake keyframes if not already added
+            if (!document.getElementById('shakeStyle')) {
+                const shakeCSS = document.createElement('style');
+                shakeCSS.id = 'shakeStyle';
+                shakeCSS.textContent = '@keyframes shakeForm{0%,100%{transform:translateX(0)}10%,30%,50%,70%,90%{transform:translateX(-6px)}20%,40%,60%,80%{transform:translateX(6px)}}.shake-animation{animation:shakeForm 0.6s ease-in-out}';
+                document.head.appendChild(shakeCSS);
+            }
+
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const username = document.getElementById('username')?.value;
@@ -648,11 +664,37 @@ const App = {
                 try {
                     const result = await Auth.login(username, password);
                     if (result) {
+                        if (attemptBadge) attemptBadge.style.display = 'none';
                         this.showApp();
                     } else {
+                        loginForm.classList.add('shake-animation');
+                        setTimeout(() => loginForm.classList.remove('shake-animation'), 700);
                         Utils.showNotification('Identifiants incorrects', 'error');
                     }
                 } catch (err) {
+                    // Shake the form
+                    loginForm.classList.add('shake-animation');
+                    setTimeout(() => loginForm.classList.remove('shake-animation'), 700);
+
+                    if (err.status === 429) {
+                        attemptBadge.style.display = 'block';
+                        attemptBadge.style.background = '#dc3545';
+                        attemptBadge.style.color = '#fff';
+                        attemptBadge.textContent = '🔒 Compte bloqué — Réessayez dans 30 minutes';
+                    } else if (err.remaining !== undefined && err.remaining !== null) {
+                        attemptBadge.style.display = 'block';
+                        if (err.remaining <= 1) {
+                            attemptBadge.style.background = '#dc3545';
+                            attemptBadge.style.color = '#fff';
+                        } else if (err.remaining <= 2) {
+                            attemptBadge.style.background = '#fd7e14';
+                            attemptBadge.style.color = '#fff';
+                        } else {
+                            attemptBadge.style.background = '#ffc107';
+                            attemptBadge.style.color = '#333';
+                        }
+                        attemptBadge.textContent = '⚠️ ' + err.remaining + ' tentative' + (err.remaining > 1 ? 's' : '') + ' restante' + (err.remaining > 1 ? 's' : '');
+                    }
                     Utils.showNotification(err.message || 'Erreur de connexion', 'error');
                 } finally {
                     if (submitBtn) {

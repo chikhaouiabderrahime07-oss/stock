@@ -2729,16 +2729,18 @@
 
     function initAutoTourPrompt() {
         setTimeout(() => {
-            // Only show if user is authenticated and login screen is hidden
+            // GUARD: Never show on login screen — check appContainer is visible
+            const appContainer = document.getElementById('appContainer');
             const loginScreen = document.getElementById('loginScreen');
+            // If login screen is visible or app container is hidden, abort
             if (loginScreen && loginScreen.style.display !== 'none') return;
-            if (typeof window.Auth !== 'undefined' && window.Auth.isLoggedIn && window.Auth.isLoggedIn()) {
-                const u = window.Auth.getCurrentUser();
-                if (u && u.username) {
-                    StockTutorialModule.checkFirstLoginAutoPrompt(u.username);
-                }
+            if (!appContainer || appContainer.style.display === 'none' || appContainer.classList.contains('hidden')) return;
+            // Double-check: user must have a valid JWT token
+            if (!localStorage.getItem('erp_jwt_token')) return;
+            if (typeof window.Auth !== 'undefined' && window.Auth.currentUser && window.Auth.currentUser.username) {
+                StockTutorialModule.checkFirstLoginAutoPrompt(window.Auth.currentUser.username);
             }
-        }, 3000);
+        }, 5000);
     }
 
     if (document.readyState === 'loading') {
