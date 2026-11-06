@@ -454,9 +454,22 @@
                     </div>
                     ${bsmCreated ? '<div style="font-size:0.76rem;color:#86efac;margin-bottom:12px;"><i class="fas fa-check-circle" style="margin-right:4px;"></i>BSM enregistré dans MongoDB</div>' : '<div style="font-size:0.76rem;color:#fbbf24;margin-bottom:12px;"><i class="fas fa-exclamation-triangle" style="margin-right:4px;"></i>Enregistré localement — sync en attente</div>'}
                     <button onclick="GdsScannerModule.clearResult();document.getElementById('gdsManualBarcodeInput').focus();" style="width:100%;padding:13px;border-radius:11px;background:#16a34a;color:#fff;border:none;font-weight:700;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                        <i class="fas fa-barcode"></i> Scanner suivant
+                        <i class="fas fa-barcode"></i> <span>Scanner suivant <span id="gdsAutoTimerSortie">(3)</span></span>
                     </button>
                 </div>`;
+            // Auto-advance in 3 seconds
+            let sc = 3;
+            const st = setInterval(() => {
+                sc--;
+                const lbl = document.getElementById('gdsAutoTimerSortie');
+                if (lbl) lbl.textContent = '(' + sc + ')';
+                if (sc <= 0) {
+                    clearInterval(st);
+                    this.clearResult();
+                    const inp = document.getElementById('gdsManualBarcodeInput');
+                    if (inp) inp.focus();
+                }
+            }, 1000);
         },
 
         // ─── ENTRÉE FLOW ───────────────────────────────────────────────────
@@ -529,7 +542,7 @@
                 <div style="background:#042f2e;border:1.5px solid #0d9488;border-radius:14px;padding:16px;margin-bottom:12px;">
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
                         <div style="width:40px;height:40px;border-radius:50%;background:#0d9488;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <i class="fas fa-arrow-left" style="color:#fff;font-size:1rem;"></i>
+                            <i class="fas fa-check" style="color:#fff;font-size:1.1rem;"></i>
                         </div>
                         <div>
                             <div style="color:#2dd4bf;font-weight:800;font-size:1rem;">Entrée Enregistrée !</div>
@@ -542,9 +555,22 @@
                         <div style="display:flex;justify-content:space-between;"><span style="color:#5eead4;">Nouveau stock</span><span style="font-weight:700;font-size:1.1rem;">${article.quantity} ${this.esc(article.unit||'U')}</span></div>
                     </div>
                     <button onclick="GdsScannerModule.clearResult();document.getElementById('gdsManualBarcodeInput').focus();" style="width:100%;padding:13px;border-radius:11px;background:#0d9488;color:#fff;border:none;font-weight:700;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                        <i class="fas fa-barcode"></i> Scanner suivant
+                        <i class="fas fa-barcode"></i> <span id="gdsNextScanLabel">Scanner suivant <span id="gdsAutoTimer">(3)</span></span>
                     </button>
                 </div>`;
+            // Auto-advance in 3 seconds
+            let countdown = 3;
+            const timer = setInterval(() => {
+                countdown--;
+                const lbl = document.getElementById('gdsAutoTimer');
+                if (lbl) lbl.textContent = '(' + countdown + ')';
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    this.clearResult();
+                    const inp = document.getElementById('gdsManualBarcodeInput');
+                    if (inp) inp.focus();
+                }
+            }, 1000);
         },
 
         // ─── UNKNOWN ARTICLE ───────────────────────────────────────────────
@@ -610,47 +636,120 @@
             }
         },
 
-        // ─── CREATE NEW ARTICLE ────────────────────────────────────────────
+        // ─── CREATE NEW ARTICLE — inline in scanner, no popup modal ──────
         showCreateArticleModal(scannedCode) {
-            const html = `<div class="p-2">
-                <p class="small text-muted mb-3">Créer un article avec le code <strong>${this.esc(scannedCode)}</strong> pré-associé.</p>
-                <div class="mb-2"><label class="form-label small fw-bold">Désignation <span class="text-danger">*</span></label>
-                    <input type="text" id="gdsNewDesig" class="form-control" placeholder="Nom de l'article..."></div>
-                <div class="row g-2 mb-2">
-                    <div class="col-6"><label class="form-label small fw-bold">Code article</label>
-                        <input type="text" id="gdsNewCode" class="form-control" placeholder="ART-001"></div>
-                    <div class="col-6"><label class="form-label small fw-bold">Quantité initiale</label>
-                        <input type="number" id="gdsNewQty" class="form-control" value="0" min="0"></div>
-                </div>
-                <div class="row g-2 mb-3">
-                    <div class="col-6"><label class="form-label small fw-bold">Unité</label>
-                        <input type="text" id="gdsNewUnit" class="form-control" value="U" placeholder="U, Kg..."></div>
-                    <div class="col-6"><label class="form-label small fw-bold">Catégorie</label>
-                        <input type="text" id="gdsNewCat" class="form-control" placeholder="Général"></div>
-                </div>
-                <div class="d-flex justify-content-end gap-2">
-                    <button class="btn btn-secondary btn-sm" onclick="if(window.UI&&UI.closeModal)UI.closeModal();">Annuler</button>
-                    <button class="btn btn-success btn-sm fw-bold" onclick="GdsScannerModule.commitCreateArticle('${this.esc(scannedCode)}')"><i class="fas fa-save me-1"></i>Créer</button>
-                </div></div>`;
-            if (typeof UI !== 'undefined' && UI.showModal) UI.showModal('Nouvel Article', html);
+            const area = document.getElementById('gdsScanResultArea');
+            if (!area) return;
+            const safe = this.esc(scannedCode);
+            this.subtitle('Nouvel article');
+            area.innerHTML = `
+                <div style="background:#1e293b;border-radius:14px;padding:16px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                        <div style="width:32px;height:32px;border-radius:8px;background:#166534;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-plus" style="color:#86efac;font-size:14px;"></i>
+                        </div>
+                        <div>
+                            <div style="color:#fff;font-weight:700;font-size:0.9rem;">Créer un nouvel article</div>
+                            <div style="font-family:monospace;font-size:0.72rem;color:#64748b;margin-top:1px;">${safe}</div>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Désignation <span style="color:#ef4444;">*</span></label>
+                        <input id="gdsNewDesig" type="text" placeholder="Nom de l'article..." autocomplete="off"
+                            style="width:100%;padding:12px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:1rem;outline:none;box-sizing:border-box;"
+                            oninput="this.style.borderColor='#2563eb'">
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                        <div>
+                            <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Code article</label>
+                            <input id="gdsNewCode" type="text" placeholder="ART-001" autocomplete="off"
+                                style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;outline:none;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Qté initiale</label>
+                            <input id="gdsNewQty" type="number" value="0" min="0"
+                                style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;text-align:center;outline:none;box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+                        <div>
+                            <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Unité</label>
+                            <input id="gdsNewUnit" type="text" value="U" placeholder="U, Kg, L..."
+                                style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;outline:none;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Catégorie</label>
+                            <input id="gdsNewCat" type="text" placeholder="Général"
+                                style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;outline:none;box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <button id="gdsCreateArticleBtn" onclick="GdsScannerModule.commitCreateArticle('${safe}')"
+                        style="width:100%;padding:14px;border-radius:12px;background:#16a34a;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+                        <i class="fas fa-save"></i> Créer et continuer
+                    </button>
+                    <button onclick="GdsScannerModule.renderUnknownResult('${safe}')"
+                        style="width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
+                        ← Retour
+                    </button>
+                </div>`;
+            setTimeout(() => { const el = document.getElementById('gdsNewDesig'); if (el) el.focus(); }, 100);
         },
 
         async commitCreateArticle(scannedCode) {
             const desig = (document.getElementById('gdsNewDesig')||{}).value||'';
-            if (!desig.trim()) { alert('La désignation est obligatoire.'); return; }
-            const code = (document.getElementById('gdsNewCode')||{}).value.trim() || ('ART-'+Date.now().toString().slice(-5));
+            if (!desig.trim()) {
+                const el = document.getElementById('gdsNewDesig');
+                if (el) { el.style.borderColor = '#ef4444'; el.focus(); }
+                return;
+            }
+            const code = (document.getElementById('gdsNewCode')||{}).value.trim() || ('ART-GDS-'+Date.now().toString().slice(-6));
             const qty = parseInt((document.getElementById('gdsNewQty')||{}).value,10)||0;
             const unit = (document.getElementById('gdsNewUnit')||{}).value.trim()||'U';
             const cat = (document.getElementById('gdsNewCat')||{}).value.trim()||'Général';
-            const newArt = { id:'art-'+Date.now(), code, designation:desig.trim(), quantity:qty, unit, category:cat, barcode:scannedCode, site:'Dépôt Central', minThreshold:5, createdAt:new Date().toISOString() };
-            if (typeof DB !== 'undefined') {
-                if (typeof DB.addArticle === 'function') DB.addArticle(newArt);
-                else if (DB.data && Array.isArray(DB.data.articles)) { DB.data.articles.push(newArt); if (typeof DB.save === 'function') DB.save(); }
+
+            // Disable create button to prevent double-submit
+            const btn = document.getElementById('gdsCreateArticleBtn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement...'; }
+
+            // POST to server FIRST — no client id — MongoDB generates _id
+            const payload = { code, designation: desig.trim(), quantity: qty, unit, category: cat, barcode: scannedCode, site: 'Dépôt Central', minThreshold: 5 };
+            let savedArticle = null;
+            let serverErr = null;
+            try {
+                const r = await fetch('/api/articles', { method:'POST', headers: this.hdrs(), body: JSON.stringify(payload) });
+                const data = await r.json();
+                if (r.ok) { savedArticle = data.article || data; }
+                else { serverErr = data.error || ('Erreur ' + r.status); }
+            } catch(e) { serverErr = 'Réseau indisponible'; }
+
+            if (serverErr) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Créer et continuer'; }
+                const area = document.getElementById('gdsScanResultArea');
+                if (area) {
+                    const errDiv = document.createElement('div');
+                    errDiv.style.cssText = 'color:#fca5a5;background:#7f1d1d;padding:10px 14px;border-radius:8px;font-size:0.85rem;margin-top:8px;';
+                    errDiv.textContent = '❌ ' + serverErr;
+                    area.querySelector('div') && area.querySelector('div').appendChild(errDiv);
+                }
+                return;
             }
-            try { await fetch('/api/articles', { method:'POST', headers: this.hdrs(), body: JSON.stringify(newArt) }); } catch(e){}
-            if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
-            if (typeof Utils !== 'undefined' && Utils.showNotification) Utils.showNotification(`Article "${newArt.designation}" créé !`, 'success');
-            setTimeout(() => { this.handleCode(scannedCode); }, 300);
+
+            // Push to local DB with real server data
+            if (typeof DB !== 'undefined' && savedArticle) {
+                if (typeof DB.addArticle === 'function') DB.addArticle(savedArticle);
+                else if (DB.data && Array.isArray(DB.data.articles)) {
+                    DB.data.articles.push(savedArticle);
+                    if (typeof DB.save === 'function') DB.save();
+                }
+            }
+
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                Utils.showNotification(`✅ "${savedArticle.designation}" créé dans le catalogue !`, 'success');
+            }
+
+            // Show action picker directly — scanner stays open
+            this.currentArticle = savedArticle;
+            this.renderActionPicker(savedArticle);
         }
     };
 

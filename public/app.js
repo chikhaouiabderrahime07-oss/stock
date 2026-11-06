@@ -235,9 +235,46 @@ const App = {
                 }
             } catch (err) {}
 
+            // ── MOBILE UI ─────────────────────────────────────────────────────
+            try {
+                if (window.innerWidth <= 768) {
+                    const mobileNav = document.getElementById('mobileBottomNav');
+                    if (mobileNav) mobileNav.style.display = 'flex';
+                    const hamburger = document.getElementById('mobileMenuBtn');
+                    if (hamburger) hamburger.style.display = 'flex';
+                }
+                // Also update active state on bottom nav when module changes
+                this._syncMobileNavActive();
+            } catch (err) {}
+
         } catch (e) {
             console.error('Erreur showApp:', e);
         }
+    },
+
+    toggleMobileNav() {
+        const nav = document.getElementById('mainNav');
+        if (!nav) return;
+        nav.classList.toggle('mobile-open');
+        // Close when clicking outside
+        if (nav.classList.contains('mobile-open')) {
+            const closeHandler = (e) => {
+                if (!nav.contains(e.target) && e.target.id !== 'mobileMenuBtn') {
+                    nav.classList.remove('mobile-open');
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler), 50);
+        }
+    },
+
+    _syncMobileNavActive() {
+        const btns = document.querySelectorAll('#mobileBottomNav .mob-nav-btn:not(.scan-fab-nav)');
+        const moduleMap = ['dashboard', 'stock', 'decharges'];
+        btns.forEach((btn, i) => {
+            if (moduleMap[i] === this.currentModule) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
     },
 
     updateUserInfo() {
@@ -496,6 +533,13 @@ const App = {
             this.currentModule = mod;
             this.currentTab = tab;
             this.updateNavActive(mod, tab);
+            // Sync mobile bottom nav active state
+            try { this._syncMobileNavActive(); } catch(e) {}
+            // Close mobile flyout nav if open
+            try {
+                const nav = document.getElementById('mainNav');
+                if (nav && nav.classList.contains('mobile-open')) nav.classList.remove('mobile-open');
+            } catch(e) {}
             try {
                 if (mod && mod !== 'cart') {
                     localStorage.setItem('erp_active_module', mod);

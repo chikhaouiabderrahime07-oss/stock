@@ -15,6 +15,7 @@
     <!-- Stylesheet -->
     <link rel="stylesheet" href="style.css?v=6.2.0">
     <link rel="stylesheet" href="plan-travail.css?v=5.4.0">
+    <link rel="stylesheet" href="mobile.css?v=1.0">
 
     <!-- Role Gate Enforcement & Navigation Control -->
     <script>
@@ -186,6 +187,9 @@
                     </div>
                     <span class="brand-text" id="topCompanyName" style="font-size:12px;font-weight:800;letter-spacing:0.4px;color:var(--header-text, inherit);white-space:nowrap;">SPA DOUROUB ELDJAZAIR</span>
                 </div>
+                <button id="mobileMenuBtn" class="mobile-menu-btn" onclick="App.toggleMobileNav()" title="Menu" aria-label="Menu" style="display:none;">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <nav id="mainNav" class="main-nav">
                     <!-- Built dynamically by app.js -->
                 </nav>
@@ -509,5 +513,25 @@
         </div>
         <p style="color:#475569;font-size:0.78rem;margin-top:40px;">ERP Douroub v6 — Developed by CHIKHAOUI ABDERRAHIME</p>
     </div>
+
+    <!-- MOBILE BOTTOM NAVIGATION BAR -->
+    <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Navigation mobile">
+        <button class="mob-nav-btn" onclick="App.loadModule('dashboard')" title="Accueil">
+            <i class="fas fa-home"></i><span>Accueil</span>
+        </button>
+        <button class="mob-nav-btn" onclick="App.loadModule('stock')" title="Stock">
+            <i class="fas fa-boxes"></i><span>Stock</span>
+        </button>
+        <button class="mob-nav-btn scan-fab-nav" onclick="if(window.GdsScannerModule)GdsScannerModule.openModal();" title="Scanner">
+            <i class="fas fa-barcode"></i>
+        </button>
+        <button class="mob-nav-btn" onclick="App.loadModule('decharges')" title="BSM">
+            <i class="fas fa-file-export"></i><span>BSM</span>
+        </button>
+        <button class="mob-nav-btn" onclick="document.getElementById('userProfileBtn') && document.getElementById('userProfileBtn').click()" title="Profil">
+            <i class="fas fa-user-circle"></i><span>Profil</span>
+        </button>
+    </nav>
+
 </body>
 </html>
