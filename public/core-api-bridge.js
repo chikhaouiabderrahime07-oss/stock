@@ -263,6 +263,18 @@
           // Load data from server
           await DB.loadFromServer();
           API.sse.connect();
+
+          // Update GDS scanner visibility on session restore
+          if (typeof window.isUserEligibleForGdsScan === 'function') {
+            const isEligible = window.isUserEligibleForGdsScan();
+            const btnHead = document.getElementById('btnHeaderGdsScanner');
+            const btnFab = document.getElementById('fabGdsScanner');
+            const btnQuick = document.getElementById('btnGdsScan');
+            if (btnHead) btnHead.style.display = isEligible ? 'inline-flex' : 'none';
+            if (btnFab) btnFab.style.display = isEligible ? 'flex' : 'none';
+            if (btnQuick) btnQuick.style.display = isEligible ? 'inline-flex' : 'none';
+          }
+
           return;
         }
       } catch (e) {

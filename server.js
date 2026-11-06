@@ -12,6 +12,9 @@ const { performBackup } = require('./utils/backup');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ─── Trust Proxy (required for Render / reverse proxy) ───────────
+app.set('trust proxy', 1);
+
 // ─── Security ────────────────────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -118,13 +121,15 @@ async function startServer() {
   const User = require('./models/User');
   const userCount = await User.countDocuments();
   if (userCount === 0) {
+    const seedUser = process.env.ADMIN_USERNAME || 'admin';
+    const seedPass = process.env.ADMIN_PASSWORD || 'admin123';
     await User.create({
-      username: 'admin',
-      password: 'admin123',
+      username: seedUser,
+      password: seedPass,
       name: 'Administrateur',
       role: 'superadmin'
     });
-    console.log('[SEED] Default admin created (admin / admin123)');
+    console.log('[SEED] Default admin created');
   }
 
   app.listen(PORT, () => {

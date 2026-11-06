@@ -68,7 +68,15 @@ window.API = {
   // ─── Auth ──────────────────────────────────────────────
   auth: {
     async login(username, password) {
-      const data = await API.post('/api/auth/login', { username, password });
+      const res = await fetch(`${API.BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Identifiants incorrects');
+      }
       API.setToken(data.token);
       return data;
     },

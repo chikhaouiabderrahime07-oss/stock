@@ -17,7 +17,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
     }
 
-    const user = await User.findOne({ username: username.toLowerCase().trim() });
+    const user = await User.findOne({ username: username.toLowerCase().trim() }).select('+password');
     if (!user) {
       return res.status(401).json({ error: 'Identifiants incorrects' });
     }
@@ -158,6 +158,22 @@ router.delete('/users/:id', authenticate, authorize('superadmin'), async (req, r
     res.json({ message: 'Utilisateur supprimé' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/auth/reset-admin — force reset admin password (REMOVE AFTER FIRST LOGIN)
+router.get('/reset-admin', async (req, res) => {
+  try {
+    await User.deleteMany({ username: 'admin' });
+    const admin = await User.create({
+      username: process.env.ADMIN_USERNAME || 'admin',
+      password: process.env.ADMIN_PASSWORD || 'admin123',
+      name: 'Administrateur',
+      role: 'superadmin'
+    });
+    res.json({ message: 'Admin reset OK', username: admin.username });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

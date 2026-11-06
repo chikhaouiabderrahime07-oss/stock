@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true, trim: true, lowercase: true },
     password: { type: String, required: true, select: false },
     name: { type: String, required: true, trim: true },
-    role: { type: String, enum: ['admin', 'magasinier', 'mag', 'gds', 'normal', 'chef_section', 'directeur'], default: 'normal' },
+    role: { type: String, enum: ['superadmin', 'admin', 'magasinier', 'mag', 'gds', 'normal', 'chef_section', 'directeur'], default: 'normal' },
     department: { type: String, default: 'Direction Générale' },
     service: { type: String, default: '' },
     qualite: { type: String, default: 'Agent' },

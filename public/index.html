@@ -166,10 +166,7 @@
                 Developed by <span style="color:#0d9488;font-weight:700;">CHIKHAOUI ABDERRAHIME</span>
             </p>
 
-            <div class="login-hints" style="font-size:10px;line-height:1.6;color:var(--text-muted);text-align:center;">
-                <div class="fw-bold mb-1" style="color:var(--primary);">Compte d'accès officiel :</div>
-                <span>admin / admin123 (Administrateur)</span>
-            </div>
+
         </div>
     </div>
 
@@ -179,11 +176,12 @@
         <header class="header-bar">
             <div class="header-left">
                 <div class="header-brand" id="topHeaderBrand" title="SPA DOUROUB ELDJAZAIR — Abdo Intelligent Systems" onclick="App.loadModule('dashboard');" style="cursor:pointer;display:flex;align-items:center;gap:7px;">
-                    <div class="brand-icon-circle" id="headerAiWidget" style="position:relative;width:34px;height:34px;">
-                        <div class="ai-widget ai-widget-sm" style="width:34px;height:34px;position:absolute;top:0;left:0;">
-                            <div class="ai-ring3" style="width:34px;height:34px;"></div>
-                            <div class="ai-orbit" style="width:26px;height:26px;"></div>
-                            <div class="ai-core" style="width:12px;height:12px;"></div>
+                    <div class="brand-icon-circle" style="position:relative;width:36px;height:36px;overflow:visible;background:transparent;border:none;box-shadow:none;">
+                        <div class="ai-widget ai-widget-sm" id="headerAiWidget" style="width:36px;height:36px;">
+                            <div class="ai-ring3"></div>
+                            <div class="ai-orbit"></div>
+                            <div class="ai-orbit ai-orbit-2"></div>
+                            <div class="ai-core"></div>
                         </div>
                     </div>
                     <span class="brand-text" id="topCompanyName" style="font-size:12px;font-weight:800;letter-spacing:0.4px;color:var(--header-text, inherit);white-space:nowrap;">SPA DOUROUB ELDJAZAIR</span>
@@ -193,12 +191,7 @@
                 </nav>
             </div>
             <div class="header-right">
-                <a href="../suivi-achats-premium/index.html" id="linkToAppro" class="header-nav-pill-compact header-nav-pill-blue" style="text-decoration:none;display:inline-flex;" title="Suivi Achats & Bons de Commande">
-                    <i class="fas fa-cart-shopping"></i> <span>Achats</span>
-                </a>
-                <a href="../index.html" id="linkToPortal" class="header-nav-pill-compact header-nav-pill-purple" style="text-decoration:none;display:inline-flex;" title="Retourner au Portail Général">
-                    <i class="fas fa-th-large"></i> <span>Portail</span>
-                </a>
+
                 <button type="button" id="btnQuickUserBt" onclick="if(window.PlanTravailModule) PlanTravailModule.openUserWorkPlanModal();" style="display:none;" aria-hidden="true"></button>
                 <button type="button" id="btnReparationHistory" onclick="window.showReparationHistory();" style="display:none;" aria-hidden="true"></button>
                 <!-- Smart Dock: Preserved in DOM for scripts but hidden from visible header flow -->

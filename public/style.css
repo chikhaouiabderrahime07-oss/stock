@@ -1,4 +1,4 @@
-﻿/*
+/*
  * DOUROUB ELDJAZAIR — Stock Management System
  * Theme: Oracle Cloud ERP Inspired — Horizontal Nav, Rich Dashboard
  * Dark teal header, coral accents, springboard tiles
@@ -847,18 +847,19 @@ hr { border: none; border-top: 1px solid var(--border-light); margin: 16px 0; }
   flex-shrink: 0;
 }
 .brand-icon-circle {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(14, 165, 233, 0.3));
-  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: transparent;
+  border: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #38bdf8;
   font-size: 13px;
   flex-shrink: 0;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  overflow: visible;
+  box-shadow: none;
   transition: all 0.2s ease;
 }
 .brand-icon-circle:hover {
