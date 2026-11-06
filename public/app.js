@@ -180,6 +180,15 @@ const App = {
             const targetMod = (typeof Auth !== 'undefined' && Auth.canView(savedModule)) ? savedModule : 'dashboard';
             this.loadModule(targetMod, savedTab, false);
 
+            // FIX 1: Redirect to BC module if ?redirect=bc is present after login
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('redirect') === 'bc') {
+                    window.location.href = '/suivi-achats-premium/';
+                    return;
+                }
+            } catch (err) {}
+
             // Auto-open GDS Scanner if query param ?scan_gds=1 is present
             try {
                 const urlParams = new URLSearchParams(window.location.search);

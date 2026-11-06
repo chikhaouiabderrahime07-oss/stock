@@ -2909,16 +2909,34 @@ function bindEvents() {
 }
 
 function init() {
+  // FIX 1: Unified login — if no JWT, redirect to main Stock login with ?redirect=bc
+  const _jwtToken = localStorage.getItem('erp_jwt_token');
+  if (!_jwtToken) {
+    window.location.href = '/?redirect=bc';
+    return;
+  }
+  // If JWT exists but no session, build a session from stored data
+  if (!state.session) {
+    try {
+      const storedUser = localStorage.getItem('erp_currentUser') || localStorage.getItem('erp_douroub_session');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        state.session = {
+          id: parsed.id || ('u_' + (parsed.username || 'admin')),
+          username: parsed.username || 'admin',
+          name: parsed.name || parsed.username || 'Admin',
+          role: parsed.role || 'admin',
+          department: parsed.department || 'Direction',
+          at: parsed.at || nowIso()
+        };
+        saveSession();
+      }
+    } catch (e) {}
+  }
   setupState();
   bindEvents();
   setTheme(state.settings.theme || 'light');
   applyBranding();
-  if (!state.session) {
-    const loginUser = $('loginUsername');
-    if (loginUser) loginUser.value = 'admin';
-    const loginPass = $('loginPassword');
-    if (loginPass) loginPass.value = 'admin';
-  }
   resetFollowupForm();
   resetPaymentForm();
   resetStockItemForm();

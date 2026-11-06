@@ -13,6 +13,26 @@
     return localStorage.getItem('erp_jwt_token') || '';
   }
 
+  // Show a toast notification using the app's own toast function or fallback
+  function showToast(msg, type) {
+    try {
+      if (typeof window.showToast === 'function') {
+        window.showToast(msg, type || 'success');
+        return;
+      }
+      if (typeof window.showNotification === 'function') {
+        window.showNotification(msg, type || 'success');
+        return;
+      }
+      // Fallback: create a simple toast element
+      var toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:99999;background:#22c55e;color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:360px;';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 4000);
+    } catch (e) {}
+  }
+
   // Intercept window.fetch to automatically attach JWT token for /api/ endpoints
   if (typeof window !== 'undefined' && window.fetch) {
     var _nativeFetch = window.fetch;
@@ -78,22 +98,30 @@
 
       console.log('[BC-BRIDGE] Hydrated from MongoDB:', bcRecords.length, 'BCs,', payments.length, 'payments');
 
-      // Update in-memory state
+      // FIX 2 & FIX 5: Update in-memory state FIRST, then render
       if (typeof window !== 'undefined' && window.state) {
         window.state.bcRecords = bcRecords;
         window.state.payments = payments;
+
         if (typeof window.ApproNextGen !== 'undefined' && typeof window.ApproNextGen.autoLinkBcsAndDps === 'function') {
           try { window.ApproNextGen.autoLinkBcsAndDps(); } catch (e) {}
         }
+
+        // Cache to localStorage AFTER state is fully populated
         if (typeof window.saveState === 'function') {
           try { window.saveState(); } catch (e) {}
         }
+
+        // Render AFTER state is populated with server data
         if (typeof window.renderApp === 'function') {
-          window.renderApp();
+          try { window.renderApp(); } catch (e) {}
         }
         if (typeof window.renderActiveTab === 'function') {
-          window.renderActiveTab();
+          try { window.renderActiveTab(); } catch (e) {}
         }
+
+        // FIX 2: Show toast confirming data loaded from MongoDB
+        showToast('Données chargées depuis MongoDB (' + bcRecords.length + ' BC, ' + payments.length + ' paiements)');
       }
 
       _bcDataLoaded = true;
@@ -173,7 +201,6 @@
     }
   };
 
-  // ─── On page load: merge server data into local state ─────
   // ─── Auto-migrate local storage data to MongoDB Atlas ───────
   async function migrateLocalToAtlas() {
     if (!getToken()) return { success: false, reason: 'unauthenticated' };
@@ -254,16 +281,18 @@
     return Object.values(map);
   }
 
-  // Wait for DOM + auth ready, then init
+  // FIX 2: Wait for DOM ready, then hydrate IMMEDIATELY (no 1500ms delay)
   function bootBridge() {
     if (getToken()) {
-      setTimeout(initBcBridge, 1500);
+      // Hydrate immediately — no delay
+      initBcBridge();
     } else {
-      // Wait for login — check every 3 seconds
+      // No token means init() already redirected to /?redirect=bc
+      // But keep a fallback poll in case token arrives after boot
       var checkInterval = setInterval(function() {
         if (getToken()) {
           clearInterval(checkInterval);
-          setTimeout(initBcBridge, 1000);
+          initBcBridge();
         }
       }, 3000);
       // Stop checking after 2 minutes
