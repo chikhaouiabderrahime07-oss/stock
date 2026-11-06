@@ -1014,7 +1014,7 @@ const ApproNextGen = window.ApproNextGen = {
       modal.id = 'scannerProgressModal';
       modal.className = 'modal-backdrop';
       modal.innerHTML = `
-        <div class="modal-card" style="max-width:90vw;width:900px;min-height:60vh;">
+        <div class="modal modal-card" style="max-width:90vw;width:900px;min-height:60vh;">
           <div class="modal-header">
             <h3 id="scanModalTitle">Scanner</h3>
             <button class="btn-ghost" type="button" onclick="document.getElementById('scannerProgressModal').classList.add('hidden')">&times;</button>
@@ -1153,7 +1153,7 @@ const ApproNextGen = window.ApproNextGen = {
     });
 
     modal.innerHTML = `
-      <div class="modal-card" style="max-width:820px;">
+      <div class="modal modal-card" style="max-width:820px;">
         <div class="modal-header">
           <h3>🔗 Liaison Demande de Paiement & Bons de Commande</h3>
           <button class="btn-ghost" type="button" onclick="document.getElementById('dpLinkingModal').classList.add('hidden')">&times;</button>

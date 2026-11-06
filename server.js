@@ -1,6 +1,8 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('dotenv').config();
 const express = require('express');
-const path = require('path');
+const fs = require('fs');
 const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
@@ -85,8 +87,13 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/backup', require('./routes/backup'));
 app.use('/api/movements', require('./routes/movements'));
-app.use('/api/bc', require('./routes/bc'));
-app.use('/api/payments', require('./routes/payments'));
+const bcRoutes = require('./routes/bc');
+const paymentRoutes = require('./routes/payments');
+const { authenticate } = require('./middleware/auth');
+app.use('/api/bc', bcRoutes);
+app.use('/api/payments', paymentRoutes);
+app.post('/api/scan/bc', authenticate, bcRoutes.scanBcHandler);
+app.post('/api/scan/dp', authenticate, paymentRoutes.scanDpHandler);
 
 // ─── Serve Static Frontend ──────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
@@ -175,6 +182,69 @@ async function startServer() {
       role: 'superadmin'
     });
     console.log('[SEED] Default admin created');
+  }
+
+  // Seed BC and Payment records if empty
+  const BcRecord = require('./models/BcRecord');
+  const Payment = require('./models/Payment');
+  try {
+    const bcCount = await BcRecord.countDocuments();
+    if (bcCount === 0) {
+      const bcCandidates = [
+        path.join(__dirname, 'data', 'extracted_bcs_linked.json'),
+        path.join(__dirname, '..', 'data', 'extracted_bcs_linked.json'),
+        path.join(__dirname, 'data', 'extracted_bcs.json'),
+        path.join(__dirname, '..', 'data', 'extracted_bcs.json')
+      ];
+      for (const p of bcCandidates) {
+        if (fs.existsSync(p)) {
+          const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (Array.isArray(raw) && raw.length > 0) {
+            const clean = raw.map(r => {
+              const d = { ...r };
+              delete d._id;
+              delete d.id;
+              return d;
+            });
+            await BcRecord.insertMany(clean);
+            console.log(`[SEED] Seeded ${clean.length} Bons de Commande into MongoDB Atlas`);
+            break;
+          }
+        }
+      }
+    } else {
+      console.log(`[SEED] BC records verified: ${bcCount} present in MongoDB Atlas`);
+    }
+
+    const payCount = await Payment.countDocuments();
+    if (payCount === 0) {
+      const payCandidates = [
+        path.join(__dirname, 'data', 'extracted_dps_linked.json'),
+        path.join(__dirname, '..', 'data', 'extracted_dps_linked.json'),
+        path.join(__dirname, 'data', 'extracted_dps.json'),
+        path.join(__dirname, '..', 'data', 'extracted_dps.json')
+      ];
+      for (const p of payCandidates) {
+        if (fs.existsSync(p)) {
+          const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (Array.isArray(raw) && raw.length > 0) {
+            const clean = raw.map(pDoc => {
+              const d = { ...pDoc };
+              delete d._id;
+              delete d.id;
+              return d;
+            });
+            await Payment.insertMany(clean);
+            console.log(`[SEED] Seeded ${clean.length} Demandes de Paiement into MongoDB Atlas`);
+            break;
+          }
+        }
+      }
+    } else {
+      console.log(`[SEED] Payment records verified: ${payCount} present in MongoDB Atlas`);
+    }
+  } catch (err) {
+    console.warn('[SEED] BC/Payment seed notice:', err.message);
   }
 
   app.listen(PORT, () => {

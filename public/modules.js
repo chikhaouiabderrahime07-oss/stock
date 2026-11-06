@@ -2300,7 +2300,7 @@ window.Stock = {
             <div class="card">
                 <div class="card-body">
                     <!-- Site Filter Bar -->
-                    ${sitesList.length > 1 ? ('<div class="stock-sites-bar d-flex align-items-center flex-wrap gap-2 mb-2">'
+                    ${('<div class="stock-sites-bar d-flex align-items-center flex-wrap gap-2 mb-2">'
                         + '<span class="fw-bold small text-muted me-1"><i class="fas fa-building me-1"></i>Site :</span>'
                         + '<button type="button" class="btn btn-sm site-pill ' + (!activeSite ? 'active' : '') + '" onclick="Stock.filterBySite(\'\')">'
                         + '<i class="fas fa-globe me-1"></i> Tous les Sites <span class="badge rounded-pill bg-light text-dark ms-1">' + articles.length + '</span>'
@@ -2315,7 +2315,7 @@ window.Stock = {
                                 + '</button>';
                         }).join('')
                         + ((Auth.isAdmin() || Auth.isMag()) ? '<button type="button" class="btn btn-sm btn-outline-info ms-auto" onclick="Stock.showManageSitesModal()" title="Gérer les Sites &amp; Zones"><i class="fas fa-sitemap me-1"></i> Gérer les Sites</button>' : '')
-                        + '</div>') : ''}
+                        + '</div>')}
                     <!-- Interactive Zone Filter Bar -->
                     <div class="stock-zones-bar d-flex align-items-center flex-wrap gap-2 mb-3">
                         <button type="button" class="btn btn-sm zone-pill ${!activeZone ? 'active' : ''}" data-zone="" onclick="Stock.filterByZone('')">
@@ -2337,9 +2337,15 @@ window.Stock = {
 
                     <div class="row mb-3 g-2">
                         <div class="col-md-3">
-                            <input type="text" id="stockSearch" class="form-control" placeholder="Rechercher (Code, Désignation...)" onkeyup="Stock.filterTable()">
+                            <input type="text" id="stockSearch" class="form-control form-control-sm" placeholder="Rechercher (Code, Désignation...)" onkeyup="Stock.filterTable()">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
+                            <select id="stockSiteFilter" class="form-select form-select-sm" onchange="Stock._activeSiteFilter = this.value; Stock.filterTable();">
+                                <option value="">Tous les sites</option>
+                                ${sitesList.map(s => `<option value="${Utils.escapeHTML(s)}"${(activeSite === s) ? ' selected' : ''}>${Utils.escapeHTML(s)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
                             <select id="stockZoneFilter" class="form-select" onchange="Stock.filterTable()">
                                 <option value="">Toutes les Zones</option>
                                 ${zonesList.map(z => `<option value="${Utils.escapeHTML(z)}" ${(activeZone === z) ? 'selected' : ''}>${Utils.escapeHTML(z)} (${zoneCounts[z] || 0})</option>`).join('')}
@@ -2351,7 +2357,7 @@ window.Stock = {
                                 ${settings.articleCategories.map(c => `<option value="${Utils.escapeHTML(c)}">${Utils.escapeHTML(c)}</option>`).join('')}
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <select id="stockSectionFilter" class="form-select" onchange="Stock.filterTable()">
                                 <option value="">Toutes les sections</option>
                                 ${settings.stockSections.map(s => `<option value="${Utils.escapeHTML(s.name)}">${Utils.escapeHTML(s.name)}</option>`).join('')}
@@ -2442,7 +2448,8 @@ window.Stock = {
         var sec = document.getElementById('stockSectionFilter') ? document.getElementById('stockSectionFilter').value : '';
         var zoneEl = document.getElementById('stockZoneFilter');
         var zone = (zoneEl ? zoneEl.value : (Stock._activeZoneFilter || ''));
-        var site = Stock._activeSiteFilter || '';
+        var siteEl = document.getElementById('stockSiteFilter');
+        var site = siteEl ? siteEl.value : (Stock._activeSiteFilter || '');
 
         var rows = document.querySelectorAll('#stockTable tbody tr');
         rows.forEach(function(row) {
@@ -2464,6 +2471,8 @@ window.Stock = {
     filterBySite: function(siteName) {
         Stock._activeSiteFilter = siteName || '';
         Stock._activeZoneFilter = '';
+        var siteSelect = document.getElementById('stockSiteFilter');
+        if (siteSelect) siteSelect.value = Stock._activeSiteFilter;
         if (window.App && App.loadModule) App.loadModule('stock');
     },
     filterByZone: function(zoneName) {
@@ -3132,7 +3141,7 @@ window.Stock = {
                         <label class="fw-bold"><i class="fas fa-building text-info me-1"></i> Site *</label>
                         <select name="site" id="addArticleSiteSelect" class="form-select" required onchange="Stock.onSiteChangeForZone(this.value)">
                             ${(typeof DB !== 'undefined' && DB.getSites ? DB.getSites() : []).map(function(s) {
-                                var sel = (article.site === s.id || (!article.site && s.isDefault)) ? ' selected' : '';
+                                var sel = (article.site === s.name || article.site === s.id || (!article.site && s.isDefault)) ? ' selected' : '';
                                 return '<option value="' + Utils.escapeHTML(s.name) + '"' + sel + '>' + Utils.escapeHTML(s.name) + '</option>';
                             }).join('')}
                         </select>
@@ -3143,7 +3152,7 @@ window.Stock = {
                             ${(function() {
                                 var sites = (typeof DB !== 'undefined' && DB.getSites) ? DB.getSites() : [];
                                 var artSiteId = article.site || '';
-                                var site = artSiteId ? sites.find(function(s) { return s.id === artSiteId; }) : (sites.find(function(s) { return s.isDefault; }) || sites[0]);
+                                var site = artSiteId ? sites.find(function(s) { return s.id === artSiteId || s.name === artSiteId; }) : (sites.find(function(s) { return s.isDefault; }) || sites[0]);
                                 var zones = site ? (site.zones || []) : zonesList;
                                 return zones.map(function(z) {
                                     var zName = typeof z === 'object' ? (z.name || z.id) : z;

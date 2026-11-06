@@ -123,7 +123,7 @@ html, body {
 
 
 /* === UNIFIED PILL TABBAR === */
-.sa-top-tabs, #tabbar, .tabbar {
+.sa-top-tabs, .tabbar:not(#tabbar) {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -2293,7 +2293,7 @@ body:not([data-theme="dark"]) .sa-brand-sub {
   color: #94a3b8 !important;
 }
 
-.sa-top-tabs, #tabbar {
+.sa-top-tabs {
   display: flex !important;
   align-items: center !important;
   gap: 4px !important;
@@ -2956,4 +2956,40 @@ body[data-theme="dark"] .status-pill.status-da-pending {
     padding: 6px 6px !important;
   }
 }
+
+/* ============================================================
+   EXECUTIVE CORPORATE TAB ROW SURFACE & MODAL LAYERING
+   ============================================================ */
+.sa-tab-row,
+.sa-tab-row#tabbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  justify-content: center !important;
+  padding: 6px 16px !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+  position: sticky !important;
+  top: 48px !important;
+  z-index: 299 !important;
+  flex-wrap: wrap !important;
+}
+
+[data-theme="dark"] .sa-tab-row,
+[data-theme="dark"] .sa-tab-row#tabbar,
+body[data-theme="dark"] .sa-tab-row,
+body[data-theme="dark"] .sa-tab-row#tabbar {
+  background: #131b2e !important;
+  border-bottom-color: #1e293b !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Redundant guarantee: Modal backdrops strictly above navigation tabs */
+.modal-backdrop {
+  z-index: 10000 !important;
+}
+
 

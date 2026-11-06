@@ -50,6 +50,17 @@
     _originalInit();
   };
 
+  // ─── Site Name Normalization Helper ────────────────────────
+  function _sanitizeSiteName(site) {
+    if (!site || typeof site !== 'string') return 'Dépôt Central';
+    var s = site.trim();
+    if (!s || s === 'site_default') return 'Dépôt Central';
+    if (/d(?:[\ufffd\?e\xE9]|Ã©)p?(?:[\ufffd\?o\xF4]|Ã´)?t.*central/i.test(s) || /d[\ufffd\?]+p?[\ufffd\?]*t/i.test(s) || s.includes('Ã©') || s.includes('\ufffd') || s.includes('? Central')) {
+      return 'Dépôt Central';
+    }
+    return s;
+  }
+
   // ─── ROBUST Server Data Loader ─────────────────────────────
   DB.loadFromServer = async function() {
     if (_loadingPromise) return _loadingPromise;
@@ -103,8 +114,9 @@
         _pushArticlesToServer(localArticles);
       }
 
-      // Normalize article site values: convert site IDs to site names
+      // Normalize article site values: convert site IDs to site names & sanitize corrupted strings
       var allArticles = DB.data.articles || [];
+      var sitesRepaired = false;
       if (allArticles.length > 0) {
         var siteSettings = (DB.data.settings && DB.data.settings.stockSites) || [];
         var siteIdToName = {};
@@ -114,11 +126,16 @@
         for (var ai = 0; ai < allArticles.length; ai++) {
           var artSite = allArticles[ai].site;
           if (artSite && siteIdToName[artSite]) {
-            allArticles[ai].site = siteIdToName[artSite];
+            artSite = siteIdToName[artSite];
           }
-          if (!allArticles[ai].site) {
-            allArticles[ai].site = 'Dépôt Central';
+          var sanitized = _sanitizeSiteName(artSite);
+          if (allArticles[ai].site !== sanitized) {
+            allArticles[ai].site = sanitized;
+            sitesRepaired = true;
           }
+        }
+        if (sitesRepaired && API.getToken()) {
+          _queueFullSync();
         }
       }
 
@@ -221,6 +238,7 @@
         delete c.id;
         delete c._id;
         delete c.__v;
+        c.site = _sanitizeSiteName(c.site);
         return c;
       });
       var res = await API.post('/api/articles/bulk', { articles: cleanArticles });
@@ -426,6 +444,9 @@
         var cleanItem = Object.assign({}, item);
         delete cleanItem.id;
         delete cleanItem._id;
+        if (col === 'articles') {
+          cleanItem.site = _sanitizeSiteName(cleanItem.site);
+        }
         var res = await api.create(cleanItem);
         var arr = DB.data[col];
         if (arr) {
@@ -443,6 +464,9 @@
         var cleanUp = Object.assign({}, item);
         delete cleanUp.id;
         delete cleanUp._id;
+        if (col === 'articles') {
+          cleanUp.site = _sanitizeSiteName(cleanUp.site);
+        }
         if (serverId) {
           await api.update(serverId, cleanUp).catch(function() {});
         }

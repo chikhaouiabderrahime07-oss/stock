@@ -13,6 +13,30 @@
     return localStorage.getItem('erp_jwt_token') || '';
   }
 
+  // Intercept window.fetch to automatically attach JWT token for /api/ endpoints
+  if (typeof window !== 'undefined' && window.fetch) {
+    var _nativeFetch = window.fetch;
+    window.fetch = function(input, init) {
+      init = init || {};
+      var token = getToken();
+      var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+      if (token && url && url.indexOf('/api/') !== -1) {
+        if (!init.headers) init.headers = {};
+        if (init.headers instanceof Headers) {
+          if (!init.headers.has('Authorization')) init.headers.set('Authorization', 'Bearer ' + token);
+        } else if (Array.isArray(init.headers)) {
+          var hasAuth = init.headers.some(function(h) { return h[0].toLowerCase() === 'authorization'; });
+          if (!hasAuth) init.headers.push(['Authorization', 'Bearer ' + token]);
+        } else if (typeof init.headers === 'object') {
+          if (!init.headers['Authorization'] && !init.headers['authorization']) {
+            init.headers['Authorization'] = 'Bearer ' + token;
+          }
+        }
+      }
+      return _nativeFetch.call(this, input, init);
+    };
+  }
+
   // Generic API request
   async function apiRequest(method, path, body) {
     var headers = { 'Authorization': 'Bearer ' + getToken() };
@@ -31,8 +55,8 @@
     return res.json();
   }
 
-  // ─── Load BC + Payment data from MongoDB ───────────────────
-  async function loadBcFromServer() {
+  // ─── Hydrate BC + Payment data from MongoDB ────────────────
+  async function hydrateFromServer() {
     if (!getToken()) return null;
     try {
       var results = await Promise.all([
@@ -52,14 +76,35 @@
         return p;
       });
 
-      console.log('[BC-BRIDGE] Loaded from MongoDB:', bcRecords.length, 'BCs,', payments.length, 'payments');
+      console.log('[BC-BRIDGE] Hydrated from MongoDB:', bcRecords.length, 'BCs,', payments.length, 'payments');
+
+      // Update in-memory state
+      if (typeof window !== 'undefined' && window.state) {
+        window.state.bcRecords = bcRecords;
+        window.state.payments = payments;
+        if (typeof window.ApproNextGen !== 'undefined' && typeof window.ApproNextGen.autoLinkBcsAndDps === 'function') {
+          try { window.ApproNextGen.autoLinkBcsAndDps(); } catch (e) {}
+        }
+        if (typeof window.saveState === 'function') {
+          try { window.saveState(); } catch (e) {}
+        }
+        if (typeof window.renderApp === 'function') {
+          window.renderApp();
+        }
+        if (typeof window.renderActiveTab === 'function') {
+          window.renderActiveTab();
+        }
+      }
+
       _bcDataLoaded = true;
       return { bcRecords: bcRecords, payments: payments };
     } catch (e) {
-      console.warn('[BC-BRIDGE] Failed to load from server:', e.message);
+      console.warn('[BC-BRIDGE] Failed to hydrate from server:', e.message);
       return null;
     }
   }
+
+  var loadBcFromServer = hydrateFromServer;
 
   // ─── Sync local BC data to MongoDB (bulk upsert) ───────────
   async function syncBcToServer() {
@@ -129,63 +174,77 @@
   };
 
   // ─── On page load: merge server data into local state ─────
+  // ─── Auto-migrate local storage data to MongoDB Atlas ───────
+  async function migrateLocalToAtlas() {
+    if (!getToken()) return { success: false, reason: 'unauthenticated' };
+    try {
+      var localBcs = [];
+      var localPayments = [];
+      var keys = ['suivi_linked_v30', 'suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
+      for (var i = 0; i < keys.length; i++) {
+        try {
+          var raw = localStorage.getItem(keys[i]);
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && Array.isArray(parsed.bcRecords) && parsed.bcRecords.length > localBcs.length) {
+              localBcs = parsed.bcRecords;
+            }
+            if (parsed && Array.isArray(parsed.payments) && parsed.payments.length > localPayments.length) {
+              localPayments = parsed.payments;
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (localBcs.length === 0 && localPayments.length === 0) {
+        return { success: true, count: 0 };
+      }
+
+      var cleanBc = localBcs.map(function(r) {
+        var d = Object.assign({}, r);
+        delete d.id;
+        delete d._id;
+        return d;
+      });
+
+      var cleanPay = localPayments.map(function(p) {
+        var d = Object.assign({}, p);
+        delete d.id;
+        delete d._id;
+        return d;
+      });
+
+      var results = await Promise.all([
+        cleanBc.length > 0 ? apiRequest('POST', '/api/bc/bulk', { bcRecords: cleanBc }).catch(function(e) { return { error: e.message }; }) : { upserted: 0 },
+        cleanPay.length > 0 ? apiRequest('POST', '/api/payments/bulk', { payments: cleanPay }).catch(function(e) { return { error: e.message }; }) : { upserted: 0 }
+      ]);
+
+      console.log('[BC-BRIDGE] Auto-migration to Atlas completed:', results);
+      return { success: true, migratedBcs: cleanBc.length, migratedPayments: cleanPay.length };
+    } catch (err) {
+      console.warn('[BC-BRIDGE] Auto-migration notice:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ─── On page load: auto-migrate local data then hydrate from Atlas ─
   async function initBcBridge() {
-    var serverData = await loadBcFromServer();
-    if (!serverData) return;
-
-    var serverBc = serverData.bcRecords;
-    var serverPay = serverData.payments;
-
-    if (serverBc.length === 0 && serverPay.length === 0) {
-      // No server data — push local to server
-      console.log('[BC-BRIDGE] No server data, pushing local data up...');
-      syncBcToServer();
-      return;
-    }
-
-    // Read current local state
-    var raw = null;
-    var keys = ['suivi_linked_v30', 'suivi_compact_v20', 'suivi_local_v12'];
-    var usedKey = keys[0];
-    for (var i = 0; i < keys.length; i++) {
-      raw = localStorage.getItem(keys[i]);
-      if (raw) { usedKey = keys[i]; break; }
-    }
-
-    var parsed = raw ? JSON.parse(raw) : {};
-    var localBc = parsed.bcRecords || [];
-    var localPay = parsed.payments || [];
-
-    // Merge strategy: server wins, but keep local-only records
-    var mergedBc = mergeRecords(localBc, serverBc, 'ref');
-    var mergedPay = mergeRecords(localPay, serverPay, 'paymentRef');
-
-    parsed.bcRecords = mergedBc;
-    parsed.payments = mergedPay;
-
-    // Write back to localStorage (without triggering sync)
-    _origSetItem(usedKey, JSON.stringify(parsed));
-
-    console.log('[BC-BRIDGE] Merged — BC:', mergedBc.length, '| Pay:', mergedPay.length);
-
-    // Reload UI if app is ready
-    if (typeof window.renderAll === 'function') {
-      window.renderAll();
-    } else if (typeof window.location !== 'undefined') {
-      // Soft reload by dispatching storage event
-      window.dispatchEvent(new Event('bc-bridge-loaded'));
+    if (!getToken()) return;
+    try {
+      await migrateLocalToAtlas();
+      await hydrateFromServer();
+    } catch (e) {
+      console.warn('[BC-BRIDGE] Init error:', e.message);
     }
   }
 
   // Merge local + server arrays, dedup by key field
   function mergeRecords(local, server, keyField) {
     var map = {};
-    // Server records first (they win)
     for (var i = 0; i < server.length; i++) {
       var key = server[i][keyField] || server[i].id || server[i]._id;
       if (key) map[key] = server[i];
     }
-    // Add local-only records
     for (var j = 0; j < local.length; j++) {
       var lkey = local[j][keyField] || local[j].id;
       if (lkey && !map[lkey]) {
@@ -210,6 +269,18 @@
       // Stop checking after 2 minutes
       setTimeout(function() { clearInterval(checkInterval); }, 120000);
     }
+  }
+
+  // Expose bridge globally
+  var bcBridge = {
+    hydrateFromServer: hydrateFromServer,
+    syncBcToServer: syncBcToServer,
+    migrateLocalToAtlas: migrateLocalToAtlas,
+    loadBcFromServer: hydrateFromServer
+  };
+  if (typeof window !== 'undefined') {
+    window.bcBridge = bcBridge;
+    window.SuiviBcBridge = window.SuiviBcBridge || bcBridge;
   }
 
   if (document.readyState === 'loading') {

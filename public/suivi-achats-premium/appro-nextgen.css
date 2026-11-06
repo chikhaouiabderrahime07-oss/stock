@@ -1290,3 +1290,104 @@ body[data-theme="dark"] .btn-fin-filter.active {
   flex-shrink: 0;
 }
 
+/* ============================================================
+   EXECUTIVE CORPORATE MODAL DIALOGS & SCANNER
+   ============================================================ */
+.modal-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text, #0f172a);
+}
+
+[data-theme="dark"] .modal-card,
+body[data-theme="dark"] .modal-card {
+  background: #131b2e !important;
+  border-color: #1e293b !important;
+  color: #f8fafc !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6) !important;
+}
+
+.modal-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+  background: var(--surface-2, #f8fafc);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-theme="dark"] .modal-header,
+body[data-theme="dark"] .modal-header {
+  background: #1e293b !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme="dark"] .modal-header h3,
+body[data-theme="dark"] .modal-header h3 {
+  color: #ffffff !important;
+}
+
+.modal-header .btn-ghost {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted, #64748b);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.modal-header .btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text, #0f172a);
+}
+
+[data-theme="dark"] .modal-header .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--line, #e2e8f0);
+  background: var(--surface-2, #f8fafc);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+[data-theme="dark"] .modal-footer,
+body[data-theme="dark"] .modal-footer {
+  background: #1e293b !important;
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Scanner Dialog Theme Adaptation */
+[data-theme="dark"] .scan-progress-bar-wrap {
+  background: #1e293b !important;
+}
+
+.scan-log-entry.error {
+  color: #f87171 !important;
+}
+
+

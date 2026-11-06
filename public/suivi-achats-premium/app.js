@@ -595,6 +595,7 @@ function logout() {
     localStorage.removeItem('suivi_linked_session_v30');
     localStorage.removeItem('erp_currentUser');
     localStorage.removeItem('erp_douroub_session');
+    localStorage.removeItem('erp_jwt_token');
   } catch (e) {}
   window.location.href = '../index.html';
 }
@@ -2703,10 +2704,52 @@ function renderApp() {
 }
 
 function bindEvents() {
-  $('loginForm').addEventListener('submit', (e) => {
+  $('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (login($('loginUsername').value.trim(), $('loginPassword').value.trim())) showToast('Connexion réussie.');
-    else showToast('Identifiants incorrects.');
+    const username = $('loginUsername').value.trim();
+    const password = $('loginPassword').value.trim();
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        localStorage.setItem('erp_jwt_token', data.token);
+        const user = data.user || { username, role: 'admin' };
+        state.session = {
+          username: user.username,
+          role: user.role,
+          name: user.name || user.username,
+          at: nowIso()
+        };
+        saveSession();
+        try {
+          localStorage.setItem('suivi_session', JSON.stringify(state.session));
+          localStorage.setItem('sde_user_role', user.role === 'admin' ? 'admin' : 'admin_appro');
+          localStorage.setItem('erp_douroub_session', JSON.stringify(state.session));
+          localStorage.setItem('erp_currentUser', JSON.stringify(state.session));
+        } catch (err) {}
+        refreshAuthUi();
+        showToast('Connexion réussie.');
+        if (window.bcBridge && typeof window.bcBridge.hydrateFromServer === 'function') {
+          window.bcBridge.hydrateFromServer();
+        }
+        return;
+      }
+    } catch (err) {
+      console.warn('[LOGIN] API login error, falling back to local credentials:', err);
+    }
+
+    if (login(username, password)) {
+      showToast('Connexion réussie.');
+      if (window.bcBridge && typeof window.bcBridge.hydrateFromServer === 'function') {
+        window.bcBridge.hydrateFromServer();
+      }
+    } else {
+      showToast('Identifiants incorrects.');
+    }
   });
   $('logoutBtn').addEventListener('click', logout);
   $('themeSelect').addEventListener('change', (e) => { setTheme(e.target.value); saveState(); renderKpi(); });

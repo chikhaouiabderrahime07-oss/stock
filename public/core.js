@@ -125,7 +125,10 @@ window.DB = {
                 const defaultSite = this.data.settings.stockSites.find(s => s.isDefault) || this.data.settings.stockSites[0];
                 const defaultSiteName = defaultSite ? defaultSite.name : 'Dépôt Central';
                 this.data.articles.forEach(a => {
-                    if (!a.site) a.site = defaultSiteName;
+                    if (!a.site || /d[\ufffd\?e\xC3\xA9\xE9]p[\ufffd\?o\xC3\xB4\xF4]t/i.test(a.site) || a.site === 'site_default' || a.site.includes('\ufffd')) {
+                        a.site = defaultSiteName;
+                        dirty = true;
+                    }
                 });
             }
             dirty = true;
@@ -507,6 +510,34 @@ window.DB = {
     getArticle(id)      {
         const a = this.getById('articles', id);
         return a ? { ...a, zone: a.zone || 'Zone A' } : null;
+    },
+    addStock(articleId, quantity, type = 'Entrée', reason = '', user = '', reference = '') {
+        const qtyNum = Number(quantity) || 0;
+        const articles = (this.data && Array.isArray(this.data.articles)) ? this.data.articles : [];
+        const article = articles.find(a => a.id === articleId || a.code === articleId);
+        if (!article) {
+            console.warn('DB.addStock: Article not found for ID/code:', articleId);
+            return null;
+        }
+        article.quantity = (Number(article.quantity) || 0) + qtyNum;
+        if (article.quantity < 0) article.quantity = 0;
+        this.updateArticle(article);
+        const resolvedUser = user || (window.Auth && typeof Auth.getCurrentUser === 'function' && Auth.getCurrentUser() ? Auth.getCurrentUser().name : 'Magasinier');
+        this.addStockMovement({
+            articleId: article.id,
+            articleCode: article.code,
+            articleDesignation: article.designation || '',
+            type: type || 'Entrée',
+            quantity: qtyNum,
+            reason: reason || 'Ajustement de stock',
+            user: resolvedUser,
+            reference: reference || '',
+            date: new Date().toISOString()
+        });
+        return article;
+    },
+    getCurrentUser() {
+        return (window.Auth && Auth.getCurrentUser) ? Auth.getCurrentUser() : null;
     },
 
     getZones() {
