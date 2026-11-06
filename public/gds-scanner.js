@@ -44,6 +44,7 @@
         lastScannedCode: null,
         lastScanTime: 0,
         recentDeductions: [],
+        scanMode: 'sortie',
 
         init: function() {
             // Restore auto-deduct preference (default true)
@@ -500,25 +501,126 @@
                         </div>
                     </div>
 
-                    <div class="p-2 bg-light rounded border d-flex justify-content-between align-items-center mb-3">
-                        <span class="small fw-bold text-dark"><i class="fas fa-cubes-stacked me-1"></i> Quantité à déduire :</span>
-                        <div class="d-flex align-items-center gap-1">
-                            <button type="button" class="btn btn-sm btn-outline-secondary px-2" onclick="GdsScannerModule.adjustQty(-1)"><i class="fas fa-minus"></i></button>
-                            <input type="number" id="gdsDeductQty" class="form-control form-control-sm text-center fw-bold" style="width:65px;" value="${defaultQty || 1}" min="1">
-                            <button type="button" class="btn btn-sm btn-outline-secondary px-2" onclick="GdsScannerModule.adjustQty(1)"><i class="fas fa-plus"></i></button>
+                    <div class="p-2 rounded border mb-3" style="background:#f8faff;">
+                        <div class="small fw-bold text-dark mb-2"><i class="fas fa-arrows-alt-h me-1"></i> Choisir l'opération :</div>
+                        <div class="d-flex gap-2 mb-2">
+                            <button type="button" class="btn btn-danger flex-grow-1 fw-bold py-2" id="gdsBtnSortie" onclick="GdsScannerModule.selectScanMode('sortie')">
+                                <i class="fas fa-arrow-right me-1"></i> Sortie Stock
+                            </button>
+                            <button type="button" class="btn btn-success flex-grow-1 fw-bold py-2" id="gdsBtnEntree" onclick="GdsScannerModule.selectScanMode('entree')">
+                                <i class="fas fa-arrow-left me-1"></i> Entrée Stock
+                            </button>
                         </div>
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-danger flex-grow-1 fw-bold py-2" onclick="GdsScannerModule.confirmManualDeduction()">
-                            <i class="fas fa-check-circle me-1"></i> Valider la Déduction (-1)
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary py-2" onclick="GdsScannerModule.resetResultArea()">
-                            <i class="fas fa-redo me-1"></i> Continuer
-                        </button>
+                        <div id="gdsScanModePanel" style="display:none;">
+                            <div class="p-2 bg-light rounded border d-flex justify-content-between align-items-center mb-2">
+                                <span class="small fw-bold text-dark" id="gdsScanModeLabel"><i class="fas fa-cubes-stacked me-1"></i> Quantité :</span>
+                                <div class="d-flex align-items-center gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary px-2" onclick="GdsScannerModule.adjustQty(-1)"><i class="fas fa-minus"></i></button>
+                                    <input type="number" id="gdsDeductQty" class="form-control form-control-sm text-center fw-bold" style="width:65px;" value="${defaultQty || 1}" min="1">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary px-2" onclick="GdsScannerModule.adjustQty(1)"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn flex-grow-1 fw-bold py-2" id="gdsScanConfirmBtn" onclick="GdsScannerModule.confirmScanAction()">
+                                    <i class="fas fa-check-circle me-1"></i> Confirmer
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary py-2" onclick="GdsScannerModule.resetResultArea()">
+                                    <i class="fas fa-redo me-1"></i> Annuler
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
+        },
+
+        selectScanMode: function(mode) {
+            this.scanMode = mode;
+            const panel = document.getElementById('gdsScanModePanel');
+            const label = document.getElementById('gdsScanModeLabel');
+            const confirmBtn = document.getElementById('gdsScanConfirmBtn');
+            const sortieBtn = document.getElementById('gdsBtnSortie');
+            const entreeBtn = document.getElementById('gdsBtnEntree');
+            if (!panel) return;
+            panel.style.display = 'block';
+            if (mode === 'sortie') {
+                if (label) label.innerHTML = '<i class="fas fa-arrow-right me-1 text-danger"></i> Quantité à sortir :';
+                if (confirmBtn) { confirmBtn.className = 'btn btn-danger flex-grow-1 fw-bold py-2'; confirmBtn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Valider Sortie'; }
+                if (sortieBtn) sortieBtn.classList.add('active');
+                if (entreeBtn) entreeBtn.classList.remove('active');
+            } else {
+                if (label) label.innerHTML = '<i class="fas fa-arrow-left me-1 text-success"></i> Quantité à entrer :';
+                if (confirmBtn) { confirmBtn.className = 'btn btn-success flex-grow-1 fw-bold py-2'; confirmBtn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Valider Entrée'; }
+                if (entreeBtn) entreeBtn.classList.add('active');
+                if (sortieBtn) sortieBtn.classList.remove('active');
+            }
+        },
+
+        confirmScanAction: function() {
+            if (!this.currentArticle) return;
+            const input = document.getElementById('gdsDeductQty');
+            const qty = input ? (parseInt(input.value, 10) || 1) : 1;
+            if (this.scanMode === 'entree') {
+                this.executeEntry(this.currentArticle, qty);
+            } else {
+                this.executeDeduction(this.currentArticle, qty, false);
+            }
+        },
+
+        executeEntry: function(article, qty) {
+            if (!article) return;
+            const addQty = Number(qty) || 1;
+            const currentStock = Number(article.quantity) || 0;
+            article.quantity = currentStock + addQty;
+
+            const user = (typeof window.Auth !== 'undefined' && window.Auth.getUser)
+                ? window.Auth.getUser()
+                : ((typeof window.Auth !== 'undefined' && window.Auth.getCurrentUser) ? window.Auth.getCurrentUser() : null);
+            const authorName = (user && (user.name || user.username)) ? (user.name || user.username) : 'GDS Mobile';
+
+            if (typeof DB !== 'undefined') {
+                const movData = {
+                    articleId: article.id,
+                    articleCode: article.code || '',
+                    designation: article.designation || '',
+                    type: 'Entrée',
+                    quantity: addQty,
+                    date: new Date().toISOString(),
+                    author: authorName,
+                    user: authorName,
+                    motif: 'Entrée Stock GDS (Scan QR/Code-Barres)',
+                    destination: 'Stock',
+                    source: 'Scan GDS'
+                };
+                if (typeof DB.addStockMovement === 'function') {
+                    DB.addStockMovement(movData);
+                } else if (typeof DB.addMovement === 'function') {
+                    DB.addMovement(movData);
+                } else if (DB.data && Array.isArray(DB.data.stockMovements)) {
+                    DB.data.stockMovements.push(movData);
+                }
+                if (typeof DB.save === 'function') DB.save();
+            }
+
+            const area = document.getElementById('gdsScanResultArea');
+            if (area) {
+                area.innerHTML = `
+                    <div class="alert alert-success border-success p-3 my-2 animate__animated animate__fadeInDown">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fas fa-check-circle fa-2x text-success"></i>
+                            <div>
+                                <h6 class="fw-bold mb-0 text-dark">Entrée enregistrée !</h6>
+                                <small class="text-muted">${Utils.escapeHTML(article.designation)} — Nouveau stock : <strong class="text-success">${article.quantity} ${Utils.escapeHTML(article.unit || 'U')}</strong> (+${addQty})</small>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-success mt-2 w-100" onclick="GdsScannerModule.resetResultArea()">
+                            <i class="fas fa-redo me-1"></i> Scanner Suivant
+                        </button>
+                    </div>`;
+            }
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                Utils.showNotification(`✅ ENTRÉE : ${article.designation} — Stock : ${article.quantity} ${article.unit || 'U'} (+${addQty})`, 'success');
+            }
         },
 
         adjustQty: function(delta) {
@@ -534,7 +636,11 @@
             if (!this.currentArticle) return;
             const input = document.getElementById('gdsDeductQty');
             const qty = input ? (parseInt(input.value, 10) || 1) : 1;
-            this.executeDeduction(this.currentArticle, qty, false);
+            if (this.scanMode === 'entree') {
+                this.executeEntry(this.currentArticle, qty);
+            } else {
+                this.executeDeduction(this.currentArticle, qty, false);
+            }
         },
 
         resetResultArea: function() {
@@ -571,6 +677,9 @@
                         <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="GdsScannerModule.showLinkArticleModal('${safeCode}')">
                             <i class="fas fa-link me-1"></i> Associer à un article existant
                         </button>
+                        <button type="button" class="btn btn-sm btn-outline-success fw-bold" onclick="GdsScannerModule.showCreateArticleModal('${safeCode}')">
+                            <i class="fas fa-plus me-1"></i> Créer un article
+                        </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="GdsScannerModule.resetResultArea()">
                             <i class="fas fa-redo me-1"></i> Réessayer
                         </button>
@@ -604,6 +713,85 @@
             if (typeof UI !== 'undefined' && UI.showModal) {
                 UI.showModal('Associer Code-Barres', html);
             }
+        },
+
+        showCreateArticleModal: function(scannedCode) {
+            const safeCode = (typeof Utils !== 'undefined' && Utils.escapeHTML) ? Utils.escapeHTML(scannedCode) : scannedCode;
+            const html = `
+                <div class="p-2">
+                    <p class="small text-muted mb-3">Créer un nouvel article avec le code-barres <strong>${safeCode}</strong> pré-rempli.</p>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Désignation <span class="text-danger">*</span></label>
+                        <input type="text" id="gdsNewDesignation" class="form-control form-control-sm" placeholder="Nom de l'article...">
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Code article</label>
+                            <input type="text" id="gdsNewCode" class="form-control form-control-sm" placeholder="ART-001">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Quantité initiale</label>
+                            <input type="number" id="gdsNewQty" class="form-control form-control-sm" value="0" min="0">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Unité</label>
+                            <input type="text" id="gdsNewUnit" class="form-control form-control-sm" placeholder="U, Kg, L..." value="U">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Catégorie</label>
+                            <input type="text" id="gdsNewCategory" class="form-control form-control-sm" placeholder="Général">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="if(window.UI && UI.closeModal) UI.closeModal();">Annuler</button>
+                        <button type="button" class="btn btn-success btn-sm fw-bold" onclick="GdsScannerModule.commitCreateArticle('${safeCode}')">
+                            <i class="fas fa-save me-1"></i> Créer l'article
+                        </button>
+                    </div>
+                </div>
+            `;
+            if (typeof UI !== 'undefined' && UI.showModal) UI.showModal('Créer un Nouvel Article', html);
+        },
+
+        commitCreateArticle: function(scannedCode) {
+            const designation = (document.getElementById('gdsNewDesignation') || {}).value || '';
+            if (!designation.trim()) { alert('La désignation est obligatoire.'); return; }
+            const code = (document.getElementById('gdsNewCode') || {}).value || ('ART-' + Date.now().toString().slice(-5));
+            const qty = parseInt((document.getElementById('gdsNewQty') || {}).value, 10) || 0;
+            const unit = (document.getElementById('gdsNewUnit') || {}).value || 'U';
+            const category = (document.getElementById('gdsNewCategory') || {}).value || 'Général';
+            const newArticle = {
+                id: 'art-' + Date.now(),
+                code: code.trim(),
+                designation: designation.trim(),
+                quantity: qty,
+                unit: unit.trim(),
+                category: category.trim(),
+                barcode: scannedCode,
+                site: 'Dépôt Central',
+                minThreshold: 5,
+                createdAt: new Date().toISOString()
+            };
+            if (typeof DB !== 'undefined') {
+                if (typeof DB.addArticle === 'function') {
+                    DB.addArticle(newArticle);
+                } else if (DB.data && Array.isArray(DB.data.articles)) {
+                    DB.data.articles.push(newArticle);
+                    if (typeof DB.save === 'function') DB.save();
+                }
+            }
+            fetch('/api/articles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('erp_jwt_token') || '') },
+                body: JSON.stringify(newArticle)
+            }).catch(() => {});
+            if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                Utils.showNotification(`✅ Article "${newArticle.designation}" créé avec code-barres associé !`, 'success');
+            }
+            setTimeout(() => { this.handleCode(scannedCode); }, 300);
         },
 
         commitLinkArticle: function(scannedCode) {

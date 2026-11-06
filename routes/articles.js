@@ -80,6 +80,16 @@ router.put('/:id', authenticate, authorize('superadmin', 'admin', 'directeur', '
 });
 
 // DELETE /api/articles/:id
+// DELETE /api/articles/all — delete all (superadmin only)
+router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
+  try {
+    const result = await Article.deleteMany({});
+    res.json({ deleted: result.deletedCount, message: 'Tous les articles supprimés' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/:id', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);

@@ -250,7 +250,8 @@
                         <a href="#parametres" onclick="if(typeof App!=='undefined') App.showSettings(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-cog"></i> Préférences</a>
                         <a href="javascript:void(0)" class="dropdown-item" onclick="if(window.UI && UI.startStockTutorial) UI.startStockTutorial();"><i class="fas fa-graduation-cap me-2 text-warning"></i> <span>Visite Guidée & Tutoriel</span></a>
                         <a href="#" id="udropGdsScanLink" class="udrop-gds-link" style="display:none;" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-qrcode" style="color:#059669;"></i> Scanner Sortie GDS</a>
-                        <a href="/suivi-achats-premium/index.html" id="udropAchatsLink" class="udrop-achats-link"><i class="fas fa-cart-shopping" style="color:var(--primary, #2563eb);"></i> Suivi Achats &amp; BC</a>
+        <a href="/suivi-achats-premium/index.html" id="udropAchatsLink" class="udrop-achats-link"><i class="fas fa-cart-shopping" style="color:var(--primary, #2563eb);"></i> Suivi Achats &amp; BC</a>
+                        <a href="/general-settings.html" id="udropGeneralSettingsLink" class="udrop-achats-link" style="display:none;"><i class="fas fa-sliders" style="color:#7c3aed;"></i> Paramètres Généraux</a>
                         <div class="dropdown-divider"></div>
                         <a href="#" id="btnLogout" class="logout-link"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
                     </div>
@@ -472,6 +473,32 @@
                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="GdsScannerModule.closeModal();">Fermer</button>
                 <button type="button" class="btn btn-sm btn-primary" onclick="App.loadModule('stock'); GdsScannerModule.closeModal();"><i class="fas fa-boxes-stacked me-1"></i> Voir Catalogue Stock</button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODULE PICKER MODAL (Admin only) -->
+    <div id="modulePickerModal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;">
+        <div style="background:var(--surface,#fff);border-radius:20px;padding:40px 32px;max-width:520px;width:92%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.3);">
+            <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-th-large" style="color:#fff;font-size:24px;"></i>
+            </div>
+            <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:6px;color:var(--text,#111);">Choisissez votre espace</h2>
+            <p style="color:var(--text-muted,#666);font-size:0.92rem;margin-bottom:28px;">Administrateur — Accédez au module de votre choix</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px;">
+                <button onclick="App.goToModule('stock')" style="padding:22px 10px;border-radius:14px;border:2px solid #2563eb;background:#eff6ff;cursor:pointer;">
+                    <i class="fas fa-boxes fa-2x" style="color:#2563eb;display:block;margin-bottom:8px;"></i>
+                    <strong style="font-size:0.82rem;">Stock &amp; Magasin</strong>
+                </button>
+                <button onclick="App.goToModule('bc')" style="padding:22px 10px;border-radius:14px;border:2px solid #10b981;background:#f0fdf4;cursor:pointer;">
+                    <i class="fas fa-file-contract fa-2x" style="color:#10b981;display:block;margin-bottom:8px;"></i>
+                    <strong style="font-size:0.82rem;">Bons de Commande</strong>
+                </button>
+                <button onclick="App.goToModule('settings')" style="padding:22px 10px;border-radius:14px;border:2px solid #7c3aed;background:#f5f3ff;cursor:pointer;">
+                    <i class="fas fa-sliders fa-2x" style="color:#7c3aed;display:block;margin-bottom:8px;"></i>
+                    <strong style="font-size:0.82rem;">Parametres Generaux</strong>
+                </button>
+            </div>
+            <button onclick="App.hideModulePickerModal()" style="background:none;border:none;color:var(--text-muted,#888);font-size:0.85rem;cursor:pointer;text-decoration:underline;">Rester sur Stock et continuer</button>
         </div>
     </div>
 </body>

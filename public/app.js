@@ -189,6 +189,23 @@ const App = {
                 }
             } catch (err) {}
 
+            // MODULE ROUTING: Admin gets picker, normal users auto-redirect by defaultModule
+            try {
+                const currentUser = (typeof Auth !== 'undefined') ? Auth.getCurrentUser() : null;
+                if (currentUser) {
+                    const role = (currentUser.role || '').toLowerCase();
+                    const isAdmin = role === 'admin' || role === 'superadmin' || role === 'directeur';
+                    const defMod = currentUser.defaultModule || 'stock';
+                    if (isAdmin) {
+                        // Show module picker modal for admin
+                        setTimeout(() => { this.showModulePickerModal(); }, 300);
+                    } else if (defMod === 'bc' && localStorage.getItem('erp_jwt_token')) {
+                        window.location.href = '/suivi-achats-premium/';
+                        return;
+                    }
+                }
+            } catch (err) {}
+
             // Auto-open GDS Scanner if query param ?scan_gds=1 is present
             try {
                 const urlParams = new URLSearchParams(window.location.search);
@@ -250,6 +267,13 @@ const App = {
         if (udropAchatsLink) {
             const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'directeur' || user.role === 'management' || user.role === 'appro');
             udropAchatsLink.style.display = isAdmin ? 'flex' : 'none';
+        }
+
+        // General Settings link (admin only)
+        const udropGenSettings = document.getElementById('udropGeneralSettingsLink');
+        if (udropGenSettings) {
+            const isFullAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'directeur');
+            udropGenSettings.style.display = isFullAdmin ? 'flex' : 'none';
         }
 
         // GDS Scanner button & FAB visibility for eligible roles
@@ -845,6 +869,29 @@ const App = {
             return this.loadModule('settings', tab || 'database');
         }
         return this.showUserSettings();
+    },
+
+    showModulePickerModal() {
+        const modal = document.getElementById('modulePickerModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    },
+
+    hideModulePickerModal() {
+        const modal = document.getElementById('modulePickerModal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    goToModule(mod) {
+        this.hideModulePickerModal();
+        if (mod === 'bc') {
+            window.location.href = '/suivi-achats-premium/';
+        } else if (mod === 'settings') {
+            window.location.href = '/general-settings.html';
+        } else {
+            this.loadModule('dashboard');
+        }
     },
 
     showUsers() {

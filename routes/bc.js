@@ -2,7 +2,7 @@ const router = require('express').Router();
 const fs = require('fs');
 const path = require('path');
 const BcRecord = require('../models/BcRecord');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 
 // GET /api/bc — list all BC records
 router.get('/', authenticate, async (req, res) => {
@@ -140,11 +140,11 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // DELETE /api/bc/:id
-router.delete('/:id', authenticate, async (req, res) => {
+// DELETE /api/bc/all — delete all (admin only) — MUST BE BEFORE /:id
+router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
-    const record = await BcRecord.findByIdAndDelete(req.params.id);
-    if (!record) return res.status(404).json({ error: 'BC non trouvé' });
-    res.json({ message: 'BC supprimé' });
+    const result = await BcRecord.deleteMany({});
+    res.json({ deleted: result.deletedCount, message: 'Tous les BCs supprimés' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -155,6 +155,16 @@ router.delete('/', authenticate, async (req, res) => {
   try {
     const result = await BcRecord.deleteMany({});
     res.json({ deleted: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const record = await BcRecord.findByIdAndDelete(req.params.id);
+    if (!record) return res.status(404).json({ error: 'BC non trouvé' });
+    res.json({ message: 'BC supprimé' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
