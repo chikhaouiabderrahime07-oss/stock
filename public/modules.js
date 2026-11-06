@@ -11719,7 +11719,7 @@ window.BarcodeGenerator = {
         const articles = DB.getArticles();
         const decharges = DB.getDecharges();
         const fleet = DB.getFleet ? DB.getFleet() : [];
-        return `
+        const html = `
             <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                 <div>
                     <h2 style="font-weight:800;color:var(--text);margin-bottom:4px;"><i class="fas fa-barcode text-primary me-2"></i> Générateur de Codes & Étiquettes</h2>
@@ -12013,7 +12013,14 @@ window.BarcodeGenerator = {
 };
 
 window.Users = {
+    _mongoLoaded: false,
+
     render: function() {
+        // Async sync from MongoDB on first tab open
+        if (!this._mongoLoaded) {
+            this._mongoLoaded = true;
+            setTimeout(function() { Users.loadFromMongo(); }, 150);
+        }
         const users = DB.getUsers();
         const settings = DB.getSettings();
         const depts = (settings.departments && settings.departments.length > 0) ? settings.departments : ['Direction Générale', 'Approvisionnement', 'Transport'];
@@ -12278,6 +12285,46 @@ window.Users = {
             { name: 'Utilisateurs', data }
         ]);
         Utils.showNotification('Export Excel des utilisateurs généré.', 'success');
+    },
+
+    // Load users from MongoDB and sync into local DB
+    loadFromMongo: async function() {
+        var token = localStorage.getItem('erp_jwt_token');
+        if (!token) return;
+        try {
+            var res = await fetch('/api/auth/users', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (!res.ok) return;
+            var data = await res.json();
+            var mongoUsers = Array.isArray(data.users) ? data.users : [];
+            if (mongoUsers.length === 0) return;
+            // Merge MongoDB users into local DB
+            var localUsers = DB.data.users || [];
+            var mergedMap = {};
+            localUsers.forEach(function(u) { if (u.username) mergedMap[u.username] = u; });
+            mongoUsers.forEach(function(u) {
+                mergedMap[u.username] = {
+                    id: u.id || u._id || u.username,
+                    username: u.username,
+                    name: u.name || u.username,
+                    role: u.role,
+                    department: u.department || '',
+                    service: u.service || '',
+                    _mongoId: u.id || u._id
+                };
+            });
+            DB.data.users = Object.values(mergedMap);
+            DB.save();
+            // Re-render users tab if still active
+            var mainContent = document.getElementById('mainContent');
+            if (mainContent && mainContent.querySelector('.users-gear-icon, [data-users-tab]')) {
+                if (window.App && App.loadModule) App.loadModule('settings', 'users');
+            }
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                Utils.showNotification(mongoUsers.length + ' utilisateurs chargés depuis MongoDB', 'success');
+            }
+        } catch (e) {
+            console.warn('[Users] loadFromMongo error:', e);
+        }
     }
 };
 
@@ -12794,7 +12841,7 @@ window.Settings = {
             `;
         }
 
-        return `
+        const html = `
             <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                 <div>
                     <h2 style="font-weight:800;color:var(--text);margin-bottom:4px;">
@@ -12821,12 +12868,14 @@ window.Settings = {
             </div>
 
             ${tabContent}
-        `;
+        `
 
         // Auto-load backup count when maintenance tab is active
         if (currentTab === 'maintenance' && typeof Settings !== 'undefined' && Settings.loadBackupCount) {
             setTimeout(function() { Settings.loadBackupCount(); }, 300);
         }
+
+        return html;
     },
 
     addCategory: function(e) {
