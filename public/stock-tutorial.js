@@ -2264,6 +2264,13 @@
         },
 
         checkFirstLoginAutoPrompt: function(username) {
+            // GUARD: Never show tutorial if login screen is visible
+            const loginScreen = document.getElementById('loginScreen');
+            const appContainer = document.getElementById('appContainer');
+            if (loginScreen && loginScreen.style.display !== 'none') return;
+            if (appContainer && (appContainer.style.display === 'none' || appContainer.classList.contains('hidden'))) return;
+            if (!localStorage.getItem('erp_jwt_token')) return;
+
             const u = username || (typeof Auth !== 'undefined' && Auth.getCurrentUser ? Auth.getCurrentUser()?.username : null);
             if (!u) return;
 

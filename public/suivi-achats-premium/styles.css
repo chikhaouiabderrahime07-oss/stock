@@ -2116,8 +2116,8 @@ textarea {
 
 /* EXECUTIVE DUAL THEME TOPBAR */
 .sa-topbar {
-  height: 56px;
-  min-height: 56px;
+  height: auto;
+  min-height: 48px;
   position: sticky;
   top: 0;
   background: #ffffff;
@@ -2126,9 +2126,11 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 4px 12px;
   z-index: 300;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 [data-theme="dark"] .sa-topbar {

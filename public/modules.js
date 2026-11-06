@@ -12704,6 +12704,31 @@ window.Settings = {
                         </div>
                     </div>
 
+                    <!-- Auto-Backup MongoDB (00:00) -->
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-clock text-success me-2"></i> <strong>Sauvegarde Automatique MongoDB</strong></div>
+                        <div class="card-body">
+                            <p class="text-muted small">Le système effectue une sauvegarde automatique de la base MongoDB chaque jour à <strong>00:00 (heure Algérie)</strong>.</p>
+                            <div class="p-2 mb-3 rounded" style="background:var(--surface-alt);border:1px solid var(--border);">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>Prochaine sauvegarde :</span>
+                                    <strong class="text-success">00:00 (Africa/Algiers)</strong>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Sauvegardes récentes :</span>
+                                    <strong class="text-primary" id="backupCount">Chargement...</strong>
+                                </div>
+                            </div>
+                            <button class="btn btn-outline-success mb-2 w-100" onclick="Settings.triggerManualBackup()">
+                                <i class="fas fa-play me-1"></i> Lancer une Sauvegarde Maintenant
+                            </button>
+                            <button class="btn btn-outline-primary w-100" onclick="Settings.showBackupHistory()">
+                                <i class="fas fa-history me-1"></i> Voir l'Historique des Sauvegardes
+                            </button>
+                            <div id="backupHistoryList" style="display:none;margin-top:10px;max-height:200px;overflow-y:auto;"></div>
+                        </div>
+                    </div>
+
                     <!-- Intégrité & Audit -->
                     <div class="card">
                         <div class="card-header"><i class="fas fa-shield-halved text-success me-2"></i> <strong>Journal d'Audit & Sécurité Cryptographique</strong></div>
@@ -12788,6 +12813,11 @@ window.Settings = {
 
             ${tabContent}
         `;
+
+        // Auto-load backup count when maintenance tab is active
+        if (currentTab === 'maintenance' && typeof Settings !== 'undefined' && Settings.loadBackupCount) {
+            setTimeout(function() { Settings.loadBackupCount(); }, 300);
+        }
     },
 
     addCategory: function(e) {
@@ -13662,6 +13692,56 @@ window.Settings = {
 
         XLSX.writeFile(wb, `ERP_Douroub_Base_Complete_${new Date().toISOString().slice(0, 10)}.xlsx`);
         UI.showAlert("Export complet de la base de données Excel (.xlsx) généré avec succès !", "success");
+    },
+
+    triggerManualBackup: async function() {
+        if (typeof DB === 'undefined' || !DB.triggerBackup) {
+            Utils.showNotification('Fonction de sauvegarde non disponible', 'error');
+            return;
+        }
+        try {
+            Utils.showNotification('Sauvegarde en cours...', 'info');
+            const res = await DB.triggerBackup();
+            Utils.showNotification('Sauvegarde MongoDB créée avec succès !', 'success');
+            this.loadBackupCount();
+        } catch (e) {
+            Utils.showNotification('Erreur: ' + (e.message || 'Sauvegarde échouée'), 'error');
+        }
+    },
+
+    showBackupHistory: async function() {
+        const list = document.getElementById('backupHistoryList');
+        if (!list) return;
+        if (list.style.display !== 'none') { list.style.display = 'none'; return; }
+        list.style.display = 'block';
+        list.innerHTML = '<p class="text-muted small">Chargement...</p>';
+        try {
+            const res = await DB.listBackups();
+            const backups = res.backups || [];
+            if (backups.length === 0) {
+                list.innerHTML = '<p class="text-muted small">Aucune sauvegarde trouvée.</p>';
+                return;
+            }
+            list.innerHTML = backups.map(function(b) {
+                var d = new Date(b.createdAt).toLocaleString('fr-DZ');
+                var size = b.sizeKB ? (b.sizeKB + ' KB') : '';
+                return '<div class="d-flex justify-content-between small p-1 border-bottom"><span>' + d + ' (' + (b.type || 'auto') + ')</span><span class="text-muted">' + size + '</span></div>';
+            }).join('');
+        } catch (e) {
+            list.innerHTML = '<p class="text-danger small">Erreur: ' + (e.message || 'chargement') + '</p>';
+        }
+    },
+
+    loadBackupCount: async function() {
+        var el = document.getElementById('backupCount');
+        if (!el) return;
+        try {
+            var res = await DB.listBackups();
+            var backups = res.backups || [];
+            el.textContent = backups.length + ' sauvegarde(s)';
+        } catch (e) {
+            el.textContent = 'Non disponible';
+        }
     }
 };
 

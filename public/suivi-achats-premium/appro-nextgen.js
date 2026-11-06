@@ -1014,20 +1014,20 @@ const ApproNextGen = window.ApproNextGen = {
       modal.id = 'scannerProgressModal';
       modal.className = 'modal-backdrop';
       modal.innerHTML = `
-        <div class="modal-card" style="max-width:650px;">
+        <div class="modal-card" style="max-width:90vw;width:900px;min-height:60vh;">
           <div class="modal-header">
             <h3 id="scanModalTitle">Scanner</h3>
             <button class="btn-ghost" type="button" onclick="document.getElementById('scannerProgressModal').classList.add('hidden')">&times;</button>
           </div>
-          <div class="scanner-modal-content">
-            <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#64748b;">
+          <div class="scanner-modal-content" style="padding:1rem 1.5rem;">
+            <div style="display:flex;justify-content:space-between;font-size:0.95rem;color:#64748b;">
               <span id="scanStatusText">Analyse des fichiers...</span>
               <strong id="scanCountText">0 / ${totalFiles}</strong>
             </div>
-            <div class="scan-progress-bar-wrap">
+            <div class="scan-progress-bar-wrap" style="margin:10px 0;">
               <div class="scan-progress-bar" id="scanProgressBar"></div>
             </div>
-            <div class="scan-log-box" id="scanLogBox"></div>
+            <div class="scan-log-box" id="scanLogBox" style="max-height:55vh;min-height:40vh;overflow-y:auto;font-size:13px;"></div>
           </div>
           <div class="modal-footer" id="scanModalFooter" style="display:flex;justify-content:flex-end;gap:0.6rem;padding:0.75rem 1rem;">
             <button class="btn btn-ghost" type="button" onclick="document.getElementById('scannerProgressModal').classList.add('hidden')">Fermer</button>
