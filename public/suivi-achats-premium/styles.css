@@ -2195,7 +2195,27 @@ textarea {
   box-shadow: 0 2px 6px rgba(37,99,235,0.25);
 }
 
-/* Horizontal Topbar Navigation Tabs */
+/* Horizontal Topbar Navigation Tabs — Separate Row */
+.sa-tab-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  padding: 6px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: sticky;
+  top: 48px;
+  z-index: 299;
+  flex-wrap: wrap;
+}
+.sa-tab-row::-webkit-scrollbar { display: none; }
+[data-theme="dark"] .sa-tab-row {
+  background: #131b2e;
+  border-bottom-color: #1e293b;
+}
 .sa-top-tabs {
   display: flex;
   align-items: center;

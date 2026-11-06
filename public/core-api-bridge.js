@@ -12,12 +12,37 @@
   var _syncTimer = null;
   var _syncInProgress = false;
 
-  // ─── Override DB.save() — queue sync to server ──────────────
+  // ─── Override DB.save() — queue FULL sync to server ──────────
   var _originalSave = DB.save.bind(DB);
   DB.save = function() {
     _originalSave();
-    _queueSync();
+    _queueFullSync();
   };
+
+  // ─── Debounced FULL sync — pushes ALL articles + settings ───
+  var _fullSyncTimer = null;
+  function _queueFullSync() {
+    if (_fullSyncTimer) clearTimeout(_fullSyncTimer);
+    _fullSyncTimer = setTimeout(_performFullSync, 3000);
+  }
+
+  async function _performFullSync() {
+    if (!API.getToken() || _syncInProgress) return;
+    _syncInProgress = true;
+    try {
+      // Push ALL articles via bulk upsert
+      var articles = DB.data.articles || [];
+      if (articles.length > 0) {
+        await _pushArticlesToServer(articles);
+      }
+      // Push settings
+      await _syncSettings();
+    } catch (e) {
+      console.warn('[BRIDGE] Full sync error:', e);
+    } finally {
+      _syncInProgress = false;
+    }
+  }
 
   // ─── Override DB.init() — no change needed ──────────────────
   var _originalInit = DB.init.bind(DB);
@@ -76,6 +101,25 @@
         console.log('[BRIDGE] Server empty, keeping ' + localArticles.length + ' local articles and pushing to server...');
         DB.data.articles = localArticles;
         _pushArticlesToServer(localArticles);
+      }
+
+      // Normalize article site values: convert site IDs to site names
+      var allArticles = DB.data.articles || [];
+      if (allArticles.length > 0) {
+        var siteSettings = (DB.data.settings && DB.data.settings.stockSites) || [];
+        var siteIdToName = {};
+        for (var si = 0; si < siteSettings.length; si++) {
+          siteIdToName[siteSettings[si].id] = siteSettings[si].name;
+        }
+        for (var ai = 0; ai < allArticles.length; ai++) {
+          var artSite = allArticles[ai].site;
+          if (artSite && siteIdToName[artSite]) {
+            allArticles[ai].site = siteIdToName[artSite];
+          }
+          if (!allArticles[ai].site) {
+            allArticles[ai].site = 'Dépôt Central';
+          }
+        }
       }
 
       // Settings: merge, don't replace if server is empty
@@ -192,15 +236,9 @@
     }
   }
 
-  // ─── Debounced settings sync ───────────────────────────────
-  function _queueSync() {
-    if (_syncTimer) clearTimeout(_syncTimer);
-    _syncTimer = setTimeout(_performSync, 2000);
-  }
-
-  async function _performSync() {
-    if (!API.getToken() || _syncInProgress) return;
-    _syncInProgress = true;
+  // ─── Settings-only sync helper ──────────────────────────────
+  async function _syncSettings() {
+    if (!API.getToken()) return;
     try {
       var settings = DB.data.settings;
       if (settings) {
@@ -223,9 +261,7 @@
         }).catch(function(e) { console.warn('[BRIDGE] Settings sync failed:', e.message); });
       }
     } catch (e) {
-      console.warn('[BRIDGE] Sync error:', e);
-    } finally {
-      _syncInProgress = false;
+      console.warn('[BRIDGE] Settings sync error:', e);
     }
   }
 
@@ -544,7 +580,7 @@
     try {
       if (typeof Utils !== 'undefined') Utils.showNotification('Synchronisation en cours...', 'info');
       await _pushArticlesToServer(DB.data.articles || []);
-      await _performSync();
+      await _syncSettings();
       if (typeof Utils !== 'undefined') Utils.showNotification('✅ Synchronisation complète !', 'success');
     } catch (e) {
       if (typeof Utils !== 'undefined') Utils.showNotification('❌ Erreur: ' + e.message, 'error');

@@ -2816,7 +2816,7 @@ window.Stock = {
                         <select name="site" id="addArticleSiteSelect" class="form-select" required onchange="Stock.onSiteChangeForZone(this.value)">
                             ${(typeof DB !== 'undefined' && DB.getSites ? DB.getSites() : []).map(function(s) {
                                 var sel = s.isDefault ? ' selected' : '';
-                                return '<option value="' + Utils.escapeHTML(s.id) + '"' + sel + '>' + Utils.escapeHTML(s.name) + '</option>';
+                                return '<option value="' + Utils.escapeHTML(s.name) + '"' + sel + '>' + Utils.escapeHTML(s.name) + '</option>';
                             }).join('')}
                         </select>
                     </div>
@@ -2882,7 +2882,7 @@ window.Stock = {
         var zoneSelect = document.getElementById('addArticleZoneSelect');
         if (!zoneSelect) return;
         var sites = (typeof DB !== 'undefined' && DB.getSites) ? DB.getSites() : [];
-        var site = sites.find(function(s) { return s.id === siteId; });
+        var site = sites.find(function(s) { return s.id === siteId || s.name === siteId; });
         var zones = site ? (site.zones || []) : [];
         var opts = '';
         for (var i = 0; i < zones.length; i++) {
@@ -3133,7 +3133,7 @@ window.Stock = {
                         <select name="site" id="addArticleSiteSelect" class="form-select" required onchange="Stock.onSiteChangeForZone(this.value)">
                             ${(typeof DB !== 'undefined' && DB.getSites ? DB.getSites() : []).map(function(s) {
                                 var sel = (article.site === s.id || (!article.site && s.isDefault)) ? ' selected' : '';
-                                return '<option value="' + Utils.escapeHTML(s.id) + '"' + sel + '>' + Utils.escapeHTML(s.name) + '</option>';
+                                return '<option value="' + Utils.escapeHTML(s.name) + '"' + sel + '>' + Utils.escapeHTML(s.name) + '</option>';
                             }).join('')}
                         </select>
                     </div>
