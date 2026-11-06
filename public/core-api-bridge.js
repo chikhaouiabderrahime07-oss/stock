@@ -202,9 +202,11 @@
           const btnHead = document.getElementById('btnHeaderGdsScanner');
           const btnFab = document.getElementById('fabGdsScanner');
           const btnQuick = document.getElementById('btnGdsScan');
+          const udropLink = document.getElementById('udropGdsScanLink');
           if (btnHead) btnHead.style.display = isEligible ? 'inline-flex' : 'none';
           if (btnFab) btnFab.style.display = isEligible ? 'flex' : 'none';
           if (btnQuick) btnQuick.style.display = isEligible ? 'inline-flex' : 'none';
+          if (udropLink) udropLink.style.display = isEligible ? 'flex' : 'none';
         }
 
         // Load data from server after successful login
@@ -218,6 +220,9 @@
       return false;
     } catch (err) {
       console.error('[BRIDGE] Login failed:', err.message);
+      if (err && (err.status === 429 || (err.message && err.message.toLowerCase().includes('tentatives')))) {
+        throw err;
+      }
       // Fallback to local auth for offline mode
       return _originalLogin(username, password);
     }
@@ -270,9 +275,11 @@
             const btnHead = document.getElementById('btnHeaderGdsScanner');
             const btnFab = document.getElementById('fabGdsScanner');
             const btnQuick = document.getElementById('btnGdsScan');
+            const udropLink = document.getElementById('udropGdsScanLink');
             if (btnHead) btnHead.style.display = isEligible ? 'inline-flex' : 'none';
             if (btnFab) btnFab.style.display = isEligible ? 'flex' : 'none';
             if (btnQuick) btnQuick.style.display = isEligible ? 'inline-flex' : 'none';
+            if (udropLink) udropLink.style.display = isEligible ? 'flex' : 'none';
           }
 
           return;
@@ -348,6 +355,7 @@
             const created = res.article || res.vehicle || res.citerne || res.order || res.decharge || res.bon;
             if (created && created._id) {
               arr[idx]._id = created._id;
+              _originalSave();
             }
           }
         }

@@ -4,7 +4,7 @@ const Backup = require('../models/Backup');
 const { authenticate, authorize } = require('../middleware/auth');
 
 // GET /api/backup — List backups
-router.get('/', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+router.get('/', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
     const backups = await getBackups();
     res.json({ backups });
@@ -14,7 +14,7 @@ router.get('/', authenticate, authorize('superadmin', 'directeur'), async (req, 
 });
 
 // POST /api/backup — Trigger manual backup
-router.post('/', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+router.post('/', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
     const backup = await performBackup('manual', req.user.name || req.user.username);
     res.status(201).json({
@@ -33,7 +33,7 @@ router.post('/', authenticate, authorize('superadmin', 'directeur'), async (req,
 });
 
 // GET /api/backup/:id — Download a backup
-router.get('/:id', authenticate, authorize('superadmin'), async (req, res) => {
+router.get('/:id', authenticate, authorize('superadmin', 'admin'), async (req, res) => {
   try {
     const backup = await Backup.findById(req.params.id).lean();
     if (!backup) return res.status(404).json({ error: 'Sauvegarde non trouvée' });

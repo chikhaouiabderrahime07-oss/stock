@@ -3142,3 +3142,13 @@ textarea {
   color: #cbd5e1;
 }
 
+/* Responsive Header — Anti-Overlap */
+@media (max-width: 1750px) {
+  .sa-topbar-credits { display: none !important; }
+  .sa-nav-pill-link span { display: none !important; }
+  .sa-nav-pill-link { padding: 6px 10px !important; }
+}
+@media (max-width: 1350px) {
+  .sa-top-tabs { overflow-x: auto; max-width: 55vw; }
+}
+

@@ -67,15 +67,22 @@ window.API = {
 
   // ─── Auth ──────────────────────────────────────────────
   auth: {
+    get baseUrl() { return (typeof API !== 'undefined' && API.baseUrl) || ''; },
     async login(username, password) {
-      const res = await fetch(`${API.BASE}/api/auth/login`, {
+      const res = await fetch(`${this.baseUrl || ''}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Identifiants incorrects');
+        const defaultMsg = res.status === 429
+          ? 'Trop de tentatives de connexion. Réessayez dans 30 minutes.'
+          : 'Identifiants incorrects';
+        const err = new Error(data.error || defaultMsg);
+        err.status = res.status;
+        err.data = data;
+        throw err;
       }
       API.setToken(data.token);
       return data;

@@ -318,12 +318,13 @@
     <script src="gds-scanner.js"></script>
     <script src="app.js"></script>
 
-    <!-- AI MEGA LOGO — 100 Effects Auto-Cycle Engine -->
+    <!-- AI MEGA LOGO — Stable Curated Effects Cycle Engine -->
     <script>
     (function(){
       var TOTAL_FX = 100;
-      var loginFx = 1;
-      var headerFx = 1;
+      var STABLE_FX = [1, 2, 3, 4, 6, 8, 12, 16, 20];
+      var loginIndex = 0;
+      var headerIndex = 0;
 
       function applyFx(widget, n) {
         if(!widget) return;
@@ -340,9 +341,9 @@
       // Initialize effects immediately on DOM load
       function initWidgets() {
         var loginW = document.getElementById('loginAiWidget');
-        if (loginW) applyFx(loginW, 1);
+        if (loginW) applyFx(loginW, STABLE_FX[0]);
         var headerW = document.getElementById('headerAiWidget');
-        if (headerW) applyFx(headerW, 1);
+        if (headerW) applyFx(headerW, STABLE_FX[0]);
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initWidgets);
@@ -354,23 +355,23 @@
       setInterval(function(){
         var loginW = document.getElementById('loginAiWidget') || document.querySelector('.ai-widget-lg');
         if(!isElementVisible(loginW)) return;
-        loginFx = (loginFx % TOTAL_FX) + 1;
-        applyFx(loginW, loginFx);
+        loginIndex = (loginIndex + 1) % STABLE_FX.length;
+        applyFx(loginW, STABLE_FX[loginIndex]);
       }, 4000);
 
       // Auto-cycle every 5 seconds on header logo
       setInterval(function(){
         var headerW = document.getElementById('headerAiWidget') || document.querySelector('.header-brand .ai-widget');
         if(!isElementVisible(headerW)) return;
-        headerFx = (headerFx % TOTAL_FX) + 1;
-        applyFx(headerW, headerFx);
+        headerIndex = (headerIndex + 1) % STABLE_FX.length;
+        applyFx(headerW, STABLE_FX[headerIndex]);
       }, 5000);
 
-      // Click = jump to random effect
+      // Click = jump to random stable effect
       window.triggerAiAction = function(el) {
         if(!el) return;
         var w = el.closest ? (el.closest('.ai-widget') || el) : el;
-        var n = Math.floor(Math.random()*TOTAL_FX)+1;
+        var n = STABLE_FX[Math.floor(Math.random() * STABLE_FX.length)];
         applyFx(w, n);
       };
     })();

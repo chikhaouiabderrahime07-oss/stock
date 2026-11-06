@@ -49,7 +49,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/articles
-router.post('/', authenticate, authorize('superadmin', 'directeur', 'magasinier'), async (req, res) => {
+router.post('/', authenticate, authorize('superadmin', 'admin', 'directeur', 'magasinier'), async (req, res) => {
   try {
     const article = await Article.create(req.body);
     req.app.get('broadcastSSE')('article_created', { id: article._id, code: article.code });
@@ -63,7 +63,7 @@ router.post('/', authenticate, authorize('superadmin', 'directeur', 'magasinier'
 });
 
 // PUT /api/articles/:id
-router.put('/:id', authenticate, authorize('superadmin', 'directeur', 'magasinier'), async (req, res) => {
+router.put('/:id', authenticate, authorize('superadmin', 'admin', 'directeur', 'magasinier'), async (req, res) => {
   try {
     const article = await Article.findByIdAndUpdate(req.params.id, req.body, {
       new: true, runValidators: true
@@ -80,7 +80,7 @@ router.put('/:id', authenticate, authorize('superadmin', 'directeur', 'magasinie
 });
 
 // DELETE /api/articles/:id
-router.delete('/:id', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+router.delete('/:id', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
     if (!article) return res.status(404).json({ error: 'Article non trouvé' });
@@ -92,7 +92,7 @@ router.delete('/:id', authenticate, authorize('superadmin', 'directeur'), async 
 });
 
 // POST /api/articles/bulk
-router.post('/bulk', authenticate, authorize('superadmin', 'directeur', 'magasinier'), async (req, res) => {
+router.post('/bulk', authenticate, authorize('superadmin', 'admin', 'directeur', 'magasinier'), async (req, res) => {
   try {
     const { articles } = req.body;
     if (!Array.isArray(articles) || articles.length === 0) {

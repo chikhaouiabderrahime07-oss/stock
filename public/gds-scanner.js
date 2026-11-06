@@ -125,6 +125,7 @@
                 return;
             }
             modal.classList.remove('hidden');
+            modal.classList.add('active');
 
             const chk = (typeof document !== 'undefined') ? document.getElementById('chkGdsAutoDeduct') : null;
             if (chk) chk.checked = this.autoDeduct;
@@ -143,7 +144,10 @@
 
         closeModal: function() {
             const modal = document.getElementById('gdsScannerModal');
-            if (modal) modal.classList.add('hidden');
+            if (modal) {
+                modal.classList.remove('active');
+                modal.classList.add('hidden');
+            }
             this.stopCamera();
             this.currentArticle = null;
         },
