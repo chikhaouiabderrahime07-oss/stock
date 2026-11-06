@@ -2744,8 +2744,20 @@ function bindEvents() {
 
     if (login(username, password)) {
       showToast('Connexion réussie.');
+      // Try to get JWT from server even after local fallback login
+      try {
+        const r2 = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const d2 = await r2.json();
+        if (r2.ok && d2.token) {
+          localStorage.setItem('erp_jwt_token', d2.token);
+        }
+      } catch (e2) {}
       if (window.bcBridge && typeof window.bcBridge.hydrateFromServer === 'function') {
-        window.bcBridge.hydrateFromServer();
+        setTimeout(() => window.bcBridge.hydrateFromServer(), 500);
       }
     } else {
       showToast('Identifiants incorrects.');
