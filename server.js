@@ -85,6 +85,8 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/backup', require('./routes/backup'));
 app.use('/api/movements', require('./routes/movements'));
+app.use('/api/bc', require('./routes/bc'));
+app.use('/api/payments', require('./routes/payments'));
 
 // ─── Serve Static Frontend ──────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
