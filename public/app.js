@@ -136,6 +136,12 @@ const App = {
             if (loginEl) loginEl.style.display = 'none';
             if (appEl) { appEl.style.display = ''; appEl.classList.remove('hidden'); }
             
+            // Show sync status
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                const artCount = (DB && DB.data && DB.data.articles) ? DB.data.articles.length : 0;
+                Utils.showNotification('✅ Connecté — ' + artCount + ' articles chargés depuis MongoDB', 'success');
+            }
+            
             // Branding: Top company name dynamically updated from settings
             const topComp = document.getElementById('topCompanyName');
             if (topComp) {
