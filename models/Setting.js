@@ -8,23 +8,20 @@ const settingSchema = new mongoose.Schema({
     default: 'global'
   },
   stockZones: {
-    type: [String],
+    type: mongoose.Schema.Types.Mixed,
     default: []
   },
   stockSites: {
-    type: [{
-      name: { type: String, required: true },
-      zones: { type: [String], default: [] }
-    }],
+    type: mongoose.Schema.Types.Mixed,
     default: []
   },
   stockSections: {
-    type: [String],
+    type: mongoose.Schema.Types.Mixed,
     default: []
   },
   articleCategories: {
     type: [String],
-    default: ['Pièces de rechange', 'Consommables', 'Outillage', 'Lubrifiants', 'Électricité', 'Pneumatiques']
+    default: ['Bureautique', 'Pièces de rechange', 'Consommables', 'Lubrifiant', 'Pneus', 'Filtres', 'Divers']
   },
   articleFamilies: {
     type: [String],
@@ -32,11 +29,11 @@ const settingSchema = new mongoose.Schema({
   },
   units: {
     type: [String],
-    default: ['Unité', 'Kg', 'Litre', 'Mètre', 'Boîte', 'Paire', 'Jeu', 'Rouleau', 'Sac', 'Bidon']
+    default: ['Pièce', 'Kg', 'Litre', 'Mètre', 'Boîte', 'Rouleau', 'Bidon', 'Paquet', 'Unité', 'Bloc', 'Lot']
   },
   departments: {
     type: [String],
-    default: []
+    default: ['Direction Générale', 'Approvisionnement', 'Transport']
   },
   services: {
     type: [String],
@@ -45,6 +42,14 @@ const settingSchema = new mongoose.Schema({
   beneficiaries: {
     type: [String],
     default: []
+  },
+  materialFamilies: {
+    type: mongoose.Schema.Types.Mixed,
+    default: []
+  },
+  categoryPrefixes: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   companyLogoLeft: {
     type: String,
@@ -56,7 +61,7 @@ const settingSchema = new mongoose.Schema({
   },
   companyName: {
     type: String,
-    default: ''
+    default: 'SPA DOUROUB ELDJAZAIR'
   },
   gdsEnabled: {
     type: Boolean,
@@ -71,7 +76,8 @@ const settingSchema = new mongoose.Schema({
     default: ''
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  minimize: false
 });
 
 module.exports = mongoose.model('Setting', settingSchema);

@@ -109,12 +109,55 @@ async function startServer() {
   await connectDB();
   console.log('[DB] MongoDB connected');
 
-  // Seed default settings if none exist
+  // Seed default settings — ensure zones/sites/categories exist
   const Setting = require('./models/Setting');
   const existing = await Setting.findOne({ key: 'global' });
+  const defaultZones = [
+    { id: 'zone_a', name: 'Zone A', code: 'A', description: 'Zone A - Stock Principal', color: '#2563eb' },
+    { id: 'zone_b', name: 'Zone B', code: 'B', description: 'Zone B - Pièces Lourdes & Mécanique', color: '#059669' },
+    { id: 'zone_c', name: 'Zone C', code: 'C', description: 'Zone C - Électricité, Filtration & Fluides', color: '#7c3aed' },
+    { id: 'zone_d', name: 'Zone D', code: 'D', description: 'Zone D - Consommables & Outillage', color: '#d97706' },
+    { id: 'zone_e', name: 'Zone E', code: 'E', description: 'Zone E - Carrosserie & Divers', color: '#dc2626' }
+  ];
+  const defaultSites = [{
+    id: 'site_default', name: 'Dépôt Central', code: 'DC', address: '',
+    description: 'Site principal par défaut', color: '#2563eb', isDefault: true,
+    zones: [
+      { id: 'zone_a', name: 'Zone A', code: 'A', description: 'Stock Principal', color: '#2563eb' },
+      { id: 'zone_b', name: 'Zone B', code: 'B', description: 'Pièces Lourdes & Mécanique', color: '#059669' },
+      { id: 'zone_c', name: 'Zone C', code: 'C', description: 'Électricité & Filtration', color: '#7c3aed' },
+      { id: 'zone_d', name: 'Zone D', code: 'D', description: 'Consommables & Outillage', color: '#d97706' },
+      { id: 'zone_e', name: 'Zone E', code: 'E', description: 'Carrosserie & Divers', color: '#dc2626' }
+    ]
+  }];
   if (!existing) {
-    await Setting.create({ key: 'global' });
-    console.log('[SEED] Default settings created');
+    await Setting.create({
+      key: 'global',
+      stockZones: defaultZones,
+      stockSites: defaultSites,
+      stockSections: [{ id: 'sec_unique', name: 'Section Unique' }],
+      companyName: 'SPA DOUROUB ELDJAZAIR',
+      materialFamilies: [
+        { id: 'fam_camion', name: 'Camion', icon: 'fa-truck' },
+        { id: 'fam_remorque', name: 'Remorque', icon: 'fa-trailer' },
+        { id: 'fam_voiture', name: 'Voiture', icon: 'fa-car' },
+        { id: 'fam_engin', name: 'Engin', icon: 'fa-tractor' }
+      ],
+      categoryPrefixes: {
+        'Bureautique': 'BUR', 'Pièces de rechange': 'PDR', 'Consommables': 'CSM',
+        'Lubrifiant': 'LUB', 'Pneus': 'PNU', 'Filtres': 'FLT', 'Divers': 'DIV'
+      }
+    });
+    console.log('[SEED] Default settings created with zones & sites');
+  } else if (!existing.stockSites || existing.stockSites.length === 0) {
+    // Fix existing empty settings
+    await Setting.findOneAndUpdate({ key: 'global' }, {
+      stockZones: defaultZones,
+      stockSites: defaultSites,
+      stockSections: [{ id: 'sec_unique', name: 'Section Unique' }],
+      companyName: existing.companyName || 'SPA DOUROUB ELDJAZAIR'
+    });
+    console.log('[SEED] Settings updated — added missing zones & sites');
   }
 
   // Seed default admin if no users exist
