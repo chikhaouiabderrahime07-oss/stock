@@ -91,17 +91,32 @@ router.delete('/:id', authenticate, authorize('superadmin', 'admin', 'directeur'
   }
 });
 
-// POST /api/articles/bulk
+// POST /api/articles/bulk — Bulk UPSERT (by code)
 router.post('/bulk', authenticate, authorize('superadmin', 'admin', 'directeur', 'magasinier'), async (req, res) => {
   try {
     const { articles } = req.body;
     if (!Array.isArray(articles) || articles.length === 0) {
       return res.status(400).json({ error: 'Tableau d\'articles requis' });
     }
-    const result = await Article.insertMany(articles, { ordered: false }).catch(err => {
-      return { insertedCount: err.insertedDocs ? err.insertedDocs.length : 0, errors: err.writeErrors };
+    const ops = articles.map(a => {
+      const clean = { ...a };
+      delete clean._id;
+      delete clean.id;
+      delete clean.__v;
+      return {
+        updateOne: {
+          filter: { code: a.code },
+          update: { $set: clean },
+          upsert: true
+        }
+      };
     });
-    res.status(201).json({ inserted: Array.isArray(result) ? result.length : result.insertedCount });
+    const result = await Article.bulkWrite(ops, { ordered: false });
+    res.status(201).json({
+      upserted: result.upsertedCount || 0,
+      modified: result.modifiedCount || 0,
+      total: articles.length
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

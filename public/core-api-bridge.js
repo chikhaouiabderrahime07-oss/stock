@@ -1,35 +1,31 @@
 /* ============================================================
-   CORE-API-BRIDGE.JS — Patches DB and Auth to use REST API
-   Loaded AFTER core.js and api.js
-   Keeps same synchronous interface via local data cache
+   CORE-API-BRIDGE.JS — ROBUST MongoDB Sync for ERP Douroub v6
+   Strategy: Bidirectional merge on login, bulk upsert on save
+   NEVER replaces local data with empty server data
    ============================================================ */
 
 (function() {
   'use strict';
 
-  // ─── Track if data has been loaded from server ──────────────
-  let _serverDataLoaded = false;
-  let _loadingPromise = null;
-  let _syncQueue = [];
-  let _syncTimer = null;
+  var _serverDataLoaded = false;
+  var _loadingPromise = null;
+  var _syncTimer = null;
+  var _syncInProgress = false;
 
   // ─── Override DB.save() — queue sync to server ──────────────
-  const _originalSave = DB.save.bind(DB);
+  var _originalSave = DB.save.bind(DB);
   DB.save = function() {
-    // Keep localStorage as fast cache (session only)
     _originalSave();
-    // Queue API sync (debounced)
     _queueSync();
   };
 
-  // ─── Override DB.init() — load from server on startup ───────
-  const _originalInit = DB.init.bind(DB);
+  // ─── Override DB.init() — no change needed ──────────────────
+  var _originalInit = DB.init.bind(DB);
   DB.init = function() {
-    // First, run original init to set up data structure from localStorage cache
     _originalInit();
   };
 
-  // ─── Server data loader — called after login ───────────────
+  // ─── ROBUST Server Data Loader ─────────────────────────────
   DB.loadFromServer = async function() {
     if (_loadingPromise) return _loadingPromise;
     _loadingPromise = _doLoadFromServer();
@@ -40,116 +36,173 @@
     try {
       console.log('[BRIDGE] Loading data from server...');
 
-      const [
-        articlesRes,
-        settingsRes,
-        fleetRes,
-        citernesRes,
-        bonsRes,
-        ordersRes,
-        dechargesRes,
-        movementsRes
-      ] = await Promise.all([
-        API.articles.getAll({ limit: 10000 }).catch(e => ({ articles: [] })),
-        API.settings.get().catch(e => ({ settings: {} })),
-        API.fleet.getAll().catch(e => ({ vehicles: [] })),
-        API.citernes.getAll().catch(e => ({ citernes: [] })),
-        API.bt.getAll().catch(e => ({ bons: [] })),
-        API.orders.getAll({ limit: 5000 }).catch(e => ({ orders: [] })),
-        API.decharges.getAll({ limit: 5000 }).catch(e => ({ decharges: [] })),
-        API.movements.getAll({ limit: 5000 }).catch(e => ({ movements: [] }))
+      var results = await Promise.all([
+        API.articles.getAll({ limit: 10000 }).catch(function() { return { articles: [] }; }),
+        API.settings.get().catch(function() { return { settings: {} }; }),
+        API.fleet.getAll().catch(function() { return { vehicles: [] }; }),
+        API.citernes.getAll().catch(function() { return { citernes: [] }; }),
+        API.bt.getAll().catch(function() { return { bons: [] }; }),
+        API.orders.getAll({ limit: 5000 }).catch(function() { return { orders: [] }; }),
+        API.decharges.getAll({ limit: 5000 }).catch(function() { return { decharges: [] }; }),
+        API.movements.getAll({ limit: 5000 }).catch(function() { return { movements: [] }; })
       ]);
 
-      // Map MongoDB _id to id for backwards compatibility
-      const mapId = (item) => {
+      var articlesRes = results[0];
+      var settingsRes = results[1];
+      var fleetRes = results[2];
+      var citernesRes = results[3];
+      var bonsRes = results[4];
+      var ordersRes = results[5];
+      var dechargesRes = results[6];
+      var movementsRes = results[7];
+
+      var mapId = function(item) {
         if (item._id && !item.id) item.id = item._id;
         return item;
       };
 
-      // Merge server data into DB.data
-      if (Array.isArray(articlesRes.articles)) {
-        DB.data.articles = articlesRes.articles.map(mapId);
+      var serverArticles = Array.isArray(articlesRes.articles) ? articlesRes.articles.map(mapId) : [];
+      var localArticles = DB.data.articles || [];
+
+      // ═══ MERGE STRATEGY: Never lose data ═══
+      // If server has data → merge (server wins on conflicts by code)
+      // If server is empty but local has data → PUSH local to server
+      // If both empty → nothing to do
+
+      if (serverArticles.length > 0) {
+        DB.data.articles = _mergeByField(localArticles, serverArticles, 'code');
+        console.log('[BRIDGE] Merged articles: local=' + localArticles.length + ' server=' + serverArticles.length + ' → ' + DB.data.articles.length);
+      } else if (localArticles.length > 0) {
+        console.log('[BRIDGE] Server empty, keeping ' + localArticles.length + ' local articles and pushing to server...');
+        DB.data.articles = localArticles;
+        _pushArticlesToServer(localArticles);
       }
 
-      if (settingsRes.settings && Object.keys(settingsRes.settings).length > 0) {
-        const serverSettings = settingsRes.settings;
-        // Map MongoDB Setting fields to local settings format
+      // Settings: merge, don't replace if server is empty
+      if (settingsRes.settings && Object.keys(settingsRes.settings).length > 1) {
+        var ss = settingsRes.settings;
+        var ls = DB.data.settings || {};
         DB.data.settings = {
-          ...DB.data.settings,
-          stockZones: (serverSettings.stockZones && serverSettings.stockZones.length > 0) ? serverSettings.stockZones : DB.data.settings.stockZones,
-          stockSites: (serverSettings.stockSites && serverSettings.stockSites.length > 0) ? serverSettings.stockSites : DB.data.settings.stockSites,
-          stockSections: (serverSettings.stockSections && serverSettings.stockSections.length > 0) ? serverSettings.stockSections : DB.data.settings.stockSections,
-          categories: serverSettings.articleCategories || DB.data.settings.categories,
-          articleCategories: serverSettings.articleCategories || DB.data.settings.articleCategories,
-          families: serverSettings.articleFamilies || DB.data.settings.families,
-          units: serverSettings.units || DB.data.settings.units,
-          departments: serverSettings.departments || DB.data.settings.departments,
-          services: serverSettings.services || DB.data.settings.services,
-          materialFamilies: serverSettings.materialFamilies || DB.data.settings.materialFamilies,
-          categoryPrefixes: serverSettings.categoryPrefixes || DB.data.settings.categoryPrefixes,
-          companyLogoLeft: serverSettings.companyLogoLeft || '',
-          companyLogoRight: serverSettings.companyLogoRight || '',
-          logoLeft: serverSettings.companyLogoLeft || '',
-          leftLogo: serverSettings.companyLogoLeft || '',
-          logoRight: serverSettings.companyLogoRight || '',
-          rightLogo: serverSettings.companyLogoRight || '',
-          companyName: serverSettings.companyName || DB.data.settings.companyName,
-          gdsEnabled: serverSettings.gdsEnabled !== undefined ? serverSettings.gdsEnabled : DB.data.settings.gdsEnabled,
-          lowStockAlertEnabled: serverSettings.lowStockAlertEnabled !== undefined ? serverSettings.lowStockAlertEnabled : true
+          ...ls,
+          stockZones: (ss.stockZones && ss.stockZones.length > 0) ? ss.stockZones : ls.stockZones,
+          stockSites: (ss.stockSites && ss.stockSites.length > 0) ? ss.stockSites : ls.stockSites,
+          stockSections: (ss.stockSections && ss.stockSections.length > 0) ? ss.stockSections : ls.stockSections,
+          categories: ss.articleCategories || ls.categories,
+          articleCategories: ss.articleCategories || ls.articleCategories,
+          families: ss.articleFamilies || ls.families,
+          units: ss.units || ls.units,
+          departments: ss.departments || ls.departments,
+          services: ss.services || ls.services,
+          materialFamilies: ss.materialFamilies || ls.materialFamilies,
+          categoryPrefixes: ss.categoryPrefixes || ls.categoryPrefixes,
+          companyLogoLeft: ss.companyLogoLeft || '',
+          companyLogoRight: ss.companyLogoRight || '',
+          logoLeft: ss.companyLogoLeft || '',
+          leftLogo: ss.companyLogoLeft || '',
+          logoRight: ss.companyLogoRight || '',
+          rightLogo: ss.companyLogoRight || '',
+          companyName: ss.companyName || ls.companyName,
+          gdsEnabled: ss.gdsEnabled !== undefined ? ss.gdsEnabled : ls.gdsEnabled,
+          lowStockAlertEnabled: ss.lowStockAlertEnabled !== undefined ? ss.lowStockAlertEnabled : true
         };
       }
 
-      if (Array.isArray(fleetRes.vehicles)) {
-        DB.data.materials = fleetRes.vehicles.map(mapId);
+      // Fleet, citernes, orders, etc — same merge logic
+      var serverFleet = Array.isArray(fleetRes.vehicles) ? fleetRes.vehicles.map(mapId) : [];
+      if (serverFleet.length > 0) {
+        DB.data.materials = _mergeByField(DB.data.materials || [], serverFleet, 'id');
       }
 
-      if (Array.isArray(citernesRes.citernes)) {
-        DB.data.citernes = citernesRes.citernes.map(mapId);
+      var serverCiternes = Array.isArray(citernesRes.citernes) ? citernesRes.citernes.map(mapId) : [];
+      if (serverCiternes.length > 0) {
+        DB.data.citernes = _mergeByField(DB.data.citernes || [], serverCiternes, 'id');
       }
 
-      if (Array.isArray(bonsRes.bons)) {
-        DB.data.workPlans = bonsRes.bons.map(mapId);
+      var serverBons = Array.isArray(bonsRes.bons) ? bonsRes.bons.map(mapId) : [];
+      if (serverBons.length > 0) {
+        DB.data.workPlans = _mergeByField(DB.data.workPlans || [], serverBons, 'id');
       }
 
-      if (Array.isArray(ordersRes.orders)) {
-        DB.data.preOrders = ordersRes.orders.map(mapId);
+      var serverOrders = Array.isArray(ordersRes.orders) ? ordersRes.orders.map(mapId) : [];
+      if (serverOrders.length > 0) {
+        DB.data.preOrders = _mergeByField(DB.data.preOrders || [], serverOrders, 'id');
       }
 
-      if (Array.isArray(dechargesRes.decharges)) {
-        DB.data.decharges = dechargesRes.decharges.map(mapId);
+      var serverDecharges = Array.isArray(dechargesRes.decharges) ? dechargesRes.decharges.map(mapId) : [];
+      if (serverDecharges.length > 0) {
+        DB.data.decharges = _mergeByField(DB.data.decharges || [], serverDecharges, 'id');
       }
 
-      if (Array.isArray(movementsRes.movements)) {
-        DB.data.stockMovements = movementsRes.movements.map(mapId);
+      var serverMovements = Array.isArray(movementsRes.movements) ? movementsRes.movements.map(mapId) : [];
+      if (serverMovements.length > 0) {
+        DB.data.stockMovements = _mergeByField(DB.data.stockMovements || [], serverMovements, 'id');
       }
 
-      // Save to localStorage as cache
       _originalSave();
       _serverDataLoaded = true;
-      console.log('[BRIDGE] Server data loaded successfully');
-      console.log('[BRIDGE] Articles:', DB.data.articles.length,
-        '| Fleet:', DB.data.materials.length,
-        '| Orders:', DB.data.preOrders.length);
+
+      console.log('[BRIDGE] ✅ Data loaded — Articles:', DB.data.articles.length,
+        '| Fleet:', (DB.data.materials || []).length,
+        '| Orders:', (DB.data.preOrders || []).length);
 
     } catch (err) {
-      console.error('[BRIDGE] Failed to load from server:', err);
-      // Fall back to localStorage cache — app still works offline
+      console.error('[BRIDGE] ❌ Failed to load from server:', err);
     } finally {
       _loadingPromise = null;
     }
   }
 
-  // ─── Sync local changes to server (debounced) ──────────────
+  // ─── Merge two arrays by a key field (server wins) ─────────
+  function _mergeByField(localArr, serverArr, keyField) {
+    var map = {};
+    // Local items first
+    for (var i = 0; i < localArr.length; i++) {
+      var lk = localArr[i][keyField] || localArr[i]._id || localArr[i].id;
+      if (lk) map[lk] = localArr[i];
+    }
+    // Server items override
+    for (var j = 0; j < serverArr.length; j++) {
+      var sk = serverArr[j][keyField] || serverArr[j]._id || serverArr[j].id;
+      if (sk) map[sk] = serverArr[j];
+    }
+    return Object.values(map);
+  }
+
+  // ─── Push local articles to server (bulk upsert) ───────────
+  async function _pushArticlesToServer(articles) {
+    if (!API.getToken() || articles.length === 0) return;
+    try {
+      var cleanArticles = articles.map(function(a) {
+        var c = Object.assign({}, a);
+        delete c.id;
+        delete c._id;
+        delete c.__v;
+        return c;
+      });
+      var res = await API.post('/api/articles/bulk', { articles: cleanArticles });
+      console.log('[BRIDGE] Pushed ' + articles.length + ' articles to server:', res);
+      if (typeof Utils !== 'undefined' && Utils.showNotification) {
+        Utils.showNotification('✅ ' + articles.length + ' articles synchronisés avec le serveur', 'success');
+      }
+    } catch (e) {
+      console.error('[BRIDGE] Failed to push articles:', e.message);
+      if (typeof Utils !== 'undefined' && Utils.showNotification) {
+        Utils.showNotification('⚠️ Sync articles échouée: ' + e.message, 'error');
+      }
+    }
+  }
+
+  // ─── Debounced settings sync ───────────────────────────────
   function _queueSync() {
     if (_syncTimer) clearTimeout(_syncTimer);
     _syncTimer = setTimeout(_performSync, 2000);
   }
 
   async function _performSync() {
-    if (!API.getToken()) return;
-    // Settings sync — always push settings changes
+    if (!API.getToken() || _syncInProgress) return;
+    _syncInProgress = true;
     try {
-      const settings = DB.data.settings;
+      var settings = DB.data.settings;
       if (settings) {
         await API.settings.update({
           stockZones: settings.stockZones || [],
@@ -167,20 +220,22 @@
           companyLogoRight: settings.companyLogoRight || settings.rightLogo || settings.logoRight || '',
           gdsEnabled: settings.gdsEnabled || false,
           lowStockAlertEnabled: settings.lowStockAlertEnabled !== false
-        }).catch(e => console.warn('[BRIDGE] Settings sync failed:', e.message));
+        }).catch(function(e) { console.warn('[BRIDGE] Settings sync failed:', e.message); });
       }
     } catch (e) {
       console.warn('[BRIDGE] Sync error:', e);
+    } finally {
+      _syncInProgress = false;
     }
   }
 
   // ─── Override Auth.login() — use API auth ──────────────────
-  const _originalLogin = Auth.login.bind(Auth);
+  var _originalLogin = Auth.login.bind(Auth);
   Auth.login = async function(username, password) {
     try {
-      const data = await API.auth.login(username, password);
+      var data = await API.auth.login(username, password);
       if (data && data.user) {
-        const u = data.user;
+        var u = data.user;
         this.currentUser = {
           id: u._id || u.id,
           username: u.username,
@@ -194,7 +249,7 @@
         };
 
         try {
-          const serialized = JSON.stringify(this.currentUser);
+          var serialized = JSON.stringify(this.currentUser);
           localStorage.setItem('erp_currentUser', serialized);
           localStorage.setItem('erp_douroub_session', serialized);
           localStorage.setItem('sde_user_role', this.currentUser.role);
@@ -203,22 +258,10 @@
         } catch(e) {}
 
         // Update GDS scanner visibility
-        if (typeof window.isUserEligibleForGdsScan === 'function') {
-          const isEligible = window.isUserEligibleForGdsScan();
-          const btnHead = document.getElementById('btnHeaderGdsScanner');
-          const btnFab = document.getElementById('fabGdsScanner');
-          const btnQuick = document.getElementById('btnGdsScan');
-          const udropLink = document.getElementById('udropGdsScanLink');
-          if (btnHead) btnHead.style.display = isEligible ? 'inline-flex' : 'none';
-          if (btnFab) btnFab.style.display = isEligible ? 'flex' : 'none';
-          if (btnQuick) btnQuick.style.display = isEligible ? 'inline-flex' : 'none';
-          if (udropLink) udropLink.style.display = isEligible ? 'flex' : 'none';
-        }
+        _updateGdsVisibility();
 
         // Load data from server after successful login
         await DB.loadFromServer();
-
-        // Connect SSE for real-time updates
         API.sse.connect();
 
         return true;
@@ -226,10 +269,8 @@
       return false;
     } catch (err) {
       console.error('[BRIDGE] Login failed:', err.message);
-      if (err && (err.status === 429 || err.remaining !== undefined || (err.message && err.message.toLowerCase().includes('tentatives')))) {
-        throw err;
-      }
-      if (err && err.status === 401) {
+      // Propagate rate limit and auth errors
+      if (err && (err.status === 429 || err.remaining !== undefined || err.status === 401)) {
         throw err;
       }
       // Fallback to local auth for offline mode
@@ -238,7 +279,7 @@
   };
 
   // ─── Override Auth.logout() — clear JWT ─────────────────────
-  const _originalLogout = Auth.logout.bind(Auth);
+  var _originalLogout = Auth.logout.bind(Auth);
   Auth.logout = function() {
     API.clearToken();
     API.sse.disconnect();
@@ -247,15 +288,14 @@
   };
 
   // ─── Override Auth.init() — restore from JWT ────────────────
-  const _originalAuthInit = Auth.init.bind(Auth);
+  var _originalAuthInit = Auth.init.bind(Auth);
   Auth.init = async function() {
-    // First try JWT-based restore
-    const token = API.getToken();
+    var token = API.getToken();
     if (token) {
       try {
-        const data = await API.auth.me();
+        var data = await API.auth.me();
         if (data && data.user) {
-          const u = data.user;
+          var u = data.user;
           this.currentUser = {
             id: u._id || u.id,
             username: u.username,
@@ -269,28 +309,14 @@
           };
 
           try {
-            const serialized = JSON.stringify(this.currentUser);
+            var serialized = JSON.stringify(this.currentUser);
             localStorage.setItem('erp_currentUser', serialized);
             localStorage.setItem('erp_douroub_session', serialized);
           } catch(e) {}
 
-          // Load data from server
           await DB.loadFromServer();
           API.sse.connect();
-
-          // Update GDS scanner visibility on session restore
-          if (typeof window.isUserEligibleForGdsScan === 'function') {
-            const isEligible = window.isUserEligibleForGdsScan();
-            const btnHead = document.getElementById('btnHeaderGdsScanner');
-            const btnFab = document.getElementById('fabGdsScanner');
-            const btnQuick = document.getElementById('btnGdsScan');
-            const udropLink = document.getElementById('udropGdsScanLink');
-            if (btnHead) btnHead.style.display = isEligible ? 'inline-flex' : 'none';
-            if (btnFab) btnFab.style.display = isEligible ? 'flex' : 'none';
-            if (btnQuick) btnQuick.style.display = isEligible ? 'inline-flex' : 'none';
-            if (udropLink) udropLink.style.display = isEligible ? 'flex' : 'none';
-          }
-
+          _updateGdsVisibility();
           return;
         }
       } catch (e) {
@@ -298,36 +324,45 @@
         API.clearToken();
       }
     }
-    // Fallback to original localStorage-based init
     _originalAuthInit();
   };
 
-  // ─── Override article CRUD to also sync to server ──────────
-  const _originalInsert = DB.insert.bind(DB);
+  // ─── GDS visibility helper ─────────────────────────────────
+  function _updateGdsVisibility() {
+    if (typeof window.isUserEligibleForGdsScan === 'function') {
+      var isEligible = window.isUserEligibleForGdsScan();
+      var ids = ['btnHeaderGdsScanner', 'fabGdsScanner', 'btnGdsScan', 'udropGdsScanLink'];
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) el.style.display = isEligible ? (ids[i] === 'fabGdsScanner' ? 'flex' : 'inline-flex') : 'none';
+      }
+    }
+  }
+
+  // ─── Override article CRUD to sync to server ───────────────
+  var _originalInsert = DB.insert.bind(DB);
   DB.insert = function(col, item, note) {
-    const result = _originalInsert(col, item, note);
-    // Async sync to server
+    var result = _originalInsert(col, item, note);
     if (API.getToken()) {
       _syncCollectionItem('insert', col, result);
     }
     return result;
   };
 
-  const _originalUpdate = DB.update.bind(DB);
+  var _originalUpdate = DB.update.bind(DB);
   DB.update = function(col, id, updates, note) {
-    const result = _originalUpdate(col, id, updates, note);
+    var result = _originalUpdate(col, id, updates, note);
     if (API.getToken() && result) {
       _syncCollectionItem('update', col, result);
     }
     return result;
   };
 
-  const _originalDelete = DB.delete.bind(DB);
+  var _originalDelete = DB.delete.bind(DB);
   DB.delete = function(col, id, note) {
-    // Get the item's server ID before deleting
-    const item = DB.getById(col, id);
-    const serverId = item ? (item._id || item.id) : id;
-    const result = _originalDelete(col, id, note);
+    var item = DB.getById(col, id);
+    var serverId = item ? (item._id || item.id) : id;
+    var result = _originalDelete(col, id, note);
     if (API.getToken() && result) {
       _syncCollectionItem('delete', col, { id: serverId, _id: serverId });
     }
@@ -336,7 +371,7 @@
 
   // ─── Sync individual collection items to server ─────────────
   async function _syncCollectionItem(action, col, item) {
-    const apiMap = {
+    var apiMap = {
       'articles': API.articles,
       'materials': API.fleet,
       'citernes': API.citernes,
@@ -345,64 +380,69 @@
       'workPlans': API.bt
     };
 
-    const api = apiMap[col];
-    if (!api) return; // Skip collections without API endpoints
+    var api = apiMap[col];
+    if (!api) return;
 
-    const serverId = item._id || item.id;
+    var serverId = item._id || item.id;
 
     try {
       if (action === 'insert') {
-        const cleanItem = { ...item };
+        var cleanItem = Object.assign({}, item);
         delete cleanItem.id;
         delete cleanItem._id;
-        const res = await api.create(cleanItem);
-        // Update local item with server-generated _id
-        const arr = DB.data[col];
+        var res = await api.create(cleanItem);
+        var arr = DB.data[col];
         if (arr) {
-          const idx = arr.findIndex(i => i.id === item.id);
+          var idx = arr.findIndex(function(i) { return i.id === item.id; });
           if (idx > -1 && res) {
-            const created = res.article || res.vehicle || res.citerne || res.order || res.decharge || res.bon;
+            var created = res.article || res.vehicle || res.citerne || res.order || res.decharge || res.bon;
             if (created && created._id) {
               arr[idx]._id = created._id;
               _originalSave();
             }
           }
         }
+        console.log('[BRIDGE] ✅ Synced INSERT', col);
       } else if (action === 'update') {
-        const cleanItem = { ...item };
-        delete cleanItem.id;
-        delete cleanItem._id;
+        var cleanUp = Object.assign({}, item);
+        delete cleanUp.id;
+        delete cleanUp._id;
         if (serverId) {
-          await api.update(serverId, cleanItem).catch(() => {});
+          await api.update(serverId, cleanUp).catch(function() {});
         }
+        console.log('[BRIDGE] ✅ Synced UPDATE', col);
       } else if (action === 'delete') {
         if (serverId) {
-          await api.remove(serverId).catch(() => {});
+          await api.remove(serverId).catch(function() {});
         }
+        console.log('[BRIDGE] ✅ Synced DELETE', col);
       }
     } catch (e) {
-      console.warn('[BRIDGE] Sync failed for', col, action, ':', e.message);
-      // Show visible error to user so they know sync failed
+      console.error('[BRIDGE] ❌ Sync FAILED for', col, action, ':', e.message);
       if (typeof Utils !== 'undefined' && Utils.showNotification) {
-        Utils.showNotification('⚠️ Sync serveur échouée: ' + (e.message || 'Erreur réseau'), 'error');
+        Utils.showNotification('⚠️ Sync serveur échouée (' + col + '): ' + e.message, 'error');
+      }
+      // If insert failed, try bulk push as fallback
+      if (action === 'insert' && col === 'articles') {
+        console.log('[BRIDGE] Retrying via bulk upsert...');
+        _pushArticlesToServer(DB.data.articles || []);
       }
     }
   }
 
-  // ─── SSE listener for real-time stock updates ───────────────
+  // ─── SSE listener for real-time updates ─────────────────────
   API.sse.onUpdate(function(event) {
     if (!event || !event.type) return;
 
     switch (event.type) {
       case 'stock_changed': {
-        const d = event.data;
+        var d = event.data;
         if (d && d.id) {
-          const articles = DB.data.articles || [];
-          const idx = articles.findIndex(a => (a._id === d.id || a.id === d.id));
+          var articles = DB.data.articles || [];
+          var idx = articles.findIndex(function(a) { return a._id === d.id || a.id === d.id; });
           if (idx > -1) {
             articles[idx].quantity = d.quantity;
             _originalSave();
-            // Trigger UI refresh if available
             if (window.Modules && typeof Modules.refreshCurrentView === 'function') {
               Modules.refreshCurrentView();
             }
@@ -410,16 +450,14 @@
         }
         break;
       }
-
       case 'article_created':
       case 'article_updated':
       case 'article_deleted':
       case 'order_created':
       case 'order_updated':
       case 'settings_updated': {
-        // Debounced full reload
         if (!DB._reloadTimer) {
-          DB._reloadTimer = setTimeout(async () => {
+          DB._reloadTimer = setTimeout(async function() {
             DB._reloadTimer = null;
             await DB.loadFromServer();
             if (window.Modules && typeof Modules.refreshCurrentView === 'function') {
@@ -432,14 +470,13 @@
     }
   });
 
-  // ─── Add stock adjustment with concurrency check ────────────
+  // ─── Atomic stock adjustment ────────────────────────────────
   DB.adjustStockAtomic = async function(articleId, type, quantity, reason, reference) {
     if (!API.getToken()) {
-      // Fallback to local adjustment
-      const article = this.getById('articles', articleId);
+      var article = this.getById('articles', articleId);
       if (!article) throw new Error('Article non trouvé');
-      const prev = article.quantity || 0;
-      const delta = type === 'Entrée' ? quantity : -quantity;
+      var prev = article.quantity || 0;
+      var delta = type === 'Entrée' ? quantity : -quantity;
       if (prev + delta < 0) {
         throw { error: 'Stock insuffisant', currentQuantity: prev, requested: quantity };
       }
@@ -448,19 +485,18 @@
       return article;
     }
 
-    const serverId = (() => {
-      const a = this.getById('articles', articleId);
+    var serverId = (function() {
+      var a = DB.getById('articles', articleId);
       return a ? (a._id || a.id) : articleId;
     })();
 
-    const res = await API.articles.adjustStock(serverId, type, quantity, reason, reference);
+    var res = await API.articles.adjustStock(serverId, type, quantity, reason, reference);
 
     if (res.article) {
-      // Update local cache
-      const articles = this.data.articles || [];
-      const idx = articles.findIndex(a => (a._id === serverId || a.id === articleId));
-      if (idx > -1) {
-        articles[idx].quantity = res.article.quantity;
+      var articles2 = this.data.articles || [];
+      var idx2 = articles2.findIndex(function(a) { return a._id === serverId || a.id === articleId; });
+      if (idx2 > -1) {
+        articles2[idx2].quantity = res.article.quantity;
         _originalSave();
       }
     }
@@ -468,26 +504,25 @@
     return res.article;
   };
 
-  // ─── Image upload helper on DB ──────────────────────────────
+  // ─── Image upload helper ───────────────────────────────────
   DB.uploadArticleImage = async function(articleId, fileOrBase64) {
-    const serverId = (() => {
-      const a = this.getById('articles', articleId);
+    var serverId = (function() {
+      var a = DB.getById('articles', articleId);
       return a ? (a._id || a.id) : articleId;
     })();
 
-    let res;
+    var res;
     if (typeof fileOrBase64 === 'string') {
       res = await API.upload.articleImageBase64(serverId, fileOrBase64);
     } else {
       res = await API.upload.articleImage(serverId, fileOrBase64);
     }
 
-    // Update local cache with the image
     if (typeof fileOrBase64 === 'string') {
-      const articles = this.data.articles || [];
-      const idx = articles.findIndex(a => (a._id === serverId || a.id === articleId));
-      if (idx > -1) {
-        articles[idx].image = fileOrBase64;
+      var articles3 = this.data.articles || [];
+      var idx3 = articles3.findIndex(function(a) { return a._id === serverId || a.id === articleId; });
+      if (idx3 > -1) {
+        articles3[idx3].image = fileOrBase64;
         _originalSave();
       }
     }
@@ -495,18 +530,26 @@
     return res;
   };
 
-  // ─── Backup helpers on DB ───────────────────────────────────
-  DB.triggerBackup = async function() {
-    return API.backup.trigger();
+  // ─── Backup helpers ────────────────────────────────────────
+  DB.triggerBackup = async function() { return API.backup.trigger(); };
+  DB.listBackups = async function() { return API.backup.list(); };
+  DB.downloadBackup = async function(id) { return API.backup.download(id); };
+
+  // ─── Manual full sync button ───────────────────────────────
+  DB.forceSyncToServer = async function() {
+    if (!API.getToken()) {
+      if (typeof Utils !== 'undefined') Utils.showNotification('Non connecté', 'error');
+      return;
+    }
+    try {
+      if (typeof Utils !== 'undefined') Utils.showNotification('Synchronisation en cours...', 'info');
+      await _pushArticlesToServer(DB.data.articles || []);
+      await _performSync();
+      if (typeof Utils !== 'undefined') Utils.showNotification('✅ Synchronisation complète !', 'success');
+    } catch (e) {
+      if (typeof Utils !== 'undefined') Utils.showNotification('❌ Erreur: ' + e.message, 'error');
+    }
   };
 
-  DB.listBackups = async function() {
-    return API.backup.list();
-  };
-
-  DB.downloadBackup = async function(id) {
-    return API.backup.download(id);
-  };
-
-  console.log('[BRIDGE] Core API Bridge loaded — DB and Auth patched for MongoDB backend');
+  console.log('[BRIDGE] ✅ Core API Bridge loaded — ROBUST bidirectional MongoDB sync');
 })();
