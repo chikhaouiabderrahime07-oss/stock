@@ -1609,7 +1609,7 @@ const ApproNextGen = window.ApproNextGen = {
     host.innerHTML = list.map(s => `
       <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:0.75rem;font-weight:600;box-shadow:0 1px 3px rgba(37,99,235,0.3);">
         ${escapeHtml(s)}
-        <i class="fas fa-times" style="cursor:pointer;opacity:0.8;" onclick="ApproNextGen.removeSupplierCompare('${escapeHtml(s)}')" title="Retirer" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'"></i>
+        <i class="fas fa-times" style="cursor:pointer;opacity:0.8;" data-sup="${encodeURIComponent(s)}" onclick="ApproNextGen.removeSupplierCompare(decodeURIComponent(this.getAttribute('data-sup')))" title="Retirer" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'"></i>
       </span>
     `).join('');
   },
@@ -1662,7 +1662,8 @@ const ApproNextGen = window.ApproNextGen = {
 
       // 3. Multi-supplier comparison filter (if selected)
       if (this.selectedComparisonSuppliers && this.selectedComparisonSuppliers.length > 0) {
-        records = records.filter(r => this.selectedComparisonSuppliers.includes(r.supplierName));
+        const selNorm = this.selectedComparisonSuppliers.map(s => String(s || '').trim().toLowerCase());
+        records = records.filter(r => selNorm.includes(String(r.supplierName || '').trim().toLowerCase()));
       }
 
       return records;
@@ -1891,7 +1892,8 @@ const ApproNextGen = window.ApproNextGen = {
 
     const basePool = (typeof state !== 'undefined' && Array.isArray(state.bcRecords)) ? state.bcRecords : records;
     const compData = selected.map(sup => {
-      const supRecords = basePool.filter(r => r.supplierName === sup);
+      const normSup = String(sup || '').trim().toLowerCase();
+      const supRecords = basePool.filter(r => String(r.supplierName || '').trim().toLowerCase() === normSup);
       const spend = supRecords.reduce((s, r) => s + (Number(r.amountTTC || r.amount) || 0), 0);
       const avgTicket = supRecords.length > 0 ? Math.round(spend / supRecords.length) : 0;
       const delivered = supRecords.filter(r => r.goodsReceivedDate || r.serviceDoneDate).length;

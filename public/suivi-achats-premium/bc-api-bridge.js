@@ -119,6 +119,9 @@
         if (typeof window.renderActiveTab === 'function') {
           try { window.renderActiveTab(); } catch (e) {}
         }
+        if (typeof window.refreshFollowupFilterOptions === 'function') {
+          try { window.refreshFollowupFilterOptions(); } catch (e) {}
+        }
         if (typeof window.renderKpi === 'function') {
           try { window.renderKpi(); } catch (e) {}
         }

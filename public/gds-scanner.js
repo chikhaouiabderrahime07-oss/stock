@@ -995,8 +995,8 @@
                             </button>
                             <button onclick="GdsScannerModule.showCreateArticleModal(GdsScannerModule.pendingCode)" style="padding:16px 10px;border-radius:14px;border:1.5px solid rgba(16,185,129,0.3);background:rgba(16,185,129,0.08);color:#34d399;cursor:pointer;font-weight:700;font-size:0.85rem;display:flex;flex-direction:column;align-items:center;gap:6px;transition:0.15s;">
                                 <i class="fas fa-plus-circle" style="font-size:1.3rem;"></i>
-                                <span>Créer article</span>
-                                <span style="font-size:0.65rem;opacity:0.75;font-weight:400;">Nouvelle fiche</span>
+                                <span>Créer en Stock</span>
+                                <span style="font-size:0.65rem;opacity:0.75;font-weight:400;">Fiche Complète Stock</span>
                             </button>
                         </div>
                         <button onclick="GdsScannerModule.resetToScan()" style="width:100%;padding:13px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-size:0.88rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -1106,66 +1106,18 @@
             }
         },
 
-        // ─── CREATE NEW ARTICLE — inline in scanner, no popup modal ──────
+        // ─── CREATE NEW ARTICLE — Opens the official Stock Article creation modal ──────
         showCreateArticleModal(scannedCode) {
-            const area = document.getElementById('gdsScanResultArea');
-            if (!area) return;
-            this.pendingCode = scannedCode;
-            const safe = this.esc(scannedCode);
-            this.subtitle('Nouvel article');
-            area.innerHTML = `
-                <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
-                    <div style="background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(5,150,105,0.08));padding:14px 16px;border-bottom:1px solid rgba(16,185,129,0.2);display:flex;align-items:center;gap:12px;">
-                        <div style="width:38px;height:38px;border-radius:10px;background:#059669;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <i class="fas fa-plus" style="color:#fff;font-size:1.1rem;"></i>
-                        </div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="color:#fff;font-weight:800;font-size:0.95rem;">Créer un Article</div>
-                            <div style="font-family:monospace;font-size:0.75rem;color:#6ee7b7;">${safe}</div>
-                        </div>
-                    </div>
-                    <div style="padding:16px;">
-                        <div style="margin-bottom:12px;">
-                            <label style="display:block;font-size:0.72rem;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Désignation <span style="color:#ef4444;">*</span></label>
-                            <input id="gdsNewDesig" type="text" placeholder="Désignation de la pièce ou consommable..." autocomplete="off"
-                                style="width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:#0f172a;color:#fff;font-size:0.95rem;outline:none;box-sizing:border-box;"
-                                onfocus="this.style.borderColor='#10b981'" onblur="this.style.borderColor='rgba(255,255,255,0.12)'">
-                        </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-                            <div>
-                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;">Code article</label>
-                                <input id="gdsNewCode" type="text" placeholder="ART-001" autocomplete="off"
-                                    style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;">
-                            </div>
-                            <div>
-                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;">Qté initiale</label>
-                                <input id="gdsNewQty" type="number" value="0" min="0"
-                                    style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:#0f172a;color:#fff;font-size:0.88rem;text-align:center;outline:none;box-sizing:border-box;">
-                            </div>
-                        </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-                            <div>
-                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;">Unité</label>
-                                <input id="gdsNewUnit" type="text" value="Pièce" placeholder="Pièce, Litre, Kg..."
-                                    style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;">
-                            </div>
-                            <div>
-                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;">Catégorie</label>
-                                <input id="gdsNewCat" type="text" placeholder="Pièces de rechange"
-                                    style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;">
-                            </div>
-                        </div>
-                        <button id="gdsCreateArticleBtn" onclick="GdsScannerModule.commitCreateArticle(GdsScannerModule.pendingCode)"
-                            style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(16,185,129,0.35);margin-bottom:8px;">
-                            <i class="fas fa-save"></i> Enregistrer et continuer
-                        </button>
-                        <button onclick="GdsScannerModule.renderUnknownResult(GdsScannerModule.pendingCode)"
-                            style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#94a3b8;cursor:pointer;font-size:0.82rem;">
-                            ← Retour
-                        </button>
-                    </div>
-                </div>`;
-            setTimeout(() => { const el = document.getElementById('gdsNewDesig'); if (el) el.focus(); }, 100);
+            const code = scannedCode || this.pendingCode || '';
+            this.closeModal();
+            if (typeof App !== 'undefined' && App.currentModule !== 'stock' && App.loadModule) {
+                App.loadModule('stock');
+            }
+            setTimeout(() => {
+                if (typeof Stock !== 'undefined' && Stock.showAddArticle) {
+                    Stock.showAddArticle({ barcode: code });
+                }
+            }, 120);
         },
 
         async commitCreateArticle(scannedCode) {
