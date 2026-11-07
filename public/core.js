@@ -281,7 +281,10 @@ window.DB = {
     },
 
     getAll(col) { return this.data[col] || []; },
-    getById(col, id) { return (this.data[col]||[]).find(i => i.id == id) || null; },
+    getById(col, id) {
+        if (!this.data[col] || id == null) return null;
+        return this.data[col].find(i => i && (i.id == id || i._id == id || (i.ref && i.ref == id))) || null;
+    },
     where(col, fn) { return (this.data[col]||[]).filter(fn); },
     count(col, fn) { return fn ? this.where(col,fn).length : (this.data[col]||[]).length; },
 
@@ -668,7 +671,20 @@ window.DB = {
     addMovement(m)      { return this.insert('stockMovements', m); },
     addStockMovement(m) { return this.addMovement(m); },
 
-    getDecharges()      { return this.getAll('decharges'); },
+    getDecharges()      {
+        const list = this.getAll('decharges');
+        return list.map(d => {
+            const rawDate = d.date || d.servedAt || d.createdAt || d.dateDecharge;
+            const validDate = (rawDate && !isNaN(new Date(rawDate).getTime())) ? new Date(rawDate).toISOString() : new Date().toISOString();
+            const isBsm = (d.typeDoc === 'bsm') || (d.type === 'BSM') || (d.ref && String(d.ref).startsWith('BSM')) || Boolean(d.workPlanId || d.materialId);
+            return {
+                ...d,
+                date: d.date || validDate,
+                typeDoc: d.typeDoc || (isBsm ? 'bsm' : 'decharge'),
+                type: d.type || (isBsm ? 'BSM' : 'Décharge')
+            };
+        });
+    },
     getDecharge(id)     { return this.getById('decharges', id); },
     addDecharge(d)      { return this.insert('decharges', d); },
     updateDecharge(d)   { return this.update('decharges', d.id, d); },

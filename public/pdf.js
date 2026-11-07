@@ -195,8 +195,36 @@ const MT = 8;
       return new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     },
     _save(doc, filename) {
-      doc.save(filename);
-      this._notify('PDF généré avec succès', 'success');
+      try {
+        if (!filename) filename = 'document.pdf';
+        if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+        // Primary jsPDF file download trigger
+        doc.save(filename);
+        this._notify(`Téléchargement PDF : ${filename}`, 'success');
+      } catch (err) {
+        console.warn('doc.save failed, falling back to Blob download:', err);
+        try {
+          const blob = doc.output('blob');
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = filename;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          }, 1500);
+          this._notify(`Téléchargement PDF : ${filename}`, 'success');
+        } catch (err2) {
+          console.error('Blob download failed, opening Data URI:', err2);
+          const uri = doc.output('datauristring');
+          const win = window.open(uri, '_blank');
+          if (!win) window.location.href = uri;
+          this._notify('PDF ouvert dans un nouvel onglet pour enregistrement', 'info');
+        }
+      }
     },
 
     /* ── Low-level drawing helpers ─────────────────────────── */
@@ -1560,7 +1588,16 @@ _exportDP(id) {
        7.  DÉCHARGE
     ══════════════════════════════════════════════════════════ */
     _exportDecharge(id) {
-      const dec = DB.getById('decharges', id);
+      let dec = null;
+      if (typeof DB !== 'undefined') {
+        if (DB.getById) dec = DB.getById('decharges', id);
+        if (!dec && DB.getDecharges) {
+          dec = DB.getDecharges().find(d => d.id === id || d._id === id || d.ref === id || d.bsmRef === id);
+        }
+        if (!dec && DB.data && Array.isArray(DB.data.decharges)) {
+          dec = DB.data.decharges.find(d => d.id === id || d._id === id || d.ref === id || d.bsmRef === id);
+        }
+      }
       if (!dec) { this._notify('Décharge introuvable', 'error'); return; }
       const settings = this._getSettings();
       const doc = this._newDoc();
@@ -1719,8 +1756,11 @@ _exportDP(id) {
       let dec = null;
       if (typeof DB !== 'undefined') {
         if (DB.getById) dec = DB.getById('decharges', id);
+        if (!dec && DB.getDecharges) {
+          dec = DB.getDecharges().find(d => d.id === id || d._id === id || d.ref === id || d.bsmRef === id);
+        }
         if (!dec && DB.data && Array.isArray(DB.data.decharges)) {
-          dec = DB.data.decharges.find(d => d.id === id || d.ref === id || d.bsmRef === id);
+          dec = DB.data.decharges.find(d => d.id === id || d._id === id || d.ref === id || d.bsmRef === id);
         }
       }
       if (!dec) { this._notify('Document BSM introuvable', 'error'); return; }

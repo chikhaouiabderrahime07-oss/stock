@@ -124,7 +124,7 @@
             this.showCameraView();
             this.subtitle('Prêt à scanner');
             const input = document.getElementById('gdsManualBarcodeInput');
-            if (input) { input.value = ''; setTimeout(() => input.focus(), 150); }
+            if (input) input.value = '';
             setTimeout(() => this.startCamera(), 250);
         },
 
@@ -175,7 +175,7 @@
             this.showCameraView();
             this.subtitle('Prêt à scanner');
             const input = document.getElementById('gdsManualBarcodeInput');
-            if (input) { input.value = ''; setTimeout(() => input.focus(), 150); }
+            if (input) input.value = '';
             return this.startCamera();
         },
 
@@ -508,6 +508,7 @@
             if (!article) return;
             const area = document.getElementById('gdsScanResultArea');
             if (!area) return;
+            const bens = this._getBeneficiaries();
             const depts = this._getDepts();
             const stock = Number(article.quantity) || 0;
             this.subtitle('Sortie Stock (BSM)');
@@ -534,10 +535,17 @@
                         <div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px;">
                             ${[1, 2, 5, 10].map(n => `<button type="button" onclick="document.getElementById('gdsSortieQty').value='${n}';" style="padding:4px 12px;border-radius:16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#cbd5e1;font-size:0.75rem;cursor:pointer;">${n}</button>`).join('')}
                         </div>
-                        <input id="gdsBeneficiary" type="text" placeholder="✦ Destinataire / Bénéficiaire *" list="gdsBenefList"
-                            style="width:100%;padding:13px 14px;border-radius:10px;border:2px solid #e11d48;background:#0f172a;color:#fff;font-size:0.92rem;outline:none;box-sizing:border-box;margin-bottom:10px;"
+                        <label style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:block;">✦ Destinataire / Bénéficiaire *</label>
+                        <select id="gdsBenefSelect" onchange="GdsScannerModule._onBenefSelect(this)"
+                            style="width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:0.92rem;outline:none;box-sizing:border-box;margin-bottom:8px;">
+                            <option value="">-- Choisir une personne dans la liste (${bens.length}) --</option>
+                            ${bens.map(b => `<option value="${this.esc(b)}">${this.esc(b)}</option>`).join('')}
+                            <option value="__other__">✏️ Autre (saisie libre / nouveau)</option>
+                        </select>
+                        <input id="gdsBeneficiary" type="text" placeholder="✦ Ou taper nom du destinataire *" list="gdsBenefList"
+                            style="width:100%;padding:11px 14px;border-radius:10px;border:2px solid #e11d48;background:#0f172a;color:#fff;font-size:0.92rem;outline:none;box-sizing:border-box;margin-bottom:10px;"
                             oninput="this.style.borderColor='#3b82f6'">
-                        <datalist id="gdsBenefList">${depts.map(d=>`<option value="${this.esc(d)}">`).join('')}</datalist>
+                        <datalist id="gdsBenefList">${bens.map(d=>`<option value="${this.esc(d)}">`).join('')}</datalist>
                         <input id="gdsServiceField" type="text" placeholder="Service / Département (optionnel)" list="gdsServiceList"
                             style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.1);background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:10px;">
                         <datalist id="gdsServiceList">${depts.map(d=>`<option value="${this.esc(d)}">`).join('')}</datalist>
@@ -560,7 +568,47 @@
                         </div>
                     </div>
                 </div>`;
-            setTimeout(() => { const el = document.getElementById('gdsBeneficiary'); if (el) el.focus(); }, 100);
+        },
+
+        _onBenefSelect(selectEl) {
+            const val = (selectEl && selectEl.value) || '';
+            const inp = document.getElementById('gdsBeneficiary');
+            if (!inp) return;
+            if (val === '__other__') {
+                inp.value = '';
+                inp.focus();
+            } else if (val) {
+                inp.value = val;
+                inp.style.borderColor = '#10b981';
+                try {
+                    const decharges = (typeof DB !== 'undefined' && DB.getDecharges) ? DB.getDecharges() : [];
+                    const prev = decharges.find(d => d.beneficiary && d.beneficiary.toLowerCase() === val.toLowerCase() && (d.department || d.service));
+                    if (prev) {
+                        const sField = document.getElementById('gdsServiceField');
+                        if (sField && !sField.value) sField.value = prev.department || prev.service || '';
+                    }
+                } catch(e) {}
+            }
+        },
+
+        _getBeneficiaries() {
+            try {
+                const list = [];
+                const s = (typeof DB !== 'undefined' && DB.getSettings) ? DB.getSettings() : {};
+                if (Array.isArray(s.beneficiaries)) list.push(...s.beneficiaries);
+                if (typeof DB !== 'undefined' && DB.getUsers) {
+                    try { list.push(...DB.getUsers().map(u => u.name || u.username)); } catch(e) {}
+                }
+                if (typeof DB !== 'undefined' && DB.data) {
+                    if (Array.isArray(DB.data.users)) list.push(...DB.data.users.map(u => u.name || u.username));
+                    if (Array.isArray(DB.data.beneficiaryNames)) list.push(...DB.data.beneficiaryNames);
+                    if (Array.isArray(DB.data.beneficiaries)) list.push(...DB.data.beneficiaries.map(b => typeof b === 'string' ? b : (b.name || b.nom)));
+                    if (Array.isArray(DB.data.decharges)) list.push(...DB.data.decharges.map(d => d.beneficiary));
+                    if (Array.isArray(DB.data.employees)) list.push(...DB.data.employees.map(e => e.name || e.nom));
+                    if (Array.isArray(DB.data.preOrders)) list.push(...DB.data.preOrders.map(p => p.requester || p.demandeur));
+                }
+                return [...new Set(list.map(x => String(x || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'fr'));
+            } catch(e) { return []; }
         },
 
         _adjQty(delta) {
@@ -663,20 +711,38 @@
                 const r2 = await fetch('/api/decharges', {
                     method: 'POST', headers: this.hdrs(),
                     body: JSON.stringify({
-                        ref: refNum, type: 'BSM', status: 'served',
-                        beneficiary, department: service || '',
+                        ref: refNum, type: 'BSM', typeDoc: 'bsm', status: 'served',
+                        date: now.toISOString(), dateDecharge: now.toISOString(),
+                        servedAt: now.toISOString(), createdAt: now.toISOString(),
+                        beneficiary, department: service || '', service: service || '',
                         items: [{ articleId: artId, articleCode: article.code||'', designation: article.designation||'', quantity: qty, unit: article.unit||'U' }],
                         notes: motif || 'Sortie par scan GDS mobile',
-                        createdBy: authorName, servedBy: authorName, servedAt: now.toISOString()
+                        createdBy: authorName, servedBy: authorName
                     })
                 });
+                let d2 = null;
                 if (r2.ok) {
                     bsmCreated = true;
-                    const d2 = await r2.json();
-                    if (typeof DB !== 'undefined' && DB.data) {
-                        if (!Array.isArray(DB.data.decharges)) DB.data.decharges = [];
-                        DB.data.decharges.unshift(d2.decharge || {});
-                    }
+                    try { d2 = await r2.json(); } catch(e) {}
+                }
+                if (typeof DB !== 'undefined' && DB.data) {
+                    if (!Array.isArray(DB.data.decharges)) DB.data.decharges = [];
+                    const dechRecord = {
+                        id: (d2 && d2.decharge && (d2.decharge._id || d2.decharge.id)) || ('dech_' + Date.now()),
+                        ref: refNum, type: 'BSM', typeDoc: 'bsm', status: 'served',
+                        date: now.toISOString(), dateDecharge: now.toISOString(),
+                        servedAt: now.toISOString(), createdAt: now.toISOString(),
+                        beneficiary, department: service || '', service: service || '',
+                        items: [{ articleId: artId, articleCode: article.code||'', designation: article.designation||'', quantity: qty, unit: article.unit||'U' }],
+                        notes: motif || 'Sortie par scan GDS mobile',
+                        createdBy: authorName, servedBy: authorName,
+                        ...(d2 && d2.decharge ? d2.decharge : {})
+                    };
+                    dechRecord.date = dechRecord.date || now.toISOString();
+                    dechRecord.typeDoc = 'bsm';
+                    dechRecord.type = 'BSM';
+                    DB.data.decharges.unshift(dechRecord);
+                    if (typeof DB.save === 'function') DB.save();
                 }
             } catch(e) {}
 
@@ -778,7 +844,6 @@
                         </div>
                     </div>
                 </div>`;
-            setTimeout(() => { const el = document.getElementById('gdsEntreeQty'); if (el) { el.focus(); el.select(); } }, 100);
         },
 
         async confirmEntree() {

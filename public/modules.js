@@ -4257,8 +4257,8 @@ window.Decharges = {
         const decharges = DB.getDecharges().sort((a,b) => new Date(b.date) - new Date(a.date));
         
         const countAll = decharges.length;
-        const countBsm = decharges.filter(d => (d.typeDoc || (d.workPlanId || d.materialId ? 'bsm' : 'decharge')) === 'bsm').length;
-        const countDecharge = decharges.filter(d => (d.typeDoc || (d.workPlanId || d.materialId ? 'bsm' : 'decharge')) === 'decharge').length;
+        const countBsm = decharges.filter(d => (d.typeDoc === 'bsm' || d.type === 'BSM' || (d.ref && String(d.ref).startsWith('BSM')) || d.workPlanId || d.materialId)).length;
+        const countDecharge = decharges.filter(d => d.typeDoc === 'decharge' || (!d.typeDoc && d.type !== 'BSM' && !(d.ref && String(d.ref).startsWith('BSM')) && !d.workPlanId && !d.materialId)).length;
 
         const allDepts = (DB.getSettings().departments && DB.getSettings().departments.length > 0) ? DB.getSettings().departments : ['Direction Générale', 'Approvisionnement', 'Transport'];
         const allBens = [...new Set([...(DB.getUsers().map(u => u.name)), ...(DB.data && DB.data.beneficiaryNames ? DB.data.beneficiaryNames : []), ...(DB.getDecharges().map(d => d.beneficiary))])].filter(Boolean).sort();
@@ -4363,7 +4363,7 @@ window.Decharges = {
                                     const fleet = DB.getFleet();
                                     const mat = fleet.find(f => f.id === d.materialId);
 
-                                    const tDoc = d.typeDoc || (d.workPlanId || d.materialId ? 'bsm' : 'decharge');
+                                    const tDoc = d.typeDoc || (d.type === 'BSM' || (d.ref && String(d.ref).startsWith('BSM')) ? 'bsm' : (d.workPlanId || d.materialId ? 'bsm' : 'decharge'));
                                     const bsmRef = d.bsmRef || (tDoc === 'bsm' ? ('BSM-' + String(d.ref || '').replace(/[^0-9]/g, '').slice(-4)) : null);
                                     let docBadge = '';
                                     if (tDoc === 'bsm') {
@@ -4397,7 +4397,7 @@ window.Decharges = {
                                             </div>
                                             ${bsmRef ? `<small class="text-info font-monospace fw-bold d-block" style="font-size:10px;">${Utils.escapeHTML(bsmRef)}</small>` : ''}
                                         </td>
-                                        <td>${new Date(d.date).toLocaleDateString('fr-FR')}</td>
+                                        <td>${(d.date && !isNaN(new Date(d.date).getTime())) ? new Date(d.date).toLocaleDateString('fr-FR') : (d.createdAt && !isNaN(new Date(d.createdAt).getTime()) ? new Date(d.createdAt).toLocaleDateString('fr-FR') : (d.servedAt && !isNaN(new Date(d.servedAt).getTime()) ? new Date(d.servedAt).toLocaleDateString('fr-FR') : '-'))}</td>
                                         <td><strong><i class="fas fa-user-circle text-primary me-1"></i> ${Utils.escapeHTML(d.beneficiary)}</strong></td>
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(d.service || '-')}</span></td>
                                         <td>${mat ? Utils.escapeHTML(mat.name + ' - ' + mat.immatriculation) : (d.immatriculation ? Utils.escapeHTML((d.materialName || '') + ' - ' + d.immatriculation) : '-')}</td>
@@ -7219,21 +7219,20 @@ window.Decharges = {
     },
 
     exportPDF: function(id) {
-        const d = DB.getDecharges().find(x => x.id === id);
-        if (!d) return;
+        const d = (typeof DB !== 'undefined' && DB.getDecharges)
+            ? DB.getDecharges().find(x => x.id === id || x._id === id || x.ref === id)
+            : null;
+        if (!d) {
+            Utils.showNotification('Document introuvable pour export PDF.', 'error');
+            return;
+        }
 
-        if (d.typeDoc === 'bsm') {
-            if (typeof PDFGen !== 'undefined') {
-                PDFGen.export('bsm', id);
-            } else {
-                this.printBSM(id);
-            }
+        const isBsm = (d.typeDoc === 'bsm') || (d.type === 'BSM') || (d.ref && String(d.ref).startsWith('BSM')) || Boolean(d.workPlanId || d.materialId);
+
+        if (typeof PDFGen !== 'undefined' && typeof PDFGen.export === 'function') {
+            PDFGen.export(isBsm ? 'bsm' : 'decharge', d.id || d._id || id);
         } else {
-            if (typeof PDFGen !== 'undefined') {
-                PDFGen.export('decharge', id);
-            } else {
-                Utils.showNotification('Moteur PDF indisponible.', 'error');
-            }
+            this.printBSM(d.id || d._id || id);
         }
     },
 

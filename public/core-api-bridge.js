@@ -189,7 +189,14 @@
         DB.data.preOrders = _mergeByField(DB.data.preOrders || [], serverOrders, 'id');
       }
 
-      var serverDecharges = Array.isArray(dechargesRes.decharges) ? dechargesRes.decharges.map(mapId) : [];
+      var serverDecharges = Array.isArray(dechargesRes.decharges) ? dechargesRes.decharges.map(function(item) {
+        mapId(item);
+        if (!item.date) item.date = item.servedAt || item.createdAt || new Date().toISOString();
+        if (!item.typeDoc) {
+          item.typeDoc = (item.type === 'BSM' || (item.ref && String(item.ref).startsWith('BSM')) || item.workPlanId || item.materialId) ? 'bsm' : 'decharge';
+        }
+        return item;
+      }) : [];
       if (serverDecharges.length > 0) {
         DB.data.decharges = _mergeByField(DB.data.decharges || [], serverDecharges, 'id');
       }
