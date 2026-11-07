@@ -707,7 +707,7 @@ window.DB = {
             let validDate = null;
             const candidates = [d.date, d.servedAt, d.createdAt, d.dateDecharge];
             for (const c of candidates) {
-                if (c && c !== 'Invalid Date' && typeof c === 'string' && !isNaN(new Date(c).getTime())) {
+                if (c && c !== 'Invalid Date' && typeof c === 'string' && !String(c).toLowerCase().includes('invalid') && !isNaN(new Date(c).getTime())) {
                     validDate = new Date(c).toISOString();
                     break;
                 } else if (c instanceof Date && !isNaN(c.getTime())) {
@@ -715,9 +715,13 @@ window.DB = {
                     break;
                 }
             }
-            if (!validDate && d.ref) {
-                const match = String(d.ref).match(/(\d{4})(\d{2})(\d{2})/);
+            if (!validDate && (d.ref || d.bsmRef)) {
+                const match = String(d.ref || d.bsmRef).match(/(\d{4})(\d{2})(\d{2})/);
                 if (match) validDate = new Date(match[1] + '-' + match[2] + '-' + match[3]).toISOString();
+            }
+            if (!validDate && d.createdAt) {
+                const dt = new Date(d.createdAt);
+                if (!isNaN(dt.getTime())) validDate = dt.toISOString();
             }
             if (!validDate) validDate = new Date().toISOString();
 
@@ -1099,21 +1103,40 @@ window.isUserEligibleForGdsScan = function() {
 // 3. Utils — Formatters, notifications, downloads
 // =============================================================================
 window.Utils = {
-    formatDate(ts) {
-        if (!ts || ts === 'Invalid Date' || String(ts).toLowerCase().includes('invalid')) return '-';
-        const d = new Date(ts);
-        if (isNaN(d.getTime())) {
-            const m = String(ts).match(/(\d{4})(\d{2})(\d{2})/);
+    formatDate(ts, refFallback) {
+        const tryParse = (val) => {
+            if (!val) return null;
+            const s = String(val).trim();
+            if (!s || s === 'Invalid Date' || s.toLowerCase().includes('invalid')) return null;
+            const d = (val instanceof Date) ? val : new Date(val);
+            if (!isNaN(d.getTime())) return d.toLocaleDateString('fr-FR');
+            const m = s.match(/(\d{4})(\d{2})(\d{2})/);
             if (m) return m[3] + '/' + m[2] + '/' + m[1];
-            return '-';
-        }
-        return d.toLocaleDateString('fr-FR');
+            const mIso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (mIso) return mIso[3] + '/' + mIso[2] + '/' + mIso[1];
+            return null;
+        };
+
+        let res = tryParse(ts);
+        if (!res && refFallback) res = tryParse(refFallback);
+        if (!res) res = new Date().toLocaleDateString('fr-FR');
+        return res;
     },
-    formatDateTime(ts) {
-        if (!ts || ts === 'Invalid Date' || String(ts).toLowerCase().includes('invalid')) return '-';
-        const d = new Date(ts);
-        if (isNaN(d.getTime())) return this.formatDate(ts);
-        return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+    formatDateTime(ts, refFallback) {
+        const tryParse = (val) => {
+            if (!val) return null;
+            const s = String(val).trim();
+            if (!s || s === 'Invalid Date' || s.toLowerCase().includes('invalid')) return null;
+            const d = (val instanceof Date) ? val : new Date(val);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+            }
+            return null;
+        };
+
+        let res = tryParse(ts);
+        if (!res) return this.formatDate(ts, refFallback);
+        return res;
     },
     getCurrentDate() { return new Date().toISOString().split('T')[0]; },
 

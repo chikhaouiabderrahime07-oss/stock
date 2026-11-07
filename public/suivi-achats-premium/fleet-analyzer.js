@@ -1,6 +1,6 @@
 (function() {
-    // 6. Set Maghreb Truck to type 'service'
-    const transportServiceSuppliers = ['MAGHREB TRUCK'];
+    // 1. Set Maghreb Truck & maintenance suppliers to type 'service'
+    const transportServiceSuppliers = ['MAGHREB TRUCK', 'MTC', 'SINOTRUK', 'SODIKIT'];
     if (window.state && window.state.bcRecords) {
         window.state.bcRecords.forEach(record => {
             if (record.supplierName && transportServiceSuppliers.some(s => record.supplierName.toUpperCase().includes(s))) {
@@ -9,7 +9,7 @@
         });
     }
 
-    // 7. Enrich departments
+    // 2. Enrich departments
     const newDepartments = [
         'Structure Transport',
         'Direction Générale',
@@ -28,587 +28,479 @@
     }
 })();
 
-// Parse function
+// Intelligent Fleet Parsing Function
 function parseFleetRemarque(remarques) {
     if (!remarques) return null;
-    
-    // Convert to upper case for easier matching
-    const upperRem = remarques.toUpperCase();
-    
-    // Truck ID: Look for IMM : 000112-525-07, n°000074-525-07, etc.
-    // Pattern: 6 digits - 3 digits - 2 digits (sometimes missing last digit)
-    const truckIdMatch = upperRem.match(/(\d{5,6}-\d{2,3}-\d{1,2})/);
-    const truckId = truckIdMatch ? truckIdMatch[1] : null;
-    
-    // If no truck ID found and it doesn't mention "TRACTEUR", "CAMION", "REMORQUE", skip
-    if (!truckId && !upperRem.includes('TRACTEUR') && !upperRem.includes('CAMION')) {
+    const upperRem = String(remarques).toUpperCase();
+
+    // 1. Truck ID (Matricule / Immatriculation)
+    // Matches e.g. 000112-525-07, 000074-525-07, 12345 525 07
+    let truckIdMatch = upperRem.match(/(\d{5,6}[-\s]\d{2,3}[-\s]\d{1,2})/);
+    let truckId = truckIdMatch ? truckIdMatch[1].replace(/\s+/g, '-') : null;
+
+    if (!truckId) {
+        const altMatch = upperRem.match(/(?:TRACTEUR|CAMION|VEHICULE|FOURGON|MATRICULE|IMM|N°)\s*[:#]?\s*([0-9A-Z-]{4,15})/i);
+        if (altMatch) truckId = altMatch[1].trim();
+    }
+
+    // If no truck ID found and text has no fleet indicators, return null
+    const hasFleetKeyword = upperRem.includes('TRACTEUR') || upperRem.includes('CAMION') || upperRem.includes('REMORQUE') ||
+                            upperRem.includes('VIDANGE') || upperRem.includes('MAN') || upperRem.includes('HOWO') ||
+                            upperRem.includes('DOBLO') || upperRem.includes('ISUZU') || upperRem.includes('SINOTRUK');
+    if (!truckId && !hasFleetKeyword) {
         return null;
     }
-    
-    // Service Type
-    let serviceType = 'Autre maintenance';
+
+    // 2. Brand & Model Detection
+    let brand = 'Autre Véhicule';
+    if (upperRem.includes('MAN') || upperRem.includes('TGS')) brand = 'MAN TGS';
+    else if (upperRem.includes('HOWO') || upperRem.includes('SINOTRUK')) brand = 'HOWO Sinotruk';
+    else if (upperRem.includes('DOBLO') || upperRem.includes('FIAT')) brand = 'FIAT Doblo';
+    else if (upperRem.includes('ISUZU') || upperRem.includes('NPR')) brand = 'ISUZU NPR';
+    else if (upperRem.includes('HYUNDAI') || upperRem.includes('HD')) brand = 'Hyundai HD';
+    else if (upperRem.includes('RENAULT') || upperRem.includes('KERAX')) brand = 'Renault Kerax';
+    else if (upperRem.includes('ACTROS') || upperRem.includes('MERCEDES')) brand = 'Mercedes Actros';
+    else if (upperRem.includes('SHACMAN')) brand = 'Shacman';
+
+    // 3. Service Type Detection
+    let serviceType = 'Entretien Général';
     if (upperRem.includes('VIDANGE')) serviceType = 'Vidange';
-    else if (upperRem.includes('PLAQUETTE') || upperRem.includes('FREIN') || upperRem.includes('F/P')) serviceType = 'Plaquettes de frein';
-    else if (upperRem.includes('GARNITURE')) serviceType = 'Garniture';
-    else if (upperRem.includes('FILTRE')) serviceType = 'Filtre habitacle';
-    
-    // KM Reading: Look for numbers followed by KM
+    else if (upperRem.includes('PLAQUETTE') || upperRem.includes('FREIN') || upperRem.includes('DISQUE') || upperRem.includes('F/P')) serviceType = 'Freinage & Plaquettes';
+    else if (upperRem.includes('GARNITURE')) serviceType = 'Garnitures de frein';
+    else if (upperRem.includes('FILTRE')) serviceType = 'Filtres & Huile';
+    else if (upperRem.includes('PNEU') || upperRem.includes('PNEUMATIQUE')) serviceType = 'Pneumatiques';
+    else if (upperRem.includes('AMORTISSEUR') || upperRem.includes('SUSPENSION')) serviceType = 'Suspension';
+
+    // 4. KM Reading
     let kmReading = null;
     const kmMatch = upperRem.match(/(\d{1,3}(?:\.\d{3})?|\d{4,6})\s*KM/i);
     if (kmMatch) {
-        // Remove dots and convert to number
         kmReading = parseInt(kmMatch[1].replace(/\./g, ''), 10);
     }
-    
-    // Devis Ref: Look for DEVIS xxx
+
+    // 5. Mileage Tier
+    let mileageTier = 'Non renseigné';
+    let tierBadgeClass = 'bg-secondary';
+    if (kmReading !== null) {
+        if (kmReading < 10000) {
+            mileageTier = '5 000 – 10 000 km';
+            tierBadgeClass = 'bg-success';
+        } else if (kmReading <= 30000) {
+            mileageTier = '10 000 – 30 000 km';
+            tierBadgeClass = 'bg-info text-dark';
+        } else if (kmReading <= 60000) {
+            mileageTier = '30 000 – 60 000 km';
+            tierBadgeClass = 'bg-primary';
+        } else if (kmReading <= 80000) {
+            mileageTier = '60 000 – 80 000 km';
+            tierBadgeClass = 'bg-warning text-dark';
+        } else {
+            mileageTier = '80 000+ km (Majeur)';
+            tierBadgeClass = 'bg-danger text-white';
+        }
+    }
+
+    // 6. Devis Ref
     let devisRef = null;
-    const devisMatch = upperRem.match(/DEVIS\s*(\w+)/i);
+    const devisMatch = upperRem.match(/DEVIS\s*([A-Z0-9_-]+)/i);
     if (devisMatch) {
         devisRef = devisMatch[1];
     }
-    
+
     return {
         serviceType,
+        brand,
         kmReading,
-        truckId: truckId || 'Inconnu',
+        mileageTier,
+        tierBadgeClass,
+        truckId: truckId || (brand !== 'Autre Véhicule' ? brand : 'Véhicule Flotte'),
         devisRef: devisRef || 'N/A'
     };
 }
 
-// Ensure formatting functions exist if not provided globally
-const _formatMoney = window.formatMoney || ((val, currency) => `${Number(val).toLocaleString('fr-FR')} DZD`);
+// Helpers
+const _formatMoney = window.formatMoney || ((val) => `${Number(val || 0).toLocaleString('fr-FR')} DZD`);
 const _escapeHtml = window.escapeHtml || ((str) => {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, function(m) {
-        return {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        }[m];
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
     });
 });
-const _formatDate = window.formatDate || ((d) => d);
+const _formatDate = window.formatDate || ((d) => {
+    if (!d) return '-';
+    try {
+        const dt = new Date(d);
+        return isNaN(dt.getTime()) ? String(d) : dt.toLocaleDateString('fr-FR');
+    } catch(e) { return String(d); }
+});
 
-// State for pagination
-let fleetCurrentPage = 1;
-const FLEET_ITEMS_PER_PAGE = 10;
-let parsedFleetRecordsCache = [];
+// =============================================================================
+// MAIN FLEET ANALYZER & SUIVI VIDANGES CONTROLLER
+// =============================================================================
+window.FleetAnalyzer = {
+    currentTier: 'all',
+    currentBrand: 'all',
+    searchTerm: '',
+    currentPage: 1,
+    pageSize: 10,
+    activeTab: 'summary', // 'summary' or 'logs'
 
-function renderFleetAnalyzer() {
-    if (!window.state || !window.state.bcRecords) return;
-    
-    const reportsPage = document.getElementById('page-reports');
-    if (!reportsPage) return;
-    
-    let fleetSection = document.getElementById('fleetAnalyzerSection');
-    if (!fleetSection) {
-        fleetSection = document.createElement('div');
-        fleetSection.id = 'fleetAnalyzerSection';
-        // Insert at the end of reports page
-        reportsPage.appendChild(fleetSection);
-    }
-    
-    // Parse records
-    const parsedRecords = [];
-    window.state.bcRecords.forEach(record => {
-        const parsed = parseFleetRemarque(record.remarques);
-        if (parsed) {
-            parsedRecords.push({
-                ...record,
-                fleetData: parsed
+    openModal: function() {
+        this.ensureModalContainer();
+        const backdrop = document.getElementById('fleetMaintenanceModalBackdrop');
+        if (backdrop) {
+            backdrop.classList.remove('hidden');
+            backdrop.style.display = 'flex';
+            this.renderModalContent();
+        }
+    },
+
+    closeModal: function() {
+        const backdrop = document.getElementById('fleetMaintenanceModalBackdrop');
+        if (backdrop) {
+            backdrop.classList.add('hidden');
+            backdrop.style.display = 'none';
+        }
+    },
+
+    ensureModalContainer: function() {
+        let backdrop = document.getElementById('fleetMaintenanceModalBackdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.id = 'fleetMaintenanceModalBackdrop';
+            backdrop.className = 'modal-backdrop hidden';
+            backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem;';
+            backdrop.innerHTML = `
+                <div class="modal large-modal" style="background:#ffffff;border-radius:14px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);width:100%;max-width:1200px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #cbd5e1;">
+                    <div class="modal-head" style="padding:1.1rem 1.5rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:40px;height:40px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 1px 3px rgba(37,99,235,0.2);">
+                                <i class="fas fa-truck-moving"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin:0;font-size:1.18rem;font-weight:800;color:#0f172a;">Suivi Entretien & Vidanges Flotte</h3>
+                                <p style="margin:0;font-size:0.82rem;color:#64748b;">Tableau de bord de maintenance camions, périodicité kilométrique, fournisseurs et BC associés</p>
+                            </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <button class="btn btn-sm btn-outline-success fw-bold" onclick="FleetAnalyzer.exportExcel()" title="Exporter en Excel"><i class="fas fa-file-excel me-1"></i> Exporter</button>
+                            <button class="icon-btn" onclick="FleetAnalyzer.closeModal()" style="background:none;border:none;font-size:1.6rem;color:#64748b;cursor:pointer;line-height:1;padding:0 6px;">&times;</button>
+                        </div>
+                    </div>
+                    <div id="fleetModalBody" class="modal-body" style="padding:1.25rem 1.5rem;overflow-y:auto;flex:1;background:#fafbfc;"></div>
+                </div>
+            `;
+            document.body.appendChild(backdrop);
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) FleetAnalyzer.closeModal();
             });
         }
-    });
-    
-    parsedFleetRecordsCache = parsedRecords;
-    
-    // Build analytics
-    const totalInterventions = parsedRecords.length;
-    const uniqueTrucks = new Set(parsedRecords.map(r => r.fleetData.truckId).filter(id => id !== 'Inconnu')).size;
-    const totalVidanges = parsedRecords.filter(r => r.fleetData.serviceType === 'Vidange').length;
-    const totalCost = parsedRecords.reduce((sum, r) => sum + (parseFloat(r.amountTTC) || 0), 0);
-    
-    // Service Type Breakdown
-    const serviceCounts = {};
-    parsedRecords.forEach(r => {
-        serviceCounts[r.fleetData.serviceType] = (serviceCounts[r.fleetData.serviceType] || 0) + 1;
-    });
-    
-    // Top Trucks
-    const truckCounts = {};
-    parsedRecords.forEach(r => {
-        if (r.fleetData.truckId !== 'Inconnu') {
-            truckCounts[r.fleetData.truckId] = (truckCounts[r.fleetData.truckId] || 0) + 1;
-        }
-    });
-    const topTrucks = Object.entries(truckCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    
-    // Monthly Trend
-    const monthlyCounts = {};
-    parsedRecords.forEach(r => {
-        if (r.date) {
-            const month = r.date.substring(0, 7); // YYYY-MM
-            monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
-        }
-    });
-    const sortedMonths = Object.keys(monthlyCounts).sort();
-    
-    // KM Analysis by Truck
-    const kmAnalysis = {};
-    parsedRecords.forEach(r => {
-        const tId = r.fleetData.truckId;
-        if (tId !== 'Inconnu') {
-            if (!kmAnalysis[tId]) {
-                kmAnalysis[tId] = {
+    },
+
+    getRecords: function() {
+        const records = (window.state && Array.isArray(window.state.bcRecords)) ? window.state.bcRecords : [];
+        const parsed = [];
+        records.forEach(r => {
+            const raw = r.remarques || r.comments || r.notes || '';
+            const p = parseFleetRemarque(raw);
+            if (p) {
+                parsed.push({
+                    ...r,
+                    fleetData: p
+                });
+            }
+        });
+        return parsed;
+    },
+
+    getTruckSummary: function(records) {
+        const trucks = {};
+        records.forEach(r => {
+            const tId = r.fleetData.truckId;
+            if (!trucks[tId]) {
+                trucks[tId] = {
                     truckId: tId,
+                    brand: r.fleetData.brand,
+                    lastServiceDate: r.date || '',
+                    lastVidangeDate: r.fleetData.serviceType.toLowerCase().includes('vidange') ? (r.date || '') : '',
+                    maxKm: r.fleetData.kmReading || 0,
+                    tier: r.fleetData.mileageTier,
+                    tierBadgeClass: r.fleetData.tierBadgeClass,
+                    lastBcRef: r.ref || '',
+                    lastBcId: r.id || '',
+                    supplier: r.supplierName || 'Non spécifié',
+                    totalSpend: 0,
+                    serviceCount: 0,
                     vidangeCount: 0,
-                    lastKm: 0,
-                    lastServiceDate: '',
-                    totalAmount: 0
+                    history: []
                 };
             }
-            if (r.fleetData.serviceType === 'Vidange') {
-                kmAnalysis[tId].vidangeCount++;
+            const t = trucks[tId];
+            t.totalSpend += Number(r.amountTTC || r.amount || 0);
+            t.serviceCount++;
+            if (r.fleetData.serviceType.toLowerCase().includes('vidange')) {
+                t.vidangeCount++;
+                if (!t.lastVidangeDate || r.date > t.lastVidangeDate) {
+                    t.lastVidangeDate = r.date;
+                }
             }
-            if (r.fleetData.kmReading && r.fleetData.kmReading > kmAnalysis[tId].lastKm) {
-                kmAnalysis[tId].lastKm = r.fleetData.kmReading;
+            if (r.fleetData.kmReading && r.fleetData.kmReading > t.maxKm) {
+                t.maxKm = r.fleetData.kmReading;
+                t.tier = r.fleetData.mileageTier;
+                t.tierBadgeClass = r.fleetData.tierBadgeClass;
             }
-            if (!kmAnalysis[tId].lastServiceDate || r.date > kmAnalysis[tId].lastServiceDate) {
-                kmAnalysis[tId].lastServiceDate = r.date;
+            if (!t.lastServiceDate || r.date > t.lastServiceDate) {
+                t.lastServiceDate = r.date;
+                t.lastBcRef = r.ref || '';
+                t.lastBcId = r.id || '';
+                t.supplier = r.supplierName || t.supplier;
+                if (r.fleetData.brand !== 'Autre Véhicule') t.brand = r.fleetData.brand;
             }
-            kmAnalysis[tId].totalAmount += (parseFloat(r.amountTTC) || 0);
-        }
-    });
-    const sortedKmAnalysis = Object.values(kmAnalysis).sort((a, b) => b.vidangeCount - a.vidangeCount);
-    
-    // Render HTML
-    fleetSection.innerHTML = `
-        <div class="fleet-analyzer-header">
-            <h2 class="fleet-title">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
-                Analyse Flotte & Maintenance
-            </h2>
-            <p class="fleet-subtitle">Analyse intelligente des vidanges, freins et entretiens par camion</p>
-        </div>
-        
-        <div class="fleet-grid fleet-summary-grid">
-            <div class="fleet-card border-blue">
-                <div class="fleet-card-icon blue">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            t.history.push(r);
+        });
+        return Object.values(trucks).sort((a, b) => b.totalSpend - a.totalSpend);
+    },
+
+    setTierFilter: function(tier) {
+        this.currentTier = tier;
+        this.renderModalContent();
+    },
+
+    setBrandFilter: function(brand) {
+        this.currentBrand = brand;
+        this.renderModalContent();
+    },
+
+    setSearchTerm: function(val) {
+        this.searchTerm = (val || '').toLowerCase().trim();
+        this.renderModalContent();
+    },
+
+    switchTab: function(tab) {
+        this.activeTab = tab;
+        this.renderModalContent();
+    },
+
+    renderModalContent: function() {
+        const container = document.getElementById('fleetModalBody');
+        if (!container) return;
+
+        const allRecords = this.getRecords();
+        const trucks = this.getTruckSummary(allRecords);
+
+        // Filter trucks
+        const filteredTrucks = trucks.filter(t => {
+            if (this.currentBrand !== 'all') {
+                if (!t.brand.toLowerCase().includes(this.currentBrand.toLowerCase())) return false;
+            }
+            if (this.currentTier !== 'all') {
+                if (this.currentTier === '5k_10k' && t.maxKm >= 10000) return false;
+                if (this.currentTier === '10k_30k' && (t.maxKm < 10000 || t.maxKm > 30000)) return false;
+                if (this.currentTier === '30k_60k' && (t.maxKm < 30000 || t.maxKm > 60000)) return false;
+                if (this.currentTier === '60k_80k' && (t.maxKm < 60000 || t.maxKm > 80000)) return false;
+                if (this.currentTier === 'over_80k' && t.maxKm < 80000) return false;
+            }
+            if (this.searchTerm) {
+                const hay = (t.truckId + ' ' + t.brand + ' ' + t.supplier + ' ' + t.lastBcRef).toLowerCase();
+                if (!hay.includes(this.searchTerm)) return false;
+            }
+            return true;
+        });
+
+        const totalCost = allRecords.reduce((sum, r) => sum + (Number(r.amountTTC || r.amount) || 0), 0);
+        const totalVidanges = allRecords.filter(r => r.fleetData.serviceType.toLowerCase().includes('vidange')).length;
+        const heavyCount = trucks.filter(t => t.maxKm >= 80000).length;
+
+        container.innerHTML = `
+            <!-- Top Metrics Row -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:1rem;margin-bottom:1.25rem;">
+                <div style="background:#ffffff;border:1px solid #e2e8f0;border-left:4px solid #2563eb;border-radius:10px;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                    <div style="font-size:0.8rem;font-weight:700;color:#64748b;text-transform:uppercase;"><i class="fas fa-truck text-primary me-1"></i> Camions Suivis</div>
+                    <div style="font-size:1.6rem;font-weight:800;color:#0f172a;margin-top:4px;">${trucks.length}</div>
+                    <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Véhicules avec dossier d'entretien</div>
                 </div>
-                <div class="fleet-card-value">${totalInterventions}</div>
-                <div class="fleet-card-label">Total Interventions</div>
-            </div>
-            <div class="fleet-card border-purple">
-                <div class="fleet-card-icon purple">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+                <div style="background:#ffffff;border:1px solid #e2e8f0;border-left:4px solid #10b981;border-radius:10px;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                    <div style="font-size:0.8rem;font-weight:700;color:#64748b;text-transform:uppercase;"><i class="fas fa-oil-can text-success me-1"></i> Vidanges Enregistrées</div>
+                    <div style="font-size:1.6rem;font-weight:800;color:#0f172a;margin-top:4px;">${totalVidanges}</div>
+                    <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Bons de commande vidange / révision</div>
                 </div>
-                <div class="fleet-card-value">${uniqueTrucks}</div>
-                <div class="fleet-card-label">Camions Distincts</div>
-            </div>
-            <div class="fleet-card border-orange">
-                <div class="fleet-card-icon orange">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                <div style="background:#ffffff;border:1px solid #e2e8f0;border-left:4px solid #f59e0b;border-radius:10px;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                    <div style="font-size:0.8rem;font-weight:700;color:#64748b;text-transform:uppercase;"><i class="fas fa-triangle-exclamation text-warning me-1"></i> Paliers 80 000+ KM</div>
+                    <div style="font-size:1.6rem;font-weight:800;color:#0f172a;margin-top:4px;">${heavyCount}</div>
+                    <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Grosse révision / courroies requises</div>
                 </div>
-                <div class="fleet-card-value">${totalVidanges}</div>
-                <div class="fleet-card-label">Vidanges Totales</div>
-            </div>
-            <div class="fleet-card border-green">
-                <div class="fleet-card-icon green">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                </div>
-                <div class="fleet-card-value">${_formatMoney(totalCost)}</div>
-                <div class="fleet-card-label">Coût Total Maintenance</div>
-            </div>
-        </div>
-        
-        <div class="fleet-grid fleet-charts-grid">
-            <div class="fleet-card">
-                <h3>Répartition par Type de Service</h3>
-                <div class="fleet-hbar-container">
-                    ${Object.entries(serviceCounts).sort((a,b)=>b[1]-a[1]).map(([type, count]) => `
-                        <div class="fleet-hbar-row">
-                            <div class="fleet-hbar-label">${_escapeHtml(type)}</div>
-                            <div class="fleet-hbar-track">
-                                <div class="fleet-hbar-fill" style="width: ${Math.max(5, (count/totalInterventions)*100)}%;"></div>
-                            </div>
-                            <div class="fleet-hbar-value">${count} (${Math.round((count/totalInterventions)*100)}%)</div>
-                        </div>
-                    `).join('')}
+                <div style="background:#ffffff;border:1px solid #e2e8f0;border-left:4px solid #8b5cf6;border-radius:10px;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                    <div style="font-size:0.8rem;font-weight:700;color:#64748b;text-transform:uppercase;"><i class="fas fa-coins text-purple me-1"></i> Budget Maintenance</div>
+                    <div style="font-size:1.4rem;font-weight:800;color:#0f172a;margin-top:4px;">${_formatMoney(totalCost)}</div>
+                    <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Dépenses totales flotte constatées</div>
                 </div>
             </div>
-            
-            <div class="fleet-card">
-                <h3>Top 10 Camions (Interventions)</h3>
-                <div class="fleet-hbar-container">
-                    ${topTrucks.map(([truck, count]) => `
-                        <div class="fleet-hbar-row">
-                            <div class="fleet-hbar-label">${_escapeHtml(truck)}</div>
-                            <div class="fleet-hbar-track">
-                                <div class="fleet-hbar-fill blue-fill" style="width: ${Math.max(5, (count/topTrucks[0][1])*100)}%;"></div>
-                            </div>
-                            <div class="fleet-hbar-value">${count}</div>
-                        </div>
-                    `).join('')}
+
+            <!-- Interactive Filter Bar -->
+            <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:1.25rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;justify-content:space-between;">
+                <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;">
+                    <div style="position:relative;min-width:240px;">
+                        <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:12px;"></i>
+                        <input type="text" placeholder="Rechercher camion, BC, fournisseur..." value="${_escapeHtml(this.searchTerm)}" oninput="FleetAnalyzer.setSearchTerm(this.value)" style="padding:6px 10px 6px 30px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;width:100%;height:38px;">
+                    </div>
+                    <select onchange="FleetAnalyzer.setBrandFilter(this.value)" style="height:38px;padding:0 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;background:#ffffff;">
+                        <option value="all" ${this.currentBrand === 'all' ? 'selected' : ''}>Toutes marques (MAN, HOWO, FIAT...)</option>
+                        <option value="man" ${this.currentBrand === 'man' ? 'selected' : ''}>MAN TGS</option>
+                        <option value="howo" ${this.currentBrand === 'howo' ? 'selected' : ''}>HOWO Sinotruk</option>
+                        <option value="fiat" ${this.currentBrand === 'fiat' ? 'selected' : ''}>FIAT Doblo</option>
+                        <option value="isuzu" ${this.currentBrand === 'isuzu' ? 'selected' : ''}>ISUZU NPR</option>
+                        <option value="hyundai" ${this.currentBrand === 'hyundai' ? 'selected' : ''}>Hyundai HD</option>
+                    </select>
+                    <select onchange="FleetAnalyzer.setTierFilter(this.value)" style="height:38px;padding:0 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;background:#ffffff;">
+                        <option value="all" ${this.currentTier === 'all' ? 'selected' : ''}>Tous les paliers km</option>
+                        <option value="5k_10k" ${this.currentTier === '5k_10k' ? 'selected' : ''}>&lt; 10 000 km (Rodage / Vidange initiale)</option>
+                        <option value="10k_30k" ${this.currentTier === '10k_30k' ? 'selected' : ''}>10 000 – 30 000 km (Service standard)</option>
+                        <option value="30k_60k" ${this.currentTier === '30k_60k' ? 'selected' : ''}>30 000 – 60 000 km (Intermédiaire)</option>
+                        <option value="60k_80k" ${this.currentTier === '60k_80k' ? 'selected' : ''}>60 000 – 80 000 km (Approfondi)</option>
+                        <option value="over_80k" ${this.currentTier === 'over_80k' ? 'selected' : ''}>&gt; 80 000 km (Grosse révision)</option>
+                    </select>
+                </div>
+                <div style="font-size:0.82rem;font-weight:700;color:#64748b;">
+                    Affichage : <span class="text-primary">${filteredTrucks.length}</span> camion(s)
                 </div>
             </div>
-        </div>
-        
-        <div class="fleet-card">
-            <h3>Tendance Mensuelle de Maintenance</h3>
-            <div class="fleet-trend-chart">
-                ${sortedMonths.map(month => {
-                    const count = monthlyCounts[month];
-                    const maxCount = Math.max(...Object.values(monthlyCounts));
-                    const height = Math.max(10, (count / maxCount) * 100);
-                    return `
-                        <div class="fleet-trend-bar-wrapper">
-                            <div class="fleet-trend-val">${count}</div>
-                            <div class="fleet-trend-bar" style="height: ${height}%;"></div>
-                            <div class="fleet-trend-label">${month}</div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        </div>
-        
-        <div class="fleet-card">
-            <h3>Analyse Kilométrique & Vidanges par Camion</h3>
-            <div class="table-responsive">
-                <table class="data-table fleet-table">
-                    <thead>
-                        <tr>
-                            <th>Camion ID</th>
-                            <th>Nbr Vidanges</th>
-                            <th>Dernier KM Relevé</th>
-                            <th>Dernière Intervention</th>
-                            <th>Montant Total Alloué</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${sortedKmAnalysis.map(k => `
+
+            <!-- Table Card -->
+            <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                <div style="overflow-x:auto;">
+                    <table class="table table-hover mb-0" style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                        <thead style="background:#f1f5f9;border-bottom:2px solid #e2e8f0;">
                             <tr>
-                                <td><strong>${_escapeHtml(k.truckId)}</strong></td>
-                                <td><span class="badge ${k.vidangeCount > 2 ? 'badge-warning' : 'badge-neutral'}">${k.vidangeCount}</span></td>
-                                <td>${k.lastKm > 0 ? k.lastKm.toLocaleString('fr-FR') + ' KM' : '-'}</td>
-                                <td>${_formatDate(k.lastServiceDate)}</td>
-                                <td>${_formatMoney(k.totalAmount)}</td>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;">Camion / Matricule</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;">Modèle</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;">Dernier KM</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;">Palier Relevé</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;">Dernière Vidange</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;">N° Bon Commande</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;">Fournisseur</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;text-align:right;">Coût Total TTC</th>
+                                <th style="padding:10px 12px;font-weight:700;color:#334155;text-align:center;">Action</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            ${filteredTrucks.map(t => {
+                                const isHeavy = t.maxKm >= 80000;
+                                return `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:10px 12px;">
+                                        <span class="badge bg-primary me-1" style="font-family:monospace;font-size:11.5px;padding:4px 8px;background:#2563eb;color:#ffffff;border-radius:4px;">
+                                            <i class="fas fa-truck me-1"></i>${_escapeHtml(t.truckId)}
+                                        </span>
+                                    </td>
+                                    <td style="padding:10px 12px;font-weight:600;color:#0f172a;">${_escapeHtml(t.brand)}</td>
+                                    <td style="padding:10px 12px;font-weight:700;color:#1e293b;">
+                                        ${t.maxKm > 0 ? (Number(t.maxKm).toLocaleString('fr-FR') + ' KM') : '<span class="text-muted">—</span>'}
+                                    </td>
+                                    <td style="padding:10px 12px;">
+                                        <span class="badge ${t.tierBadgeClass}" style="font-size:11px;padding:3px 7px;border-radius:4px;">${_escapeHtml(t.tier)}</span>
+                                    </td>
+                                    <td style="padding:10px 12px;">
+                                        ${t.lastVidangeDate ? `<span class="badge bg-light text-dark border" style="font-size:11px;"><i class="fas fa-calendar-day text-success me-1"></i>${_formatDate(t.lastVidangeDate)}</span>` : '<span class="text-muted small">Aucune vidange</span>'}
+                                    </td>
+                                    <td style="padding:10px 12px;">
+                                        ${t.lastBcRef ? `<a href="javascript:void(0)" onclick="FleetAnalyzer.openBc('${t.lastBcId}')" class="badge bg-info text-dark" style="font-family:monospace;font-size:11px;padding:3px 7px;text-decoration:none;"><i class="fas fa-file-contract me-1"></i>${_escapeHtml(t.lastBcRef)}</a>` : '<span class="text-muted">—</span>'}
+                                    </td>
+                                    <td style="padding:10px 12px;color:#334155;">
+                                        <strong>${_escapeHtml(t.supplier)}</strong>
+                                    </td>
+                                    <td style="padding:10px 12px;text-align:right;font-weight:700;color:#2563eb;">
+                                        ${_formatMoney(t.totalSpend)}
+                                    </td>
+                                    <td style="padding:10px 12px;text-align:center;">
+                                        ${t.lastBcId ? `<button class="btn btn-xs btn-outline-primary" onclick="FleetAnalyzer.openBc('${t.lastBcId}')" title="Ouvrir le Bon de Commande"><i class="fas fa-eye"></i></button>` : ''}
+                                    </td>
+                                </tr>`;
+                            }).join('')}
+                            ${filteredTrucks.length === 0 ? `
+                                <tr>
+                                    <td colspan="9" style="text-align:center;padding:2.5rem;color:#64748b;">
+                                        <i class="fas fa-filter me-2"></i>Aucun camion ne correspond aux critères de filtre sélectionnés.
+                                    </td>
+                                </tr>
+                            ` : ''}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        
-        <div class="fleet-card">
-            <h3>Historique Détaillé des Interventions</h3>
-            <div class="table-responsive">
-                <table class="data-table fleet-table">
-                    <thead>
-                        <tr>
-                            <th>Réf BC</th>
-                            <th>Date</th>
-                            <th>Camion</th>
-                            <th>Type Service</th>
-                            <th>KM</th>
-                            <th>Devis</th>
-                            <th>Montant TTC</th>
-                        </tr>
-                    </thead>
-                    <tbody id="fleetLogTableBody">
-                    </tbody>
-                </table>
-            </div>
-            <div class="pagination-controls" id="fleetPagination">
-                <!-- Pagination injected here -->
-            </div>
-        </div>
-    `;
-    
-    fleetCurrentPage = 1;
-    renderFleetTablePage();
-}
+        `;
+    },
 
-function renderFleetTablePage() {
-    const tbody = document.getElementById('fleetLogTableBody');
-    const pagination = document.getElementById('fleetPagination');
-    if (!tbody || !pagination) return;
-    
-    // Sort records by date descending
-    const sortedRecords = [...parsedFleetRecordsCache].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-    
-    const totalPages = Math.ceil(sortedRecords.length / FLEET_ITEMS_PER_PAGE);
-    const startIdx = (fleetCurrentPage - 1) * FLEET_ITEMS_PER_PAGE;
-    const endIdx = startIdx + FLEET_ITEMS_PER_PAGE;
-    const pageRecords = sortedRecords.slice(startIdx, endIdx);
-    
-    tbody.innerHTML = pageRecords.map(r => `
-        <tr>
-            <td>${_escapeHtml(r.reference)}</td>
-            <td>${_formatDate(r.date)}</td>
-            <td><strong>${_escapeHtml(r.fleetData.truckId)}</strong></td>
-            <td><span class="badge badge-info">${_escapeHtml(r.fleetData.serviceType)}</span></td>
-            <td>${r.fleetData.kmReading ? r.fleetData.kmReading.toLocaleString('fr-FR') + ' KM' : '-'}</td>
-            <td>${_escapeHtml(r.fleetData.devisRef)}</td>
-            <td class="amount">${_formatMoney(r.amountTTC)}</td>
-        </tr>
-    `).join('');
-    
-    // Render pagination
-    let pagHtml = `
-        <button class="btn btn-sm btn-outline" ${fleetCurrentPage === 1 ? 'disabled' : ''} onclick="changeFleetPage(${fleetCurrentPage - 1})">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Précédent
-        </button>
-        <span class="page-info">Page ${fleetCurrentPage} / ${totalPages || 1}</span>
-        <button class="btn btn-sm btn-outline" ${fleetCurrentPage === totalPages || totalPages === 0 ? 'disabled' : ''} onclick="changeFleetPage(${fleetCurrentPage + 1})">
-            Suivant <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-    `;
-    pagination.innerHTML = pagHtml;
-}
+    openBc: function(id) {
+        if (!id) return;
+        this.closeModal();
+        if (typeof openBcEditModal === 'function') {
+            openBcEditModal(id);
+        } else if (typeof openBcDetailModal === 'function') {
+            openBcDetailModal(id);
+        }
+    },
 
-window.changeFleetPage = function(page) {
-    fleetCurrentPage = page;
-    renderFleetTablePage();
+    exportExcel: function() {
+        const records = this.getRecords();
+        const trucks = this.getTruckSummary(records);
+        const rows = trucks.map(t => [
+            t.truckId,
+            t.brand,
+            t.maxKm,
+            t.tier,
+            t.lastVidangeDate,
+            t.lastBcRef,
+            t.supplier,
+            t.totalSpend,
+            t.serviceCount
+        ]);
+        const headers = ['Camion / Matricule', 'Modèle', 'Dernier KM', 'Palier KM', 'Dernière Vidange', 'Dernier BC', 'Fournisseur', 'Total TTC', 'Nbr Interventions'];
+        if (typeof exportWorkbook === 'function') {
+            exportWorkbook(`suivi_entretien_flotte_${new Date().toISOString().split('T')[0]}.xlsx`, [
+                { name: 'Flotte_Vidanges', headers, rows }
+            ]);
+            if (typeof showToast === 'function') showToast('Suivi entretien exporté en Excel.');
+        } else {
+            // CSV fallback
+            let csv = headers.join(';') + '\r\n';
+            rows.forEach(r => { csv += r.map(c => `"${String(c || '').replace(/"/g, '""')}"`).join(';') + '\r\n'; });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `suivi_flotte_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+    }
 };
 
-// Hook into app's renderActiveTab
-const originalRenderActiveTab = window.renderActiveTab;
-if (originalRenderActiveTab) {
-    window.renderActiveTab = function() {
-        originalRenderActiveTab();
-        if (window.state && window.state.activeTab === 'reports') {
-            console.log('[fleet-analyzer] Rendering fleet analyzer...');
-            setTimeout(renderFleetAnalyzer, 100);
+// Also expose as alias
+window.renderFleetAnalyzer = function() {
+    if (typeof FleetAnalyzer !== 'undefined' && FleetAnalyzer.openModal) {
+        // Can also render directly into #page-reports if open
+        const reportsPage = document.getElementById('page-reports');
+        if (reportsPage) {
+            let fleetSec = document.getElementById('fleetAnalyzerSection');
+            if (!fleetSec) {
+                fleetSec = document.createElement('div');
+                fleetSec.id = 'fleetAnalyzerSection';
+                reportsPage.appendChild(fleetSec);
+            }
+            fleetSec.innerHTML = `
+                <div class="card p-3 mt-4" style="border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 style="margin:0;font-weight:800;color:#0f172a;"><i class="fas fa-truck-moving text-primary me-2"></i> Suivi Entretien & Vidanges Flotte</h4>
+                        <button class="btn btn-sm btn-primary fw-bold" onclick="FleetAnalyzer.openModal()"><i class="fas fa-expand me-1"></i> Ouvrir Tableau de Bord Complet</button>
+                    </div>
+                    <p class="text-muted small">Consultez l'historique complet des vidanges, paliers d'entretien (MAN, HOWO, FIAT, etc.) et fournisseurs associés.</p>
+                </div>
+            `;
         }
-    };
-    window.fleetHooked = true;
-}
+    }
+};
 
-// Also hook via direct tab click for reliability
-document.querySelectorAll('.tab[data-tab="reports"]').forEach(tab => {
-    tab.addEventListener('click', () => {
-        console.log('[fleet-analyzer] Reports tab clicked');
-        setTimeout(renderFleetAnalyzer, 200);
+// Setup DOM event listeners
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        FleetAnalyzer.ensureModalContainer();
     });
-});
-
-// Trigger on initial load
-setTimeout(() => {
-    if (window.state && window.state.activeTab === 'reports') {
-        renderFleetAnalyzer();
-    }
-}, 500);
-
-// Add CSS
-const style = document.createElement('style');
-style.textContent = `
-    .fleet-analyzer-header {
-        margin: 30px 0 20px;
-        padding-top: 20px;
-        border-top: 1px solid var(--border-color);
-    }
-    .fleet-title {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        color: var(--text-color);
-        margin: 0 0 5px 0;
-    }
-    .fleet-subtitle {
-        color: var(--text-muted);
-        margin: 0;
-        font-size: 0.9rem;
-    }
-    
-    .fleet-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-    .fleet-charts-grid {
-        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    }
-    
-    .fleet-card {
-        background: var(--surface-color);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
-    .fleet-card.border-blue { border-left: 4px solid var(--primary-color); }
-    .fleet-card.border-purple { border-left: 4px solid #8b5cf6; }
-    .fleet-card.border-orange { border-left: 4px solid #f59e0b; }
-    .fleet-card.border-green { border-left: 4px solid #10b981; }
-    
-    .fleet-card-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 15px;
-    }
-    .fleet-card-icon.blue { background: rgba(37, 99, 235, 0.1); color: var(--primary-color); }
-    .fleet-card-icon.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
-    .fleet-card-icon.orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-    .fleet-card-icon.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-    
-    .fleet-card-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-bottom: 5px;
-        color: var(--text-color);
-    }
-    .fleet-card-label {
-        color: var(--text-muted);
-        font-size: 0.9rem;
-    }
-    
-    .fleet-hbar-container {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        margin-top: 15px;
-    }
-    .fleet-hbar-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 0.85rem;
-    }
-    .fleet-hbar-label {
-        width: 120px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .fleet-hbar-track {
-        flex: 1;
-        height: 8px;
-        background: var(--bg-color);
-        border-radius: 4px;
-        overflow: hidden;
-    }
-    .fleet-hbar-fill {
-        height: 100%;
-        background: var(--primary-color);
-        border-radius: 4px;
-        transition: width 0.3s ease;
-    }
-    .fleet-hbar-fill.blue-fill {
-        background: #3b82f6;
-    }
-    .fleet-hbar-value {
-        width: 60px;
-        text-align: right;
-        font-weight: 500;
-    }
-    
-    .fleet-trend-chart {
-        display: flex;
-        align-items: flex-end;
-        height: 200px;
-        gap: 10px;
-        padding-top: 20px;
-        margin-top: 15px;
-        overflow-x: auto;
-    }
-    .fleet-trend-bar-wrapper {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        flex: 1;
-        min-width: 40px;
-        height: 100%;
-        justify-content: flex-end;
-    }
-    .fleet-trend-bar {
-        width: 100%;
-        max-width: 40px;
-        background: var(--primary-color);
-        border-radius: 4px 4px 0 0;
-        min-height: 2px;
-        transition: height 0.3s ease;
-    }
-    .fleet-trend-val {
-        font-size: 0.8rem;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-    .fleet-trend-label {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin-top: 8px;
-        transform: rotate(-45deg);
-        transform-origin: left;
-        white-space: nowrap;
-    }
-    
-    .fleet-table {
-        margin-top: 15px;
-        width: 100%;
-        border-collapse: collapse;
-    }
-    .fleet-table th, .fleet-table td {
-        padding: 10px;
-        text-align: left;
-        border-bottom: 1px solid var(--border-color);
-    }
-    .fleet-table th {
-        font-weight: 600;
-        color: var(--text-muted);
-    }
-    .fleet-table .amount {
-        text-align: right;
-    }
-    .badge-info {
-        background: rgba(59, 130, 246, 0.1);
-        color: #3b82f6;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-    }
-    .badge-warning {
-        background: rgba(245, 158, 11, 0.1);
-        color: #f59e0b;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-    }
-    .badge-neutral {
-        background: rgba(107, 114, 128, 0.1);
-        color: #6b7280;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-    }
-    
-    .pagination-controls {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 15px;
-        margin-top: 20px;
-    }
-    .btn {
-        padding: 6px 12px;
-        border-radius: 4px;
-        border: 1px solid var(--border-color);
-        background: var(--surface-color);
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-    }
-    .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-`;
-document.head.appendChild(style);
+}

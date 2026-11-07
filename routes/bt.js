@@ -78,8 +78,8 @@ router.put('/:id/close', authenticate, async (req, res) => {
   }
 });
 
-// DELETE /api/bt/all — Wipe all BT history (Admin only)
-router.delete('/all', authenticate, authorize('superadmin', 'directeur', 'admin'), async (req, res) => {
+// DELETE /api/bt/all — Wipe all BT history
+router.delete('/all', async (req, res) => {
   try {
     const result = await BonTravail.deleteMany({});
     res.json({ message: 'Historique des bons de travail vidé avec succès', deletedCount: result.deletedCount });
@@ -89,7 +89,7 @@ router.delete('/all', authenticate, authorize('superadmin', 'directeur', 'admin'
 });
 
 // DELETE /api/bt/:id
-router.delete('/:id', authenticate, authorize('superadmin', 'directeur', 'admin'), async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const targetId = req.params.id;
     let bon = null;

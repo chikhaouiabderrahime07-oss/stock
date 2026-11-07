@@ -69,6 +69,7 @@
         <button class="sa-top-tab tab" data-tab="finance"><i class="fas fa-landmark"></i><span class="tab-label">Finances</span></button>
         <button class="sa-top-tab tab" data-tab="reports"><i class="fas fa-chart-line"></i><span class="tab-label">Rapports</span></button>
         <button class="sa-top-tab tab" data-tab="kpi"><i class="fas fa-gauge-high"></i><span class="tab-label">KPI</span></button>
+        <button class="sa-top-tab tab" data-tab="fleet" onclick="FleetAnalyzer.openModal()"><i class="fas fa-truck-moving"></i><span class="tab-label">Flotte & Vidanges</span></button>
         <button class="sa-top-tab tab" data-tab="settings"><i class="fas fa-gear"></i><span class="tab-label">Paramètres</span></button>
       </nav>
 
@@ -413,6 +414,7 @@
             <button class="btn btn-primary" id="applyFollowupFiltersBtn" type="button" >
               <i class="fas fa-search"></i> 🔍 Filtrer
             </button>
+            <button class="btn btn-outline-primary" type="button" onclick="FleetAnalyzer.openModal()" style="font-weight:700;"><i class="fas fa-truck-pickup me-1"></i> Suivi Vidanges & Flotte</button>
             <button class="btn btn-ghost" id="resetFollowupFiltersBtn" type="button">Réinitialiser filtres</button>
           </div>
           <div class="table-shell">
@@ -862,6 +864,11 @@
               <button class="btn btn-soft" type="button" id="backupJsonBtn">Exporter sauvegarde JSON</button>
               <label class="btn btn-soft pseudo-btn">Importer JSON<input id="restoreJsonInput" type="file" accept="application/json" hidden /></label>
               <button class="btn btn-danger" type="button" id="resetAllBtn">Réinitialiser toutes les données</button>
+              <hr style="border-color:#fca5a5;margin:12px 0;">
+              <p style="color:#991b1b;font-size:12px;font-weight:600;margin-bottom:8px;">⚠️ Actions Serveur (MongoDB Atlas)</p>
+              <button class="btn btn-danger" type="button" id="resyncBcBtn" style="background:#7f1d1d;border-color:#7f1d1d;">
+                <span>🔄 Resync BC depuis JSON (purge + reimport)</span>
+              </button>
             </div>
           </article>
         </div>

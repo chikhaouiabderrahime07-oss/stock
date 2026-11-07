@@ -170,4 +170,40 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
+// POST /api/bc/resync — drop all BCs and re-seed from cleaned local JSON (admin only)
+router.post('/resync', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
+  try {
+    const candidates = [
+      path.join(__dirname, '..', 'data', 'extracted_bcs_linked.json'),
+      path.join(__dirname, '..', '..', 'data', 'extracted_bcs_linked.json'),
+      path.join(__dirname, '..', 'data', 'extracted_bcs.json'),
+      path.join(__dirname, '..', '..', 'data', 'extracted_bcs.json')
+    ];
+    let raw = null;
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+        if (Array.isArray(raw) && raw.length > 0) break;
+      }
+    }
+    if (!raw || raw.length === 0) {
+      return res.status(404).json({ error: 'Fichier JSON BC introuvable ou vide' });
+    }
+    // Drop existing
+    const deleted = await BcRecord.deleteMany({});
+    // Filter out test/sync records before inserting
+    const clean = raw
+      .filter(r => r.ref && !String(r.ref).startsWith('TEST') && !String(r.ref).startsWith('SYNC'))
+      .map(r => { const d = { ...r }; delete d._id; delete d.id; return d; });
+    await BcRecord.insertMany(clean, { ordered: false });
+    res.json({
+      deleted: deleted.deletedCount,
+      inserted: clean.length,
+      message: `Resync réussi : ${deleted.deletedCount} supprimés, ${clean.length} BCs rechargés`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -261,15 +261,22 @@ window.PlanTravailModule = {
             loaded = DB.data.workPlans;
         }
 
+        const isDummy = (p) => {
+            if (!p) return false;
+            const id = String(p.id || '');
+            const ref = String(p.ref || '');
+            return /^BT-2026-000[1-7]/i.test(id) || /^BT-2026-000[1-7]/i.test(ref) || /^wp_seed_/i.test(id) || /^wp_seed_/i.test(ref);
+        };
+
         if (!Array.isArray(DB.data.workPlans)) {
             if (loaded) {
-                DB.data.workPlans = loaded;
+                DB.data.workPlans = loaded.filter(p => !isDummy(p));
             } else {
                 try {
                     const stored = (typeof localStorage !== 'undefined') ? (localStorage.getItem('sde_work_plans') || localStorage.getItem('sde_plans_travail') || localStorage.getItem('erp_douroub_work_plans')) : null;
                     if (stored) {
                         const parsed = JSON.parse(stored);
-                        DB.data.workPlans = Array.isArray(parsed) ? parsed : [];
+                        DB.data.workPlans = Array.isArray(parsed) ? parsed.filter(p => !isDummy(p)) : [];
                     } else {
                         DB.data.workPlans = [];
                     }
@@ -277,6 +284,16 @@ window.PlanTravailModule = {
                     DB.data.workPlans = [];
                 }
             }
+        } else {
+            DB.data.workPlans = DB.data.workPlans.filter(p => !isDummy(p));
+        }
+
+        if (typeof localStorage !== 'undefined') {
+            try {
+                ['sde_work_plans', 'sde_plans_travail', 'erp_douroub_work_plans'].forEach(k => {
+                    localStorage.setItem(k, JSON.stringify(DB.data.workPlans));
+                });
+            } catch (e) {}
         }
 
         // Ensure cross-references are always in sync
@@ -318,7 +335,13 @@ window.PlanTravailModule = {
                 });
             }
         });
-        const unified = Array.from(map.values());
+        const isDummy = (p) => {
+            if (!p) return false;
+            const id = String(p.id || '');
+            const ref = String(p.ref || '');
+            return /^BT-2026-000[1-7]/i.test(id) || /^BT-2026-000[1-7]/i.test(ref) || /^wp_seed_/i.test(id) || /^wp_seed_/i.test(ref);
+        };
+        const unified = Array.from(map.values()).filter(p => !isDummy(p));
         if (DB && DB.data) {
             DB.data.workPlans = unified;
             DB.data.plans_travail = unified;
@@ -437,12 +460,38 @@ window.PlanTravailModule = {
         this.ensureStorage();
         if (!this.pendingSelection) this.pendingSelection = new Map();
 
-        // Keep workPlans clean - no forced dummy test seeds
-        if (!Array.isArray(DB.data.workPlans)) {
+        const isDummy = (p) => {
+            if (!p) return false;
+            const id = String(p.id || '');
+            const ref = String(p.ref || '');
+            return /^BT-2026-000[1-7]/i.test(id) || /^BT-2026-000[1-7]/i.test(ref) || /^wp_seed_/i.test(id) || /^wp_seed_/i.test(ref);
+        };
+
+        if (Array.isArray(DB.data.workPlans)) {
+            DB.data.workPlans = DB.data.workPlans.filter(p => !isDummy(p));
+        } else {
             DB.data.workPlans = [];
         }
+
+        // Clean any cached dummy BTs in localStorage permanently
+        if (typeof localStorage !== 'undefined') {
+            try {
+                ['sde_work_plans', 'sde_plans_travail', 'erp_douroub_work_plans'].forEach(key => {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            const cleaned = parsed.filter(p => !isDummy(p));
+                            localStorage.setItem(key, JSON.stringify(cleaned));
+                        }
+                    }
+                });
+            } catch (e) {}
+        }
+
         DB.data.plans_travail = DB.data.workPlans;
         DB.data.reparations = DB.data.workPlans;
+        if (typeof DB !== 'undefined' && DB.save) DB.save();
     },
 
     // 2. Component History & Recurrence Detection Engine
@@ -5054,7 +5103,7 @@ window.PlanTravailModule = {
                             <div><strong>Bénéficiaire / Chauffeur :</strong> ${Utils.escapeHTML(plan.driver || 'Atelier Maintenance')}</div>
                             <div><strong>Véhicule :</strong> ${Utils.escapeHTML(plan.brand || '')} ${Utils.escapeHTML(plan.model || '')}</div>
                             <div><strong>Matricule :</strong> <span style="font-family:monospace;font-weight:bold;">${Utils.escapeHTML(plan.immatriculation || '—')}</span></div>
-                            <div><strong>Date Délivrance :</strong> ${Utils.escapeHTML(plan.date || '')}</div>
+                            <div><strong>Date Délivrance :</strong> ${Utils.formatDate(plan.date, plan.ref || dechRef)}</div>
                         </div>
                     </div>
                 </div>

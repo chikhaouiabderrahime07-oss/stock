@@ -1381,19 +1381,46 @@ function renderBcRow(row) {
   const delay = computeDelay(row);
   const actual = delay.actual || '';
   const stockBadge = getBcStockBadge(row);
+
+  // Parse fleet data from remarques / comments / notes if truckPlate not explicit
+  const rawRemarque = String(row.remarques || row.comments || row.notes || '').trim();
+  const fleetInfo = (typeof parseFleetRemarque === 'function') ? parseFleetRemarque(rawRemarque) : null;
+  const truckPlate = row.truckPlate || row.truckVin || (fleetInfo && fleetInfo.truckId !== 'Inconnu' ? fleetInfo.truckId : null);
+  const serviceType = row.serviceType || (fleetInfo ? fleetInfo.serviceType : null);
+  const kmReading = row.kmReading || (fleetInfo ? fleetInfo.kmReading : null);
+
+  let remarqueHtml = '';
+  if (truckPlate || serviceType) {
+    remarqueHtml += `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:3px;">`;
+    if (truckPlate) {
+      remarqueHtml += `<span class="badge bg-primary me-1" style="font-size:11px;font-weight:700;padding:3px 7px;background:#2563eb;color:#ffffff;border-radius:4px;"><i class="fas fa-truck me-1"></i>${escapeHtml(truckPlate)}</span>`;
+    }
+    if (serviceType) {
+      remarqueHtml += `<span class="badge bg-secondary me-1" style="font-size:11px;font-weight:600;padding:3px 7px;background:#64748b;color:#ffffff;border-radius:4px;">${escapeHtml(serviceType)}</span>`;
+    }
+    if (kmReading) {
+      remarqueHtml += `<span class="badge bg-info text-dark me-1" style="font-size:10px;font-weight:700;padding:2px 6px;background:#bae6fd;color:#0369a1;border-radius:4px;"><i class="fas fa-gauge me-1"></i>${Number(kmReading).toLocaleString('fr-FR')} KM</span>`;
+    }
+    remarqueHtml += `</div>`;
+  }
+  if (rawRemarque) {
+    remarqueHtml += `<span class="text-muted small" style="font-size:11.5px;line-height:1.3;display:inline-block;">${escapeHtml(rawRemarque)}</span>`;
+  } else if (!truckPlate && !serviceType) {
+    remarqueHtml = '<span class="text-muted">—</span>';
+  }
+
   return `<tr>
     <td><strong>${escapeHtml(row.ref)}</strong><span class="table-subline">${escapeHtml(row.importedFromBC ? (row.sourceFile || 'Import BC') : 'Saisie manuelle')}</span>${stockBadge ? `<div style="margin-top:3px;">${stockBadge}</div>` : ''}</td>
     <td><strong>${escapeHtml(row.daRef || 'DA auto')}</strong><span class="table-subline">${row.daStatus === 'validated' ? `Validé le ${escapeHtml(formatDate(row.daValidatedAt))}` : 'modifiable'}</span></td>
     <td>${escapeHtml(formatDate(row.date))}</td>
     <td>${escapeHtml(row.supplierName || '—')}<span class="table-subline">${escapeHtml(row.requester || 'Sans demandeur')}</span></td>
-    <td>${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</td>
-    <td>${escapeHtml(formatMoney(row.amountTTC || row.amount || 0, 'DZD'))}</td>
-    <td><span class="status-pill ${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td>
-    <td><span class="status-pill ${validationClass(row)}">${escapeHtml(validationLabel(row))}</span></td>
-    <td>${escapeHtml(formatDate(row.promisedDate))}</td>
-    <td>${escapeHtml(actual ? formatDate(actual) : 'Pas encore')}</td>
-    <td><span class="delay-pill ${delay.cls}">${escapeHtml(delay.label)}</span></td>
-    <td>${escapeHtml(row.comments || '—')}</td>
+    <td><span class="badge bg-light text-dark border" style="font-size:11px;padding:3px 6px;">${escapeHtml(row.department || row.service || '—')}</span></td>
+    <td><span class="badge bg-${row.type === 'service' ? 'info' : 'secondary'} text-white" style="font-size:11px;padding:3px 6px;">${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</span></td>
+    <td>${escapeHtml(formatMoney(row.amountHT || (row.amountTTC ? Math.round(row.amountTTC / 1.19) : (row.amount ? Math.round(row.amount / 1.19) : 0)), 'DZD'))}</td>
+    <td><strong>${escapeHtml(formatMoney(row.amountTTC || row.amount || 0, 'DZD'))}</strong></td>
+    <td><span class="status-pill ${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span><div style="margin-top:3px;"><span class="status-pill ${validationClass(row)}" style="font-size:10px;">${escapeHtml(validationLabel(row))}</span></div></td>
+    <td>${actual ? `<span class="badge bg-success text-white mb-1" style="font-size:10px;padding:2px 5px;"><i class="fas fa-check me-1"></i>${escapeHtml(formatDate(actual))}</span>` : (row.promisedDate ? `<span class="small text-muted d-block">Prévu: ${escapeHtml(formatDate(row.promisedDate))}</span>` : '<span class="text-muted small d-block">En attente</span>')}<div style="margin-top:2px;"><span class="delay-pill ${delay.cls}">${escapeHtml(delay.label)}</span></div></td>
+    <td>${remarqueHtml}</td>
     <td>
       <div class="table-actions icon-actions">
         ${iconActionButton('edit', 'edit-bc', row.id, 'Modifier')}
@@ -2994,6 +3021,34 @@ function bindEvents() {
   $('backupJsonBtn').addEventListener('click', exportJsonBackup);
   $('restoreJsonInput').addEventListener('change', restoreJsonBackup);
   $('resetAllBtn').addEventListener('click', resetAllData);
+  const resyncBcEl = $('resyncBcBtn');
+  if (resyncBcEl) {
+    resyncBcEl.addEventListener('click', async () => {
+      if (!confirm('⚠️ Cela va supprimer TOUS les BCs dans MongoDB et les réimporter depuis le fichier JSON corrigé. Continuer ?')) return;
+      resyncBcEl.disabled = true;
+      resyncBcEl.textContent = '⏳ Resync en cours...';
+      try {
+        const token = localStorage.getItem('erp_jwt_token') || state.session?.token || '';
+        const r = await fetch('/api/bc/resync', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+        });
+        const d = await r.json();
+        if (r.ok) {
+          showToast('✅ ' + (d.message || 'Resync réussi !'));
+          setTimeout(() => location.reload(), 1800);
+        } else {
+          showToast('❌ ' + (d.error || 'Erreur resync'), 'error');
+          resyncBcEl.disabled = false;
+          resyncBcEl.textContent = '🔄 Resync BC depuis JSON (purge + reimport)';
+        }
+      } catch (e) {
+        showToast('❌ Connexion échouée : ' + e.message, 'error');
+        resyncBcEl.disabled = false;
+        resyncBcEl.textContent = '🔄 Resync BC depuis JSON (purge + reimport)';
+      }
+    });
+  }
   $('closeChartModalBtn').addEventListener('click', closeChartModal);
   $('chartModalBackdrop').addEventListener('click', (e) => { if (e.target.id === 'chartModalBackdrop') closeChartModal(); });
   $('exportCurrentChartBtn').addEventListener('click', () => {

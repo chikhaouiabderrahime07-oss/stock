@@ -2396,7 +2396,7 @@ window.Stock = {
                                         <td><strong class="font-monospace">${Utils.escapeHTML(a.code)}</strong></td>
                                         <td>${Utils.escapeHTML(a.designation)}</td>
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(a.category)}</span></td>
-                                        <td><span class="badge badge-site" style="background:#e0f2fe !important; color:#0369a1 !important; border:1px solid #bae6fd !important; font-size:11px; font-weight:700; padding:4px 9px; display:inline-flex; align-items:center;"><i class="fas fa-warehouse me-1" style="color:#0284c7;"></i>${Utils.escapeHTML(a.site || 'Dépôt Central')}</span></td>
+                                        <td><span class="badge badge-site" style="background:#1d4ed8 !important; color:#ffffff !important; border:1px solid #1e40af !important; font-size:11px; font-weight:600; padding:4px 8px; display:inline-flex; align-items:center;"><i class="fas fa-warehouse me-1" style="color:#ffffff;"></i>${Utils.escapeHTML(a.site || 'Dépôt Central')}</span></td>
                                         <td>${Utils.escapeHTML(a.section || '-')}</td>
                                         <td><span class="${getZoneBadgeClass(a.zone || 'Zone A')}"><i class="fas fa-layer-group me-1"></i>${Utils.escapeHTML(a.zone || 'Zone A')}</span></td>
                                         <td><strong style="font-size:14px;color:${isAlert ? 'var(--danger,#dc2626)' : 'inherit'};">${a.quantity}</strong></td>
@@ -3257,7 +3257,7 @@ window.Stock = {
                             <tbody>
                                 ${movements.map(m => `
                                 <tr>
-                                    <td>${new Date(m.date).toLocaleString('fr-FR')}</td>
+                                    <td>${Utils.formatDateTime(m.date, m.reference)}</td>
                                     <td><span class="badge bg-${m.type === 'Entrée' ? 'success' : 'danger'}">${m.type}</span></td>
                                     <td>${m.quantity}</td>
                                     <td>${Utils.escapeHTML(m.reference || '-')}</td>
@@ -4203,7 +4203,7 @@ window.StockMovements = {
                                     const art = articles.find(a => a.id === m.articleId);
                                     return `
                                     <tr data-type="${m.type}">
-                                        <td>${new Date(m.date).toLocaleString('fr-FR')}</td>
+                                        <td>${Utils.formatDateTime(m.date, m.reference)}</td>
                                         <td>${art ? Utils.escapeHTML(art.designation) + ' (' + Utils.escapeHTML(art.code) + ')' : 'Inconnu'}</td>
                                         <td><span class="badge bg-${m.type === 'Entrée' ? 'success' : 'danger'}">${m.type}</span></td>
                                         <td>${m.quantity}</td>
@@ -4410,19 +4410,7 @@ window.Decharges = {
                                             </div>
                                             ${bsmRef ? `<small class="text-info font-monospace fw-bold d-block" style="font-size:10px;">${Utils.escapeHTML(bsmRef)}</small>` : ''}
                                         </td>
-                                        <td>${(() => {
-                                            const parseD = (v) => {
-                                                if (!v || v === 'Invalid Date' || String(v).toLowerCase().includes('invalid')) return null;
-                                                const dt = new Date(v);
-                                                return isNaN(dt.getTime()) ? null : dt.toLocaleDateString('fr-FR');
-                                            };
-                                            let formatted = parseD(d.date) || parseD(d.servedAt) || parseD(d.createdAt) || parseD(d.dateDecharge);
-                                            if (!formatted && d.ref) {
-                                                const m = String(d.ref).match(/(\d{4})(\d{2})(\d{2})/);
-                                                if (m) formatted = m[3] + '/' + m[2] + '/' + m[1];
-                                            }
-                                            return formatted || new Date().toLocaleDateString('fr-FR');
-                                        })()}</td>
+                                        <td>${Utils.formatDate(d.date || d.servedAt || d.createdAt || d.dateDecharge, d.ref || d.bsmRef)}</td>
                                         <td><strong><i class="fas fa-user-circle text-primary me-1"></i> ${Utils.escapeHTML(d.beneficiary)}</strong></td>
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(d.service || '-')}</span></td>
                                         <td>${mat ? Utils.escapeHTML(mat.name + ' - ' + mat.immatriculation) : (d.immatriculation ? Utils.escapeHTML((d.materialName || '') + ' - ' + d.immatriculation) : '-')}</td>
@@ -5544,14 +5532,14 @@ window.Decharges = {
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div>
                             <span class="text-muted"><i class="fas fa-user-plus"></i> Créée par:</span> <strong>${Utils.escapeHTML(decharge.createdBy || '-')}</strong>
-                            <small class="text-muted ms-2">${new Date(decharge.date).toLocaleString('fr-FR')}</small>
+                            <small class="text-muted ms-2">${Utils.formatDateTime(decharge.date || decharge.createdAt || decharge.servedAt, decharge.ref || bsmRef)}</small>
                         </div>
                         <div>
                             ${decharge.validatedBy ? `
-                                <span class="badge bg-success p-2" style="font-size:11px;"><i class="fas fa-check-double"></i> Validée par: <strong>${Utils.escapeHTML(decharge.validatedBy)}</strong> le ${new Date(decharge.validatedAt).toLocaleString('fr-FR')}</span>
+                                <span class="badge bg-success p-2" style="font-size:11px;"><i class="fas fa-check-double"></i> Validée par: <strong>${Utils.escapeHTML(decharge.validatedBy)}</strong> le ${Utils.formatDateTime(decharge.validatedAt, decharge.ref || bsmRef)}</span>
                             ` : ''}
                             ${decharge.lastModifiedBy ? `
-                                <span class="badge bg-warning text-dark p-2" style="font-size:11px;"><i class="fas fa-pen"></i> Rectifiée par: <strong>${Utils.escapeHTML(decharge.lastModifiedBy)}</strong> le ${new Date(decharge.lastModifiedAt).toLocaleString('fr-FR')}</span>
+                                <span class="badge bg-warning text-dark p-2" style="font-size:11px;"><i class="fas fa-pen"></i> Rectifiée par: <strong>${Utils.escapeHTML(decharge.lastModifiedBy)}</strong> le ${Utils.formatDateTime(decharge.lastModifiedAt, decharge.ref || bsmRef)}</span>
                             ` : (!decharge.validatedBy ? `<span class="badge bg-secondary p-2" style="font-size:11px;"><i class="fas fa-check"></i> Document initial (Non modifié)</span>` : '')}
                         </div>
                     </div>
@@ -6775,7 +6763,7 @@ window.Decharges = {
                         </td>
                         <td style="width:40%;text-align:right;vertical-align:top;">
                             <div style="font-size:10.5pt;font-weight:bold;font-family:monospace;">${d.ref || 'DCH-2026-0001'}</div>
-                            <div style="font-size:9pt;color:#475569;">Date d'émission : ${d.date ? new Date(d.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}</div>
+                            <div style="font-size:9pt;color:#475569;">Date d'émission : ${Utils.formatDate(d.date || d.servedAt || d.createdAt || d.dateDecharge, d.ref || d.bsmRef)}</div>
                             <div style="font-size:9pt;color:#2563eb;font-weight:bold;">Statut : ${d.status || 'Validée'}</div>
                         </td>
                     </tr>
@@ -6859,7 +6847,7 @@ window.Decharges = {
                             <td>
                                 <strong>LEKCIR YASSINE</strong><br>
                                 <span style="font-size:8.5pt;color:#64748b;">Visa & Approbation Sortie</span><br><br>
-                                <span style="font-size:8.5pt;">Date : ${d.validatedAt ? new Date(d.validatedAt).toLocaleDateString('fr-FR') : (d.date ? new Date(d.date).toLocaleDateString('fr-FR') : '……/……/2026')}</span>
+                                <span style="font-size:8.5pt;">Date : ${Utils.formatDate(d.validatedAt || d.date || d.servedAt || d.createdAt, d.ref || d.bsmRef)}</span>
                             </td>
                             <td>
                                 <strong>Magasinier Central GDS</strong><br>
@@ -6968,7 +6956,7 @@ window.Decharges = {
                     </div>
                     <div style="text-align:right;">
                         ${barcodeSvg}
-                        <div style="font-size:9.5px;color:#475569;margin-top:3px;font-family:monospace;">Date : <strong>${d.date ? new Date(d.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}</strong></div>
+                        <div style="font-size:9.5px;color:#475569;margin-top:3px;font-family:monospace;">Date : <strong>${Utils.formatDate(d.date || d.servedAt || d.createdAt || d.dateDecharge, bsmRef || d.ref)}</strong></div>
                     </div>
                 </div>
 
@@ -7125,7 +7113,7 @@ window.Decharges = {
                         </td>
                         <td style="width:40%;text-align:right;vertical-align:top;">
                             <div style="font-size:12pt;font-weight:bold;font-family:monospace;color:#0284c7;">${bsmRef}</div>
-                            <div style="font-size:9pt;color:#475569;">Date : ${d.date ? new Date(d.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}</div>
+                            <div style="font-size:9pt;color:#475569;">Date : ${Utils.formatDate(d.date || d.servedAt || d.createdAt || d.dateDecharge, bsmRef || d.ref)}</div>
                             <div style="font-size:9pt;color:#16a34a;font-weight:bold;">Statut : ${d.status || 'Délivré'}</div>
                         </td>
                     </tr>
@@ -7206,7 +7194,7 @@ window.Decharges = {
                             <td>
                                 <strong>LEKCIR YASSINE</strong><br>
                                 <span style="font-size:8.5pt;color:#64748b;">Visa Délivrance Pièces</span><br><br>
-                                <span style="font-size:8.5pt;">Date : ${d.date ? new Date(d.date).toLocaleDateString('fr-FR') : '……/……/2026'}</span>
+                                <span style="font-size:8.5pt;">Date : ${Utils.formatDate(d.date || d.servedAt || d.createdAt || d.dateDecharge, bsmRef || d.ref)}</span>
                             </td>
                             <td>
                                 <strong>Chef Section GDS</strong><br>
@@ -7694,7 +7682,7 @@ window.Fleet = {
                                     const art = articles.find(a => a.id === i.articleId);
                                     return `
                                     <tr>
-                                        <td>${new Date(d.date).toLocaleDateString('fr-FR')}</td>
+                                        <td>${Utils.formatDate(d.date, d.ref)}</td>
                                         <td>${Utils.escapeHTML(d.ref)}</td>
                                         <td>${art ? Utils.escapeHTML(art.designation) : 'Inconnu'}</td>
                                         <td>${i.quantity}</td>
@@ -9392,7 +9380,7 @@ window.HistoryModule = {
                                     const lines = d.lines || (d.items || []).map(i => ({ designation: i.articleId, quantity: i.quantity }));
                                     return `
                                     <tr>
-                                        <td><strong>${new Date(d.date).toLocaleDateString('fr-FR')}</strong></td>
+                                        <td><strong>${Utils.formatDate(d.date, d.ref)}</strong></td>
                                         <td><span class="badge bg-light text-dark border font-monospace">${Utils.escapeHTML(d.ref)}</span></td>
                                         <td><strong>${Utils.escapeHTML(d.beneficiary)}</strong><div class="small text-muted">${Utils.escapeHTML(d.service || '-')}</div></td>
                                         <td>
@@ -9492,7 +9480,7 @@ window.HistoryModule = {
                                     const lines = d.lines || (d.items || []).map(i => ({ designation: i.articleId, quantity: i.quantity, servedQty: i.quantity }));
                                     return `
                                     <tr>
-                                        <td><strong>${new Date(d.date).toLocaleDateString('fr-FR')}</strong></td>
+                                        <td><strong>${Utils.formatDate(d.date, d.ref)}</strong></td>
                                         <td><span class="badge bg-light text-dark border font-monospace">${Utils.escapeHTML(d.ref)}</span></td>
                                         <td>${Utils.escapeHTML(d.service || '-')}</td>
                                         <td>${d.immatriculation ? `<span class="badge bg-dark font-monospace">${Utils.escapeHTML(d.immatriculation)}</span> ${Utils.escapeHTML(d.materialName || '')}` : '<span class="text-muted">Matériel général</span>'}</td>
@@ -10197,7 +10185,7 @@ window.Reports = {
         } else if (type === 'decharge_recap') {
             const decharges = DB.getDecharges();
             html = `<table class="table table-striped"><thead><tr><th>Réf</th><th>Date</th><th>Bénéficiaire</th><th>Statut</th></tr></thead><tbody>
-                ${decharges.map(d => `<tr><td>${d.ref}</td><td>${new Date(d.date).toLocaleDateString()}</td><td>${d.beneficiary}</td><td>${d.status}</td></tr>`).join('')}
+                ${decharges.map(d => `<tr><td>${d.ref}</td><td>${Utils.formatDate(d.date, d.ref)}</td><td>${d.beneficiary}</td><td>${d.status}</td></tr>`).join('')}
             </tbody></table>`;
         } else {
             html = `<p class="text-center my-5">Rapport de type <strong>${type}</strong> généré (Données simulées pour l'exemple).</p>`;
@@ -11817,7 +11805,7 @@ window.BarcodeGenerator = {
                                         <td><input type="checkbox" class="bg-cb" value="${Utils.escapeHTML(d.ref)}" data-type="qr" data-id="${d.id}" data-ref="${Utils.escapeHTML(d.ref)}" data-ben="${Utils.escapeHTML(d.beneficiary || '')}"></td>
                                         <td><code class="text-primary fw-bold">${Utils.escapeHTML(d.ref)}</code></td>
                                         <td>${Utils.escapeHTML(d.beneficiary || '—')}</td>
-                                        <td>${d.date ? new Date(d.date).toLocaleDateString('fr-FR') : '—'}</td>
+                                        <td>${Utils.formatDate(d.date, d.ref)}</td>
                                         <td><span class="badge bg-${d.status === 'Validée' || d.status === 'Approuvée' ? 'success' : d.status === 'En attente' ? 'warning text-dark' : 'danger'}">${d.status}</span></td>
                                         <td><div id="qr_${d.id}" style="width:80px;height:80px;display:inline-block;"></div></td>
                                     </tr>
@@ -12846,6 +12834,9 @@ window.Settings = {
                                 <button class="btn btn-danger" onclick="Settings.resetData()">
                                     <i class="fas fa-trash-alt me-1"></i> Réinitialiser Complètement les Données
                                 </button>
+                                <button class="btn btn-danger fw-bold" onclick="Settings.purgeServerStock()" style="background:#7f1d1d;border-color:#7f1d1d;">
+                                    <i class="fas fa-server me-1"></i> Vider Stock Serveur (MongoDB)
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -13619,6 +13610,34 @@ window.Settings = {
             location.reload();
         }
     },
+
+    purgeServerStock: async function() {
+        if (!confirm('⚠️ ATTENTION : Cette action supprime DÉFINITIVEMENT tous les articles du stock côté serveur (MongoDB). Continuer ?')) return;
+        if (!confirm('Dernière confirmation : vider complètement le stock serveur ?')) return;
+        try {
+            const token = typeof API !== 'undefined' && API.getToken ? API.getToken() : (localStorage.getItem('erp_token') || '');
+            const res = await fetch('/api/articles/all', {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                // Also clear local storage
+                if (typeof DB !== 'undefined') { DB.data.articles = []; DB.save(); }
+                if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                    Utils.showNotification('✅ Stock serveur vidé : ' + (data.deleted || 0) + ' articles supprimés', 'success');
+                } else {
+                    alert('✅ Stock serveur vidé : ' + (data.deleted || 0) + ' articles supprimés');
+                }
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                alert('❌ Erreur : ' + (data.message || res.statusText));
+            }
+        } catch (e) {
+            alert('❌ Erreur de connexion : ' + e.message);
+        }
+    },
+
 
     exportAllToExcel: function() {
         if (typeof XLSX === 'undefined') {

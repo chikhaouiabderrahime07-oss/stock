@@ -1540,7 +1540,7 @@ const ApproNextGen = window.ApproNextGen = {
             </label>
             <button type="button" onclick="ApproNextGen.clearSupplierComparison()" style="background:none;border:none;color:#ef4444;font-size:0.82rem;cursor:pointer;padding:0;font-weight:700;"><i class="fas fa-trash-alt me-1"></i>Réinitialiser</button>
           </div>
-          <select id="kpiMultiSupplierCompare" class="form-select" onchange="ApproNextGen.addSupplierToComparison(this.value);this.value='';" style="height:44px;font-size:0.92rem;font-weight:600;border-radius:10px;border:1.5px solid #3b82f6;padding:0 12px;background-color:#ffffff;color:#0f172a;">
+          <select id="kpiMultiSupplierCompare" class="form-select" onfocus="ApproNextGen.populateSupplierCompareDropdown()" onclick="ApproNextGen.populateSupplierCompareDropdown()" onchange="ApproNextGen.addSupplierToComparison(this.value);this.value='';" style="height:44px;font-size:0.92rem;font-weight:600;border-radius:10px;border:1.5px solid #3b82f6;padding:0 12px;background-color:#ffffff;color:#0f172a;cursor:pointer;">
             <option value="">+ Ajouter un fournisseur à comparer...</option>
           </select>
           <div id="kpiSelectedSuppliersChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
@@ -1549,6 +1549,7 @@ const ApproNextGen = window.ApproNextGen = {
     `;
 
     filterRow.insertAdjacentElement('beforebegin', advWrap);
+    this.populateSupplierCompareDropdown();
   },
 
   setKpiPeriod(period) {
@@ -1591,21 +1592,73 @@ const ApproNextGen = window.ApproNextGen = {
     renderKpi();
   },
 
+  populateSupplierCompareDropdown() {
+    const supSelect = document.getElementById('kpiMultiSupplierCompare');
+    if (!supSelect) return;
+    const selected = (this.selectedComparisonSuppliers || []).map(s => String(s).toLowerCase().trim());
+    const rawSups = [];
+    if (typeof state !== 'undefined') {
+      if (Array.isArray(state.bcRecords)) {
+        state.bcRecords.forEach(r => { if (r.supplierName) rawSups.push(r.supplierName); });
+      }
+      if (Array.isArray(state.suppliers)) {
+        state.suppliers.forEach(s => {
+          const name = typeof s === 'object' ? s.name : s;
+          if (name) rawSups.push(name);
+        });
+      }
+    }
+    const suppliers = [...new Set(rawSups.map(s => String(s || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    const available = suppliers.filter(s => !selected.includes(s.toLowerCase()));
+
+    supSelect.innerHTML = ['<option value="">+ Ajouter un fournisseur à comparer...</option>'].concat(
+      available.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
+    ).join('');
+    supSelect.value = '';
+  },
+
   addSupplierToComparison(sup) {
     if (!sup) return;
+    const cleanSup = String(sup).trim();
+    if (!cleanSup) return;
     if (!this.selectedComparisonSuppliers) this.selectedComparisonSuppliers = [];
-    if (!this.selectedComparisonSuppliers.includes(sup)) {
-      this.selectedComparisonSuppliers.push(sup);
+    if (!this.selectedComparisonSuppliers.some(s => s.toLowerCase() === cleanSup.toLowerCase())) {
+      this.selectedComparisonSuppliers.push(cleanSup);
     }
     this.renderSupplierChips();
-    renderKpi();
+    this.populateSupplierCompareDropdown();
+    if (typeof renderKpi === 'function') {
+      renderKpi();
+    } else {
+      const records = (typeof getKpiFilteredRecords === 'function') ? getKpiFilteredRecords() : (typeof state !== 'undefined' ? (state.bcRecords || []) : []);
+      this.renderMultiSupplierComparison(records);
+    }
   },
 
   removeSupplierCompare(sup) {
     if (!this.selectedComparisonSuppliers) return;
-    this.selectedComparisonSuppliers = this.selectedComparisonSuppliers.filter(s => s !== sup);
+    const cleanSup = String(sup).trim().toLowerCase();
+    this.selectedComparisonSuppliers = this.selectedComparisonSuppliers.filter(s => s.toLowerCase() !== cleanSup);
     this.renderSupplierChips();
-    renderKpi();
+    this.populateSupplierCompareDropdown();
+    if (typeof renderKpi === 'function') {
+      renderKpi();
+    } else {
+      const records = (typeof getKpiFilteredRecords === 'function') ? getKpiFilteredRecords() : (typeof state !== 'undefined' ? (state.bcRecords || []) : []);
+      this.renderMultiSupplierComparison(records);
+    }
+  },
+
+  clearSupplierComparison() {
+    this.selectedComparisonSuppliers = [];
+    this.renderSupplierChips();
+    this.populateSupplierCompareDropdown();
+    if (typeof renderKpi === 'function') {
+      renderKpi();
+    } else {
+      const records = (typeof getKpiFilteredRecords === 'function') ? getKpiFilteredRecords() : (typeof state !== 'undefined' ? (state.bcRecords || []) : []);
+      this.renderMultiSupplierComparison(records);
+    }
   },
 
   renderSupplierChips() {
@@ -1617,9 +1670,10 @@ const ApproNextGen = window.ApproNextGen = {
       return;
     }
     host.innerHTML = list.map(s => `
-      <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:0.75rem;font-weight:600;box-shadow:0 1px 3px rgba(37,99,235,0.3);">
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:0.78rem;font-weight:700;box-shadow:0 1px 3px rgba(37,99,235,0.3);letter-spacing:0.02em;">
+        <i class="fas fa-building text-light" style="font-size:10px;"></i>
         ${escapeHtml(s)}
-        <i class="fas fa-times" style="cursor:pointer;opacity:0.8;" data-sup="${encodeURIComponent(s)}" onclick="ApproNextGen.removeSupplierCompare(decodeURIComponent(this.getAttribute('data-sup')))" title="Retirer" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'"></i>
+        <i class="fas fa-times" style="cursor:pointer;opacity:0.8;margin-left:2px;" data-sup="${encodeURIComponent(s)}" onclick="ApproNextGen.removeSupplierCompare(decodeURIComponent(this.getAttribute('data-sup')))" title="Retirer de la comparaison" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'"></i>
       </span>
     `).join('');
   },
@@ -1627,7 +1681,10 @@ const ApproNextGen = window.ApproNextGen = {
   updateSupplierComparison(selectEl) {
     if (!selectEl) return;
     const val = selectEl.value;
-    if (val) this.addSupplierToComparison(val);
+    if (val) {
+      this.addSupplierToComparison(val);
+      selectEl.value = '';
+    }
   },
 
   overrideKpiDashboard() {
@@ -1969,14 +2026,39 @@ const ApproNextGen = window.ApproNextGen = {
             </div>
           `).join('')}
         </div>
+
+        ${compData.length >= 2 ? `
+          <div style="margin-top:1.5rem;overflow-x:auto;">
+            <table class="table table-bordered table-hover mb-0" style="font-size:0.85rem;background:#ffffff;border-radius:8px;overflow:hidden;">
+              <thead style="background:#f1f5f9;">
+                <tr>
+                  <th style="padding:10px 12px;color:#334155;">Indicateur Clé</th>
+                  ${compData.map(c => `<th style="text-align:center;padding:10px 12px;color:#0f172a;font-weight:700;">${escapeHtml(c.name)}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:8px 12px;font-weight:600;"><i class="fas fa-coins text-warning me-2"></i>Volume d'achats TTC</td>
+                  ${compData.map(c => `<td style="text-align:center;padding:8px 12px;font-weight:700;color:#2563eb;">${formatMoney(c.totalSpend, 'DZD')}</td>`).join('')}
+                </tr>
+                <tr>
+                  <td style="padding:8px 12px;font-weight:600;"><i class="fas fa-file-invoice text-primary me-2"></i>Commandes Total</td>
+                  ${compData.map(c => `<td style="text-align:center;padding:8px 12px;font-weight:600;">${c.ordersCount} BC</td>`).join('')}
+                </tr>
+                <tr>
+                  <td style="padding:8px 12px;font-weight:600;"><i class="fas fa-basket-shopping text-info me-2"></i>Panier Moyen</td>
+                  ${compData.map(c => `<td style="text-align:center;padding:8px 12px;">${formatMoney(c.avgTicket, 'DZD')}</td>`).join('')}
+                </tr>
+                <tr>
+                  <td style="padding:8px 12px;font-weight:600;"><i class="fas fa-truck-ramp-box text-success me-2"></i>Taux d'Exécution</td>
+                  ${compData.map(c => `<td style="text-align:center;padding:8px 12px;"><span class="badge ${c.deliveryRate >= 80 ? 'bg-success' : 'bg-warning text-dark'}">${c.deliveryRate}%</span></td>`).join('')}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
       </div>
     `;
-  },
-
-  clearSupplierComparison() {
-    this.selectedComparisonSuppliers = [];
-    this.renderSupplierChips();
-    renderKpi();
   },
 
   // Performance Cache Engine

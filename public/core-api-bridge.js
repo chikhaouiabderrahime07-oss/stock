@@ -179,9 +179,18 @@
         DB.data.citernes = _mergeByField(DB.data.citernes || [], serverCiternes, 'id');
       }
 
-      var serverBons = Array.isArray(bonsRes.bons) ? bonsRes.bons.map(mapId) : [];
+      var isDummyBt = function(p) {
+        if (!p) return false;
+        var pId = String(p.id || '');
+        var pRef = String(p.ref || '');
+        return /^BT-2026-000[1-7]/i.test(pId) || /^BT-2026-000[1-7]/i.test(pRef) || /^wp_seed_/i.test(pId) || /^wp_seed_/i.test(pRef);
+      };
+      var serverBons = Array.isArray(bonsRes.bons) ? bonsRes.bons.map(mapId).filter(function(b) { return !isDummyBt(b); }) : [];
       if (serverBons.length > 0) {
         DB.data.workPlans = _mergeByField(DB.data.workPlans || [], serverBons, 'id');
+      }
+      if (Array.isArray(DB.data.workPlans)) {
+        DB.data.workPlans = DB.data.workPlans.filter(function(b) { return !isDummyBt(b); });
       }
 
       var serverOrders = Array.isArray(ordersRes.orders) ? ordersRes.orders.map(mapId) : [];
@@ -195,9 +204,9 @@
         item.typeDoc = isBsm ? 'bsm' : (item.typeDoc || 'decharge');
         item.type = isBsm ? 'BSM' : (item.type || 'Décharge');
         var dVal = item.date || item.servedAt || item.createdAt || item.dateDecharge;
-        if (!dVal || dVal === 'Invalid Date' || isNaN(new Date(dVal).getTime())) {
-          var m = item.ref && String(item.ref).match(/(\d{4})(\d{2})(\d{2})/);
-          item.date = m ? new Date(m[1] + '-' + m[2] + '-' + m[3]).toISOString() : new Date().toISOString();
+        if (!dVal || dVal === 'Invalid Date' || String(dVal).toLowerCase().includes('invalid') || isNaN(new Date(dVal).getTime())) {
+          var m = (item.ref || item.bsmRef) && String(item.ref || item.bsmRef).match(/(\d{4})(\d{2})(\d{2})/);
+          item.date = m ? new Date(m[1] + '-' + m[2] + '-' + m[3]).toISOString() : (item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString());
         } else {
           item.date = new Date(dVal).toISOString();
         }
