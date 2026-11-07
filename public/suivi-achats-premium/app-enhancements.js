@@ -1155,21 +1155,39 @@ window.renderKpi = function() {
   if (_kpiRendering) return _baseRenderKpi();
   _kpiRendering = true;
   try {
-  // Populate KPI supplier filter
+  // Populate KPI supplier filter with full list from DB & BC records
   const kpiSupFilter = $('kpiSupplierFilter');
-  if (kpiSupFilter && kpiSupFilter.options.length <= 1) {
-    const suppliers = [...new Set(state.bcRecords.map(r => r.supplierName).filter(Boolean))].sort();
-    suppliers.forEach(s => {
-      kpiSupFilter.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`);
-    });
+  if (kpiSupFilter) {
+    const rawSups = [
+      ...(Array.isArray(state.bcRecords) ? state.bcRecords.map(r => r.supplierName) : []),
+      ...(Array.isArray(state.suppliers) ? state.suppliers.map(s => typeof s === 'object' ? s.name : s) : [])
+    ];
+    const suppliers = [...new Set(rawSups.map(s => String(s || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    if (suppliers.length > 0 && (kpiSupFilter.options.length <= 1 || kpiSupFilter.options.length !== suppliers.length + 1)) {
+      const currentVal = kpiSupFilter.value || 'all';
+      kpiSupFilter.innerHTML = ['<option value="all">Tous fournisseurs</option>'].concat(
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
+      ).join('');
+      if (suppliers.includes(currentVal)) kpiSupFilter.value = currentVal;
+      else kpiSupFilter.value = 'all';
+    }
   }
   // Populate KPI dept filter
   const kpiDeptFilter = $('kpiDeptFilter');
-  if (kpiDeptFilter && kpiDeptFilter.options.length <= 1) {
-    const depts = [...new Set(state.bcRecords.map(r => r.department).filter(Boolean))].sort();
-    depts.forEach(d => {
-      kpiDeptFilter.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`);
-    });
+  if (kpiDeptFilter) {
+    const rawDepts = [
+      ...(Array.isArray(state.bcRecords) ? state.bcRecords.map(r => r.department) : []),
+      ...(Array.isArray(state.departments) ? state.departments : [])
+    ];
+    const depts = [...new Set(rawDepts.map(d => String(d || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    if (depts.length > 0 && (kpiDeptFilter.options.length <= 1 || kpiDeptFilter.options.length !== depts.length + 1)) {
+      const currentDept = kpiDeptFilter.value || 'all';
+      kpiDeptFilter.innerHTML = ['<option value="all">Toutes structures</option>'].concat(
+        depts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`)
+      ).join('');
+      if (depts.includes(currentDept)) kpiDeptFilter.value = currentDept;
+      else kpiDeptFilter.value = 'all';
+    }
   }
 
   const records = getKpiFilteredRecords();
@@ -2394,7 +2412,9 @@ if (document.readyState === 'loading') {
 
 // GDS Stock Mobile Scanner Inter-App Bridge
 window.openGdsStockScanner = function() {
-  window.location.href = '../ERP_Douroub_v5/index.html?scan_gds=1';
+  try { localStorage.setItem('erp_active_module', 'stock'); } catch(e) {}
+  const isHttp = (typeof window !== 'undefined' && window.location && window.location.protocol) ? window.location.protocol.startsWith('http') : false;
+  window.location.href = isHttp ? '/?scan_gds=1#stock' : '../index.html?scan_gds=1#stock';
 };
 
 // ================================================================

@@ -119,6 +119,12 @@
         if (typeof window.renderActiveTab === 'function') {
           try { window.renderActiveTab(); } catch (e) {}
         }
+        if (typeof window.refreshFollowupFilterOptions === 'function') {
+          try { window.refreshFollowupFilterOptions(); } catch (e) {}
+        }
+        if (typeof window.renderKpi === 'function') {
+          try { window.renderKpi(); } catch (e) {}
+        }
 
         // FIX 2: Show toast confirming data loaded from MongoDB
         showToast('Données chargées depuis MongoDB (' + bcRecords.length + ' BC, ' + payments.length + ' paiements)');

@@ -264,17 +264,42 @@ window.DB = {
     updateSettings(s) { this.data.settings = { ...this.data.settings, ...s }; this.save(); if (window.UI) UI.applyTheme(this.data.settings); },
     resetSettings() { this.data.settings = this._defaultSettings(); this.save(); },
 
-    generateArticleCode(category) {
-        const settings = this.getSettings();
+    generateArticleCode(category, family) {
+        const settings = this.getSettings() || {};
         const prefixes = settings.categoryPrefixes || {};
-        const prefix = prefixes[category] || category.substring(0,3).toUpperCase();
+        
+        // Intelligent prefix resolution: Family takes precedence if provided, otherwise Category
+        const key = (family && String(family).trim()) ? String(family).trim() : (category ? String(category).trim() : 'Général');
+        const normKey = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        const familyMap = {
+            'pieces de rechange': 'PDR', 'piece de rechange': 'PDR', 'consommables': 'CSM', 'consommable': 'CSM',
+            'lubrifiant': 'LUB', 'lubrifiants': 'LUB', 'huile': 'LUB', 'huiles': 'LUB',
+            'pneus': 'PNU', 'pneu': 'PNU', 'pneumatique': 'PNU', 'filtres': 'FLT', 'filtre': 'FLT', 'filtration': 'FLT',
+            'bureautique': 'BUR', 'fournitures bureau': 'BUR', 'outillage': 'OUT', 'outils': 'OUT',
+            'electricite': 'ELEC', 'electrique': 'ELEC', 'carrosserie': 'CAR', 'freinage': 'FRN', 'freins': 'FRN',
+            'suspension': 'SUSP', 'amortisseur': 'SUSP', 'moteur': 'MOT', 'transmission': 'TRM', 'direction': 'DIR',
+            'echappement': 'ECH', 'climatisation': 'CLM', 'eclairage': 'ECL', 'batteries': 'BAT', 'batterie': 'BAT',
+            'quincaillerie': 'QNC', 'securite': 'SEC', 'nettoyage': 'NET', 'divers': 'DIV', 'general': 'ART'
+        };
+
+        let prefix = prefixes[key] || familyMap[normKey];
+        if (!prefix) {
+            const clean = normKey.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            prefix = clean.length >= 3 ? clean.substring(0, Math.min(4, clean.length)) : 'ART';
+        }
+
         // Find existing articles with this prefix
-        const articles = this.getAll('articles');
+        const articles = (this.data && Array.isArray(this.data.articles)) ? this.data.articles : this.getAll('articles');
         let maxNum = 0;
+        const prefixRegex = new RegExp('^' + prefix + '-(\\d+)', 'i');
         articles.forEach(a => {
-            if (a.code && a.code.startsWith(prefix + '-')) {
-                const num = parseInt(a.code.split('-')[1], 10);
-                if (!isNaN(num) && num > maxNum) maxNum = num;
+            if (a && a.code) {
+                const match = String(a.code).match(prefixRegex);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (!isNaN(num) && num > maxNum) maxNum = num;
+                }
             }
         });
         return prefix + '-' + String(maxNum + 1).padStart(3, '0');
@@ -674,14 +699,29 @@ window.DB = {
     getDecharges()      {
         const list = this.getAll('decharges');
         return list.map(d => {
-            const rawDate = d.date || d.servedAt || d.createdAt || d.dateDecharge;
-            const validDate = (rawDate && !isNaN(new Date(rawDate).getTime())) ? new Date(rawDate).toISOString() : new Date().toISOString();
-            const isBsm = (d.typeDoc === 'bsm') || (d.type === 'BSM') || (d.ref && String(d.ref).startsWith('BSM')) || Boolean(d.workPlanId || d.materialId);
+            let validDate = null;
+            const candidates = [d.date, d.servedAt, d.createdAt, d.dateDecharge];
+            for (const c of candidates) {
+                if (c && c !== 'Invalid Date' && typeof c === 'string' && !isNaN(new Date(c).getTime())) {
+                    validDate = new Date(c).toISOString();
+                    break;
+                } else if (c instanceof Date && !isNaN(c.getTime())) {
+                    validDate = c.toISOString();
+                    break;
+                }
+            }
+            if (!validDate && d.ref) {
+                const match = String(d.ref).match(/(\d{4})(\d{2})(\d{2})/);
+                if (match) validDate = new Date(match[1] + '-' + match[2] + '-' + match[3]).toISOString();
+            }
+            if (!validDate) validDate = new Date().toISOString();
+
+            const isBsm = Boolean((d.ref && String(d.ref).toUpperCase().startsWith('BSM')) || (d.type === 'BSM') || (d.typeDoc === 'bsm') || d.workPlanId || d.materialId);
             return {
                 ...d,
-                date: d.date || validDate,
-                typeDoc: d.typeDoc || (isBsm ? 'bsm' : 'decharge'),
-                type: d.type || (isBsm ? 'BSM' : 'Décharge')
+                date: validDate,
+                typeDoc: isBsm ? 'bsm' : (d.typeDoc || 'decharge'),
+                type: isBsm ? 'BSM' : (d.type || 'Décharge')
             };
         });
     },
@@ -1055,12 +1095,19 @@ window.isUserEligibleForGdsScan = function() {
 // =============================================================================
 window.Utils = {
     formatDate(ts) {
-        if (!ts) return '-';
-        return new Date(ts).toLocaleDateString('fr-FR');
+        if (!ts || ts === 'Invalid Date') return '-';
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) {
+            const m = String(ts).match(/(\d{4})(\d{2})(\d{2})/);
+            if (m) return m[3] + '/' + m[2] + '/' + m[1];
+            return '-';
+        }
+        return d.toLocaleDateString('fr-FR');
     },
     formatDateTime(ts) {
-        if (!ts) return '-';
+        if (!ts || ts === 'Invalid Date') return '-';
         const d = new Date(ts);
+        if (isNaN(d.getTime())) return this.formatDate(ts);
         return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
     },
     getCurrentDate() { return new Date().toISOString().split('T')[0]; },

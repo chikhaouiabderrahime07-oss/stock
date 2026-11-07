@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e1b4b" />
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#ffffff" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <style>
+    @keyframes rotateRing {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes pulseCore {
+      0%, 100% { transform: scale(1); opacity: 0.95; }
+      50% { transform: scale(1.05); opacity: 1; }
+    }
+    @keyframes orbitDot {
+      0% { transform: rotate(0deg) translateX(46px) rotate(0deg); }
+      100% { transform: rotate(360deg) translateX(46px) rotate(-360deg); }
+    }
+    .ring-outer {
+      transform-origin: 64px 64px;
+      animation: rotateRing 8s linear infinite;
+    }
+    .core-brand {
+      transform-origin: 64px 64px;
+      animation: pulseCore 3s ease-in-out infinite;
+    }
+    .orbit-point {
+      transform-origin: 64px 64px;
+      animation: orbitDot 4s linear infinite;
+    }
+  </style>
+
+  <!-- Outer Background Circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="2" />
+
+  <!-- Animated Glowing Ring -->
+  <circle class="ring-outer" cx="64" cy="64" r="48" fill="none" stroke="url(#ringGrad)" stroke-width="4" stroke-dasharray="80 30 40 20" stroke-linecap="round" filter="url(#glow)" />
+
+  <!-- Orbiting Particle -->
+  <circle class="orbit-point" cx="64" cy="64" r="3.5" fill="#38bdf8" filter="url(#glow)" />
+
+  <!-- Central Badge -->
+  <g class="core-brand">
+    <circle cx="64" cy="64" r="34" fill="#0f172a" stroke="rgba(56,189,248,0.4)" stroke-width="1.5" />
+    <text x="64" y="60" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-weight="900" font-size="20" fill="url(#textGrad)" text-anchor="middle" letter-spacing="1.5">ABDO</text>
+    <text x="64" y="74" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-weight="700" font-size="8.5" fill="#94a3b8" text-anchor="middle" letter-spacing="2">SYSTEMS</text>
+  </g>
+</svg>

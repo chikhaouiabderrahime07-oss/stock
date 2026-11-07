@@ -2396,7 +2396,7 @@ window.Stock = {
                                         <td><strong class="font-monospace">${Utils.escapeHTML(a.code)}</strong></td>
                                         <td>${Utils.escapeHTML(a.designation)}</td>
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(a.category)}</span></td>
-                                        <td><span class="badge bg-info bg-opacity-10 text-info border border-info" style="font-size:11px;"><i class="fas fa-building me-1"></i>${Utils.escapeHTML(a.site || 'Dépôt Central')}</span></td>
+                                        <td><span class="badge badge-site" style="background:#e0f2fe !important; color:#0369a1 !important; border:1px solid #bae6fd !important; font-size:11px; font-weight:700; padding:4px 9px; display:inline-flex; align-items:center;"><i class="fas fa-warehouse me-1" style="color:#0284c7;"></i>${Utils.escapeHTML(a.site || 'Dépôt Central')}</span></td>
                                         <td>${Utils.escapeHTML(a.section || '-')}</td>
                                         <td><span class="${getZoneBadgeClass(a.zone || 'Zone A')}"><i class="fas fa-layer-group me-1"></i>${Utils.escapeHTML(a.zone || 'Zone A')}</span></td>
                                         <td><strong style="font-size:14px;color:${isAlert ? 'var(--danger,#dc2626)' : 'inherit'};">${a.quantity}</strong></td>
@@ -2755,8 +2755,12 @@ window.Stock = {
         const settings = DB.getSettings();
         const rawZones = (typeof DB !== 'undefined' && DB.getZones) ? DB.getZones() : (settings.stockZones || ['Zone A', 'Zone B', 'Zone C', 'Zone D', 'Zone E']);
         const zonesList = (rawZones && rawZones.length > 0) ? rawZones : ['Zone A', 'Zone B', 'Zone C', 'Zone D', 'Zone E'];
-        const firstCat = (prefill && prefill.category) ? prefill.category : (settings.articleCategories[0] || '');
-        const initCode = (prefill && prefill.code) ? prefill.code : DB.generateArticleCode(firstCat);
+        const firstCat = (prefill && prefill.category) ? prefill.category : (settings.articleCategories[0] || 'Pièces de rechange');
+        const firstFam = (prefill && prefill.family) ? prefill.family : '';
+        const initCode = (prefill && prefill.code) ? prefill.code : DB.generateArticleCode(firstCat, firstFam);
+        const existingFamilies = [...new Set((DB.getArticles ? DB.getArticles() : []).map(a => a.family).filter(Boolean))];
+        const defaultFamilies = ['Filtration', 'Freinage', 'Suspension', 'Moteur', 'Transmission', 'Electricité', 'Carrosserie', 'Pneumatique', 'Climatisation', 'Outillage', 'Consommables', 'Fournitures bureau'];
+        const allFamilies = [...new Set([...existingFamilies, ...defaultFamilies])].sort((a,b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
         const html = `
             <form id="addArticleForm" onsubmit="Stock.saveArticle(event)">
                 ${(prefill && (prefill.bcId || prefill.sourceBcId)) ? `<input type="hidden" name="sourceBcId" value="${Utils.escapeHTML(prefill.bcId || prefill.sourceBcId)}">` : ''}
@@ -2780,7 +2784,7 @@ window.Stock = {
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label>Catégorie *</label>
-                        <select name="category" class="form-select" required onchange="Stock.autoGenerateCode(this.value)">
+                        <select name="category" class="form-select" required id="articleCategorySelect" onchange="Stock.autoGenerateCode(this.value, document.getElementById('articleFamilyInput')?.value)">
                             ${settings.articleCategories.map(c => `<option value="${Utils.escapeHTML(c)}" ${(prefill && prefill.category === c) ? 'selected' : ''}>${Utils.escapeHTML(c)}</option>`).join('')}
                         </select>
                     </div>
@@ -2788,7 +2792,7 @@ window.Stock = {
                         <label>Code / Référence * <small class="text-muted">(auto-généré)</small></label>
                         <div class="d-flex" style="gap:0.5rem;">
                             <input type="text" name="code" id="articleCodeInput" class="form-control" required value="${initCode}">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="Stock.autoGenerateCode(document.querySelector('[name=category]').value)" title="Regénérer le code" style="white-space:nowrap;">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="Stock.autoGenerateCode()" title="Regénérer le code" style="white-space:nowrap;">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                         </div>
@@ -2799,7 +2803,10 @@ window.Stock = {
                     </div>
                     <div class="col-md-6 mb-3">
                         <label>Famille</label>
-                        <input type="text" name="family" class="form-control" placeholder="Ex: Filtration, Freinage..." value="${(prefill && prefill.family) ? Utils.escapeHTML(prefill.family) : ''}">
+                        <input type="text" name="family" id="articleFamilyInput" list="articleFamiliesDatalist" class="form-control" placeholder="Ex: Filtration, Freinage, Moteur, Pneumatique..." value="${(prefill && prefill.family) ? Utils.escapeHTML(prefill.family) : ''}" oninput="Stock.autoGenerateCode(document.getElementById('articleCategorySelect')?.value, this.value)">
+                        <datalist id="articleFamiliesDatalist">
+                            ${allFamilies.map(f => `<option value="${Utils.escapeHTML(f)}">`).join('')}
+                        </datalist>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label>Prix Unitaire (DA)</label>
@@ -2854,7 +2861,7 @@ window.Stock = {
                     <div class="col-md-6 mb-3">
                         <label><i class="fas fa-barcode"></i> Code-barres / QR Code</label>
                         <div class="d-flex" style="gap:0.5rem;">
-                            <input type="text" name="barcode" id="articleBarcodeInput" class="form-control" placeholder="Scannez ou tapez le code">
+                            <input type="text" name="barcode" id="articleBarcodeInput" class="form-control font-monospace" placeholder="Scannez ou tapez le code" value="${(prefill && prefill.barcode) ? Utils.escapeHTML(prefill.barcode) : ''}">
                             <button type="button" class="btn btn-outline-primary" onclick="Stock.scanBarcode()" title="Scanner avec la caméra" style="white-space:nowrap;">
                                 <i class="fas fa-camera"></i> Caméra
                             </button>
@@ -3067,10 +3074,14 @@ window.Stock = {
         // Reset the file input so the same file can be selected again
         e.target.value = '';
     },
-    autoGenerateCode: function(category) {
-        const code = DB.generateArticleCode(category);
+    autoGenerateCode: function(category, family) {
+        const form = document.getElementById('addArticleForm') || document;
+        const cat = category || (form.querySelector('[name=category]') || {}).value || '';
+        const fam = (family !== undefined && family !== null) ? family : ((form.querySelector('[name=family]') || {}).value || '');
+        const code = DB.generateArticleCode(cat, fam);
         const input = document.getElementById('articleCodeInput');
         if (input) input.value = code;
+        return code;
     },
     handleImageUpload: function(e) {
         const file = e.target.files[0];
@@ -4257,8 +4268,9 @@ window.Decharges = {
         const decharges = DB.getDecharges().sort((a,b) => new Date(b.date) - new Date(a.date));
         
         const countAll = decharges.length;
-        const countBsm = decharges.filter(d => (d.typeDoc === 'bsm' || d.type === 'BSM' || (d.ref && String(d.ref).startsWith('BSM')) || d.workPlanId || d.materialId)).length;
-        const countDecharge = decharges.filter(d => d.typeDoc === 'decharge' || (!d.typeDoc && d.type !== 'BSM' && !(d.ref && String(d.ref).startsWith('BSM')) && !d.workPlanId && !d.materialId)).length;
+        const isBsmItem = (d) => Boolean((d.ref && String(d.ref).toUpperCase().startsWith('BSM')) || d.type === 'BSM' || d.typeDoc === 'bsm' || d.workPlanId || d.materialId);
+        const countBsm = decharges.filter(d => isBsmItem(d)).length;
+        const countDecharge = decharges.filter(d => !isBsmItem(d)).length;
 
         const allDepts = (DB.getSettings().departments && DB.getSettings().departments.length > 0) ? DB.getSettings().departments : ['Direction Générale', 'Approvisionnement', 'Transport'];
         const allBens = [...new Set([...(DB.getUsers().map(u => u.name)), ...(DB.data && DB.data.beneficiaryNames ? DB.data.beneficiaryNames : []), ...(DB.getDecharges().map(d => d.beneficiary))])].filter(Boolean).sort();
@@ -4363,7 +4375,8 @@ window.Decharges = {
                                     const fleet = DB.getFleet();
                                     const mat = fleet.find(f => f.id === d.materialId);
 
-                                    const tDoc = d.typeDoc || (d.type === 'BSM' || (d.ref && String(d.ref).startsWith('BSM')) ? 'bsm' : (d.workPlanId || d.materialId ? 'bsm' : 'decharge'));
+                                    const isBsm = Boolean((d.ref && String(d.ref).toUpperCase().startsWith('BSM')) || d.type === 'BSM' || d.typeDoc === 'bsm' || d.workPlanId || d.materialId);
+                                    const tDoc = isBsm ? 'bsm' : (d.typeDoc === 'mixte' ? 'mixte' : 'decharge');
                                     const bsmRef = d.bsmRef || (tDoc === 'bsm' ? ('BSM-' + String(d.ref || '').replace(/[^0-9]/g, '').slice(-4)) : null);
                                     let docBadge = '';
                                     if (tDoc === 'bsm') {
@@ -4397,7 +4410,19 @@ window.Decharges = {
                                             </div>
                                             ${bsmRef ? `<small class="text-info font-monospace fw-bold d-block" style="font-size:10px;">${Utils.escapeHTML(bsmRef)}</small>` : ''}
                                         </td>
-                                        <td>${(d.date && !isNaN(new Date(d.date).getTime())) ? new Date(d.date).toLocaleDateString('fr-FR') : (d.createdAt && !isNaN(new Date(d.createdAt).getTime()) ? new Date(d.createdAt).toLocaleDateString('fr-FR') : (d.servedAt && !isNaN(new Date(d.servedAt).getTime()) ? new Date(d.servedAt).toLocaleDateString('fr-FR') : '-'))}</td>
+                                        <td>${(() => {
+                                            const parseD = (v) => {
+                                                if (!v) return null;
+                                                const dt = new Date(v);
+                                                return isNaN(dt.getTime()) ? null : dt.toLocaleDateString('fr-FR');
+                                            };
+                                            let formatted = parseD(d.date) || parseD(d.servedAt) || parseD(d.createdAt) || parseD(d.dateDecharge);
+                                            if (!formatted && d.ref) {
+                                                const m = String(d.ref).match(/(\d{4})(\d{2})(\d{2})/);
+                                                if (m) formatted = m[3] + '/' + m[2] + '/' + m[1];
+                                            }
+                                            return formatted || new Date().toLocaleDateString('fr-FR');
+                                        })()}</td>
                                         <td><strong><i class="fas fa-user-circle text-primary me-1"></i> ${Utils.escapeHTML(d.beneficiary)}</strong></td>
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(d.service || '-')}</span></td>
                                         <td>${mat ? Utils.escapeHTML(mat.name + ' - ' + mat.immatriculation) : (d.immatriculation ? Utils.escapeHTML((d.materialName || '') + ' - ' + d.immatriculation) : '-')}</td>

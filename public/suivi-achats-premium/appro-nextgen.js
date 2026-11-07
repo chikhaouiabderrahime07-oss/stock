@@ -221,11 +221,11 @@ const ApproNextGen = window.ApproNextGen = {
             Ce compte a un accès exclusif au module de Stock et n'a pas accès au module Achats & Bons de Commande.
           </p>
           <div style="display:flex;gap:10px;justify-content:center;">
-            <a href="../ERP_Douroub_v5/index.html" style="background:#10b981;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
+            <a href="/#stock" onclick="try{localStorage.setItem('erp_active_module','stock');}catch(e){}" style="background:#10b981;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
               🏢 Aller à mon module Stock
             </a>
-            <a href="../index.html" style="background:#1e293b;border:1px solid #475569;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;" onclick="localStorage.removeItem('sde_user_role');">
-              🏛️ Portail Gate (Changer de profil)
+            <a href="/#dashboard" style="background:#1e293b;border:1px solid #475569;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;" onclick="localStorage.removeItem('sde_user_role');">
+              🏛️ Portail Principal
             </a>
           </div>
         </div>
@@ -257,7 +257,7 @@ const ApproNextGen = window.ApproNextGen = {
 
     group.innerHTML = `
       ${hasDualAccess ? `
-        <a href="../ERP_Douroub_v5/index.html" class="btn btn-soft" style="font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:0.78rem;padding:0.4rem 0.75rem;background:rgba(16,185,129,0.12);color:#10b981;border:1px solid rgba(16,185,129,0.25);border-radius:6px;" title="Basculer vers Stock & Flotte">
+        <a href="/#stock" onclick="try{localStorage.setItem('erp_active_module','stock');}catch(e){}" class="btn btn-soft" style="font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:0.78rem;padding:0.4rem 0.75rem;background:rgba(16,185,129,0.12);color:#10b981;border:1px solid rgba(16,185,129,0.25);border-radius:6px;" title="Basculer vers Stock & Flotte">
           <i class="fas fa-boxes-stacked"></i> Stock & Flotte <!-- 🏢 Stock & Flotte -->
         </a>
       ` : ''}
@@ -1609,7 +1609,7 @@ const ApproNextGen = window.ApproNextGen = {
     host.innerHTML = list.map(s => `
       <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:0.75rem;font-weight:600;box-shadow:0 1px 3px rgba(37,99,235,0.3);">
         ${escapeHtml(s)}
-        <i class="fas fa-times" style="cursor:pointer;opacity:0.8;" onclick="ApproNextGen.removeSupplierCompare('${escapeHtml(s)}')" title="Retirer" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'"></i>
+        <i class="fas fa-times" style="cursor:pointer;opacity:0.8;" data-sup="${encodeURIComponent(s)}" onclick="ApproNextGen.removeSupplierCompare(decodeURIComponent(this.getAttribute('data-sup')))" title="Retirer" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'"></i>
       </span>
     `).join('');
   },
@@ -1662,7 +1662,8 @@ const ApproNextGen = window.ApproNextGen = {
 
       // 3. Multi-supplier comparison filter (if selected)
       if (this.selectedComparisonSuppliers && this.selectedComparisonSuppliers.length > 0) {
-        records = records.filter(r => this.selectedComparisonSuppliers.includes(r.supplierName));
+        const selNorm = this.selectedComparisonSuppliers.map(s => String(s || '').trim().toLowerCase());
+        records = records.filter(r => selNorm.includes(String(r.supplierName || '').trim().toLowerCase()));
       }
 
       return records;
@@ -1676,13 +1677,21 @@ const ApproNextGen = window.ApproNextGen = {
         try { originalRenderKpi(); } catch(e) {}
       }
 
-      // Populate supplier compare select if empty
+      // Populate supplier compare select with all available suppliers
       const supSelect = document.getElementById('kpiMultiSupplierCompare');
-      if (supSelect && (!supSelect.options || supSelect.options.length === 0) && state.bcRecords) {
-        const suppliers = [...new Set(state.bcRecords.map(r => r.supplierName).filter(Boolean))].sort();
-        suppliers.forEach(s => {
-          supSelect.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`);
-        });
+      if (supSelect && typeof state !== 'undefined') {
+        const rawSups = [
+          ...(Array.isArray(state.bcRecords) ? state.bcRecords.map(r => r.supplierName) : []),
+          ...(Array.isArray(state.suppliers) ? state.suppliers.map(s => typeof s === 'object' ? s.name : s) : [])
+        ];
+        const suppliers = [...new Set(rawSups.map(s => String(s || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+        if (suppliers.length > 0 && (!supSelect.options || supSelect.options.length <= 1 || supSelect.options.length !== suppliers.length + 1)) {
+          const curSupVal = supSelect.value || '';
+          supSelect.innerHTML = ['<option value="">+ Ajouter un fournisseur à comparer...</option>'].concat(
+            suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
+          ).join('');
+          supSelect.value = curSupVal;
+        }
       }
 
       // Extract filtered records
@@ -1866,23 +1875,25 @@ const ApproNextGen = window.ApproNextGen = {
     if (!section) {
       section = document.createElement('div');
       section.id = 'kpiSupplierComparisonSection';
-      const topArtSec = document.getElementById('kpiTopArticlesSection');
-      if (topArtSec) topArtSec.insertAdjacentElement('afterend', section);
+      const anchor = document.getElementById('kpiTopArticlesSection') || document.getElementById('kpiDelayAnalyticsSection') || document.getElementById('dashboardCharts') || document.getElementById('page-kpi');
+      if (anchor) anchor.insertAdjacentElement('afterend', section);
     }
 
     const selected = this.selectedComparisonSuppliers;
     if (!selected || selected.length === 0) {
       section.innerHTML = `
-        <div class="comparison-container" style="background:#f8fafc;text-align:center;padding:1.5rem;border-radius:12px;border:1px dashed #cbd5e1;">
-          <h5 style="margin:0 0 0.25rem 0;color:#334155;font-weight:700;">⚖️ Comparateur Fournisseurs</h5>
+        <div class="comparison-container" style="background:#ffffff;text-align:center;padding:1.5rem;border-radius:12px;border:1px dashed #cbd5e1;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <h5 style="margin:0 0 0.25rem 0;color:#0f172a;font-weight:700;">⚖️ Comparateur Fournisseurs</h5>
           <p class="text-muted small mb-0">Sélectionnez un ou plusieurs fournisseurs dans le filtre supérieur pour afficher leur analyse détaillée et les comparer côte à côte.</p>
         </div>
       `;
       return;
     }
 
+    const basePool = (typeof state !== 'undefined' && Array.isArray(state.bcRecords)) ? state.bcRecords : records;
     const compData = selected.map(sup => {
-      const supRecords = records.filter(r => r.supplierName === sup);
+      const normSup = String(sup || '').trim().toLowerCase();
+      const supRecords = basePool.filter(r => String(r.supplierName || '').trim().toLowerCase() === normSup);
       const spend = supRecords.reduce((s, r) => s + (Number(r.amountTTC || r.amount) || 0), 0);
       const avgTicket = supRecords.length > 0 ? Math.round(spend / supRecords.length) : 0;
       const delivered = supRecords.filter(r => r.goodsReceivedDate || r.serviceDoneDate).length;

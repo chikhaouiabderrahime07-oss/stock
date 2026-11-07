@@ -191,9 +191,15 @@
 
       var serverDecharges = Array.isArray(dechargesRes.decharges) ? dechargesRes.decharges.map(function(item) {
         mapId(item);
-        if (!item.date) item.date = item.servedAt || item.createdAt || new Date().toISOString();
-        if (!item.typeDoc) {
-          item.typeDoc = (item.type === 'BSM' || (item.ref && String(item.ref).startsWith('BSM')) || item.workPlanId || item.materialId) ? 'bsm' : 'decharge';
+        var isBsm = Boolean((item.ref && String(item.ref).toUpperCase().startsWith('BSM')) || item.type === 'BSM' || item.typeDoc === 'bsm' || item.workPlanId || item.materialId);
+        item.typeDoc = isBsm ? 'bsm' : (item.typeDoc || 'decharge');
+        item.type = isBsm ? 'BSM' : (item.type || 'Décharge');
+        var dVal = item.date || item.servedAt || item.createdAt || item.dateDecharge;
+        if (!dVal || dVal === 'Invalid Date' || isNaN(new Date(dVal).getTime())) {
+          var m = item.ref && String(item.ref).match(/(\d{4})(\d{2})(\d{2})/);
+          item.date = m ? new Date(m[1] + '-' + m[2] + '-' + m[3]).toISOString() : new Date().toISOString();
+        } else {
+          item.date = new Date(dVal).toISOString();
         }
         return item;
       }) : [];
