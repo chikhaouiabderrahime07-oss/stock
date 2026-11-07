@@ -1486,7 +1486,17 @@ const ApproNextGen = window.ApproNextGen = {
   // 7. Next-Gen KPI Dashboard Overhauls
   injectKpiAdvancedControls() {
     const kpiPage = document.getElementById('page-kpi');
-    if (!kpiPage || document.getElementById('kpiNextGenControls')) return;
+    if (!kpiPage) return;
+
+    // Remove any duplicate period bars if present
+    const periodBars = kpiPage.querySelectorAll('.sa-period-bar-container');
+    if (periodBars.length > 1) {
+      for (let i = 1; i < periodBars.length; i++) {
+        periodBars[i].remove();
+      }
+    }
+
+    if (document.getElementById('kpiNextGenControls')) return;
 
     const filterRow = kpiPage.querySelector('.kpi-filter-bar');
     if (!filterRow) return;
@@ -1495,12 +1505,12 @@ const ApproNextGen = window.ApproNextGen = {
     advWrap.id = 'kpiNextGenControls';
     advWrap.innerHTML = `
       <!-- Advanced Dual Filters: Spending Tier & Payment Delay -->
-      <div id="kpiDualFilterBox" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;background:#f8fafc;padding:0.75rem;border-radius:8px;border:1px solid #e2e8f0;">
-        <div style="flex:1;min-width:200px;">
-          <label style="font-size:0.75rem;font-weight:700;color:#334155;text-transform:uppercase;display:block;margin-bottom:0.25rem;">
+      <div id="kpiDualFilterBox" style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.25rem;background:#ffffff;padding:1.25rem 1.5rem;border-radius:14px;border:1px solid #cbd5e1;box-shadow:0 4px 12px rgba(15,23,42,0.04);">
+        <div style="flex:1;min-width:260px;">
+          <label style="font-size:0.82rem;font-weight:800;color:#1e293b;text-transform:uppercase;display:flex;align-items:center;gap:6px;margin-bottom:0.45rem;letter-spacing:0.04em;">
             💳 Tranche de Montant
           </label>
-          <select id="kpiSpendTierSelect" class="form-select form-select-sm" onchange="ApproNextGen.setSpendTier(this.value)">
+          <select id="kpiSpendTierSelect" class="form-select" onchange="ApproNextGen.setSpendTier(this.value)" style="height:44px;font-size:0.92rem;font-weight:600;border-radius:10px;border:1.5px solid #cbd5e1;padding:0 12px;background-color:#ffffff;color:#0f172a;">
             <option value="all">Tous les montants</option>
             <option value="tier_under_100k">&lt; 100 000 DZD (Petits achats)</option>
             <option value="tier_100k_500k">100 000 – 500 000 DZD (Achats moyens)</option>
@@ -1509,11 +1519,11 @@ const ApproNextGen = window.ApproNextGen = {
           </select>
         </div>
 
-        <div style="flex:1;min-width:200px;">
-          <label style="font-size:0.75rem;font-weight:700;color:#334155;text-transform:uppercase;display:block;margin-bottom:0.25rem;">
+        <div style="flex:1;min-width:260px;">
+          <label style="font-size:0.82rem;font-weight:800;color:#1e293b;text-transform:uppercase;display:flex;align-items:center;gap:6px;margin-bottom:0.45rem;letter-spacing:0.04em;">
             ⏱️ Délai de Règlement (Jours)
           </label>
-          <select id="kpiDelayFilterSelect" class="form-select form-select-sm" onchange="ApproNextGen.setDelayFilter(this.value)">
+          <select id="kpiDelayFilterSelect" class="form-select" onchange="ApproNextGen.setDelayFilter(this.value)" style="height:44px;font-size:0.92rem;font-weight:600;border-radius:10px;border:1.5px solid #cbd5e1;padding:0 12px;background-color:#ffffff;color:#0f172a;">
             <option value="all">Tous les délais</option>
             <option value="under_15">&lt; 15 jours (Règlement rapide)</option>
             <option value="15_30">15 à 30 jours (Délai normal)</option>
@@ -1523,17 +1533,17 @@ const ApproNextGen = window.ApproNextGen = {
           </select>
         </div>
 
-        <div style="flex:1;min-width:260px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
-            <label style="font-size:0.75rem;font-weight:700;color:#334155;text-transform:uppercase;margin:0;">
+        <div style="flex:1.2;min-width:320px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem;">
+            <label style="font-size:0.82rem;font-weight:800;color:#1e293b;text-transform:uppercase;margin:0;display:flex;align-items:center;gap:6px;letter-spacing:0.04em;">
               ⚖️ Comparateur Fournisseur(s)
             </label>
-            <button type="button" onclick="ApproNextGen.clearSupplierComparison()" style="background:none;border:none;color:#ef4444;font-size:0.72rem;cursor:pointer;padding:0;font-weight:600;">Réinitialiser</button>
+            <button type="button" onclick="ApproNextGen.clearSupplierComparison()" style="background:none;border:none;color:#ef4444;font-size:0.82rem;cursor:pointer;padding:0;font-weight:700;"><i class="fas fa-trash-alt me-1"></i>Réinitialiser</button>
           </div>
-          <select id="kpiMultiSupplierCompare" class="form-select form-select-sm" onchange="ApproNextGen.addSupplierToComparison(this.value);this.value='';" style="font-size:0.85rem;font-weight:600;border-color:#3b82f6;">
+          <select id="kpiMultiSupplierCompare" class="form-select" onchange="ApproNextGen.addSupplierToComparison(this.value);this.value='';" style="height:44px;font-size:0.92rem;font-weight:600;border-radius:10px;border:1.5px solid #3b82f6;padding:0 12px;background-color:#ffffff;color:#0f172a;">
             <option value="">+ Ajouter un fournisseur à comparer...</option>
           </select>
-          <div id="kpiSelectedSuppliersChips" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;"></div>
+          <div id="kpiSelectedSuppliersChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
         </div>
       </div>
     `;

@@ -4427,7 +4427,7 @@ window.Decharges = {
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(d.service || '-')}</span></td>
                                         <td>${mat ? Utils.escapeHTML(mat.name + ' - ' + mat.immatriculation) : (d.immatriculation ? Utils.escapeHTML((d.materialName || '') + ' - ' + d.immatriculation) : '-')}</td>
                                         <td><strong>${d.items ? d.items.length : 0}</strong> art.</td>
-                                        <td><span class="badge bg-${badge}">${d.status}</span>${fifoBadge}</td>
+                                        <td><span class="badge bg-${d.status === 'served' ? 'success' : badge}">${d.status === 'served' ? 'Servi (BSM)' : d.status}</span>${fifoBadge}</td>
                                         <td>
                                             <div class="action-btns d-flex gap-1 flex-wrap">
                                                 <button class="btn btn-sm btn-outline-info" onclick="Decharges.showDetail('${d.id}')" title="Détails du document"><i class="fas fa-eye"></i></button>

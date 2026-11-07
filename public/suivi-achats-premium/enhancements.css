@@ -273,18 +273,19 @@ html, body {
   stroke: currentColor;
 }
 
-.kpi-pro-body { flex: 1; min-width: 0; }
+.kpi-pro-body { flex: 1; min-width: 0; overflow: visible; }
 
 .kpi-pro-value,
 .kpi-card .kpi-value,
 .kpi-value {
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: 800 !important;
   color: var(--text, #1e293b);
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  word-break: break-word !important;
 }
 
 .kpi-pro-label,

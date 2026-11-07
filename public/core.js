@@ -13,7 +13,7 @@ if (typeof window === 'undefined') {
 
 const STORAGE_KEY = 'erp_douroub_db';
 
-const CURRENT_DATA_VERSION = 7;
+const CURRENT_DATA_VERSION = 8;
 
 // =============================================================================
 // 1. DB (Database Engine) — localStorage wrapper

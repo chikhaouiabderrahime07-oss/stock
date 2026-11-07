@@ -6633,42 +6633,151 @@ window.SmartMatch = {
   },
   generateSuggestions(dps, bcs) {
     const results = [];
-    dps.forEach(dp => {
+    
+    // Subset sum combination finder
+    const findCombo = (items, target, maxK = 6, tol = 2.0) => {
+      if (!items || items.length === 0 || target <= 0) return null;
+      const valid = items.filter(b => (b.amountTTC || b.amount || 0) <= target + tol).slice(0, 15);
+      valid.sort((a, b) => ((b.amountTTC || b.amount || 0) - (a.amountTTC || a.amount || 0)));
+      for (const b of valid) {
+        const amt = b.amountTTC || b.amount || 0;
+        if (Math.abs(amt - target) <= tol) return [b];
+      }
+      for (let i = 0; i < valid.length; i++) {
+        const a = valid[i].amountTTC || valid[i].amount || 0;
+        for (let j = i + 1; j < valid.length; j++) {
+          const b = valid[j].amountTTC || valid[j].amount || 0;
+          if (Math.abs(a + b - target) <= tol) return [valid[i], valid[j]];
+        }
+      }
+      let found = null;
+      let count = 0;
+      const search = (idx, current, currentSum) => {
+        if (found || count > 3000) return;
+        count++;
+        if (Math.abs(currentSum - target) <= tol && current.length > 0) {
+          found = current;
+          return;
+        }
+        if (currentSum > target + tol || idx >= valid.length || current.length >= maxK) return;
+        search(idx + 1, [...current, valid[idx]], currentSum + (valid[idx].amountTTC || valid[idx].amount || 0));
+        search(idx + 1, current, currentSum);
+      };
+      search(0, [], 0);
+      return found;
+    };
+
+    const sortedDps = [...dps].sort((a, b) => (a.requestDate || a.paidDate || '').localeCompare(b.requestDate || b.paidDate || ''));
+
+    sortedDps.forEach(dp => {
+      const dpBen = (dp.beneficiary || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const dpAmt = Number(dp.amount) || 0;
+      if (!dpAmt) return;
+      const dpDate = dp.requestDate || dp.paidDate || '2026-12-31';
+
+      // 1. Supplier candidates
+      const candBcs = bcs.filter(bc => {
+        const bcSup = (bc.supplierName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!bcSup || !dpBen) return false;
+        if (bcSup.includes(dpBen) || dpBen.includes(bcSup)) return true;
+        let score = 0;
+        const tokens = dpBen.match(/.{1,4}/g) || [];
+        tokens.forEach(t => { if (bcSup.includes(t)) score++; });
+        return tokens.length > 0 && (score / tokens.length >= 0.4);
+      }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      // 2. Date-proximity: candidates up to DP date (closest first)
+      const dateFiltered = candBcs.filter(b => (b.date || '2026-01-01') <= dpDate);
+      const pool = dateFiltered.length > 0 ? dateFiltered : candBcs;
+
+      // 3. Multi-BC subset sum match
+      const combo = findCombo(pool, dpAmt, 6, 2.0);
+      if (combo && combo.length > 0) {
+        const totalBcAmt = combo.reduce((s, b) => s + (b.amountTTC || b.amount || 0), 0);
+        results.push({
+          dp,
+          bcs: combo,
+          bc: combo[0],
+          isMulti: combo.length > 1,
+          totalBcAmt,
+          diff: Math.abs(dpAmt - totalBcAmt),
+          score: combo.length === 1 ? 99 : 96
+        });
+        return;
+      }
+
+      // 4. Single-BC fallback
       let bestScore = 0;
       let bestBc = null;
-      const dpBen = (dp.beneficiary || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const dpAmt = dp.amount || 0;
-      bcs.forEach(bc => {
-        const bcSup = (bc.supplierName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      candBcs.forEach(bc => {
         const bcAmt = bc.amountTTC || bc.amount || 0;
-        let nameScore = 0;
-        const dpTok = dpBen.match(/.{1,4}/g) || [];
-        dpTok.forEach(t => { if (bcSup.includes(t)) nameScore++; });
-        nameScore = dpTok.length ? nameScore / dpTok.length : 0;
         const amtDiff = Math.abs(dpAmt - bcAmt);
         const amtScore = bcAmt > 0 ? Math.max(0, 1 - amtDiff / bcAmt) : 0;
-        const total = (nameScore * 0.65) + (amtScore * 0.35);
-        if (total > bestScore && total > 0.3) { bestScore = total; bestBc = bc; }
+        if (amtScore > bestScore && amtScore > 0.4) {
+          bestScore = amtScore;
+          bestBc = bc;
+        }
       });
-      if (bestBc) results.push({ dp, bc: bestBc, score: Math.round(bestScore * 100) });
+      if (bestBc) {
+        results.push({
+          dp,
+          bcs: [bestBc],
+          bc: bestBc,
+          isMulti: false,
+          totalBcAmt: bestBc.amountTTC || bestBc.amount || 0,
+          diff: Math.abs(dpAmt - (bestBc.amountTTC || bestBc.amount || 0)),
+          score: Math.round(bestScore * 100)
+        });
+      }
     });
+
     return results.sort((a, b) => b.score - a.score);
   },
-  confirmLink(dpId, bcId) {
+  confirmLink(dpId, bcIds) {
+    const ids = Array.isArray(bcIds) ? bcIds : [bcIds];
     const dp = (state.payments || []).find(d => d.id === dpId);
-    const bc = (state.bcRecords || []).find(b => b.id === bcId);
-    if (!dp || !bc) return;
+    if (!dp || ids.length === 0) return;
+    const targetBcs = (state.bcRecords || []).filter(b => ids.includes(b.id));
+    if (targetBcs.length === 0) return;
+
     const dpAmt = (dp.amount || 0).toLocaleString('fr-DZ');
-    const bcAmt = (bc.amountTTC || bc.amount || 0).toLocaleString('fr-DZ');
-    if (!confirm(`Confirmer le rapprochement ?\n\nDP: ${dp.paymentRef} — ${dp.beneficiary} (${dpAmt} DA)\nBC: ${bc.ref} — ${bc.supplierName} (${bcAmt} DA)`)) return;
-    dp.linkedBcIds = [bcId];
+    const bcsTotal = targetBcs.reduce((s, b) => s + (b.amountTTC || b.amount || 0), 0).toLocaleString('fr-DZ');
+    const bcRefsStr = targetBcs.map(b => b.ref).join(', ');
+
+    if (!confirm(`Confirmer le rapprochement ?\n\nDP: ${dp.paymentRef} — ${dp.beneficiary} (${dpAmt} DA)\n${targetBcs.length} BC(s): ${bcRefsStr} (Total: ${bcsTotal} DA)`)) return;
+
+    dp.linkedBcIds = ids;
+    dp.linkedBcRefs = targetBcs.map(b => b.ref);
+    dp.bcId = ids[0];
     dp.manualLink = true;
     dp.isDirect = false;
-    bc.status = 'paye';
-    bc.dpRef = dp.paymentRef;
+
+    targetBcs.forEach(bc => {
+      bc.status = 'paye';
+      bc.dpRef = dp.paymentRef;
+      bc.dpDate = dp.requestDate || dp.paidDate || '';
+      bc.paymentPaidDate = dp.paidDate || dp.requestDate || '';
+    });
+
     if (window.ApproNextGen && ApproNextGen.autoLinkBcsAndDps) ApproNextGen.autoLinkBcsAndDps();
     if (typeof saveState === 'function') saveState();
-    showToast('Rapprochement confirmé avec succès !');
+
+    try {
+      fetch('/api/payments/' + encodeURIComponent(dp.id), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedBcIds: ids, linkedBcRefs: targetBcs.map(b => b.ref), bcId: ids[0], manualLink: true, isDirect: false })
+      }).catch(() => {});
+      targetBcs.forEach(bc => {
+        fetch('/api/bc/' + encodeURIComponent(bc.id), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'paye', dpRef: dp.paymentRef, dpDate: dp.requestDate || dp.paidDate || '', paymentPaidDate: dp.paidDate || '' })
+        }).catch(() => {});
+      });
+    } catch(e) {}
+
+    showToast(`Rapprochement confirmé (${targetBcs.length} BCs liés) !`);
     this.run();
   },
   renderAlertBanner(unlinkedBcs) {
@@ -6695,17 +6804,20 @@ window.SmartMatch = {
       el.innerHTML = '<p style="padding:16px;color:var(--muted);font-size:13px;"><i class="fas fa-check-circle" style="color:#10b981;"></i> Tous les DPs semblent rapprochés.</p>';
       return;
     }
-    el.innerHTML = `<table><thead><tr><th>DP</th><th>Bénéficiaire</th><th>Montant DP</th><th>BC suggéré</th><th>Fournisseur BC</th><th>Score</th><th>Action</th></tr></thead><tbody>${
+    el.innerHTML = `<table><thead><tr><th>DP</th><th>Bénéficiaire</th><th>Montant DP</th><th>BC(s) Suggéré(s)</th><th>Montant Total BC(s)</th><th>Score IA</th><th>Action</th></tr></thead><tbody>${
       suggestions.map(s => {
         const cls = s.score >= 75 ? 'sm-score-high' : s.score >= 50 ? 'sm-score-med' : 'sm-score-low';
+        const bcNames = s.bcs.map(b => `<strong class="font-monospace text-primary">${escapeHtml(b.ref || '-')}</strong> <small class="text-muted">(${(b.amountTTC||b.amount||0).toLocaleString('fr-DZ')} DA)</small>`).join('<br>');
+        const bcsIdsJson = JSON.stringify(s.bcs.map(b => b.id)).replace(/"/g, '&quot;');
+        const badgeMulti = s.isMulti ? `<span class="badge bg-primary text-white ms-1" style="font-size:10px;">${s.bcs.length} BCs groupés</span>` : '';
         return `<tr>
-          <td><strong>${s.dp.paymentRef || '-'}</strong></td>
-          <td>${s.dp.beneficiary || '-'}</td>
-          <td style="font-variant-numeric:tabular-nums;">${(s.dp.amount||0).toLocaleString('fr-DZ')} DA</td>
-          <td><strong>${s.bc.ref || '-'}</strong></td>
-          <td>${s.bc.supplierName || '-'}</td>
+          <td><strong>${escapeHtml(s.dp.paymentRef || '-')}</strong></td>
+          <td>${escapeHtml(s.dp.beneficiary || '-')}</td>
+          <td style="font-variant-numeric:tabular-nums;font-weight:700;">${(s.dp.amount||0).toLocaleString('fr-DZ')} DA</td>
+          <td>${bcNames} ${badgeMulti}</td>
+          <td style="font-variant-numeric:tabular-nums;font-weight:700;">${(s.totalBcAmt||0).toLocaleString('fr-DZ')} DA ${s.diff <= 2 ? '<span class="text-success small fw-bold">✓ Égal</span>' : `<span class="text-warning small">(diff: ${Math.round(s.diff).toLocaleString('fr-DZ')} DA)</span>`}</td>
           <td><span class="sm-match-score ${cls}">${s.score}%</span></td>
-          <td><button class="sm-btn-confirm" onclick="SmartMatch.confirmLink('${s.dp.id}','${s.bc.id}')"><i class="fas fa-link me-1"></i>Valider</button></td>
+          <td><button class="sm-btn-confirm" onclick="SmartMatch.confirmLink('${s.dp.id}', JSON.parse('${bcsIdsJson}'))"><i class="fas fa-link me-1"></i>Valider (${s.bcs.length})</button></td>
         </tr>`;
       }).join('')
     }</tbody></table>`;
