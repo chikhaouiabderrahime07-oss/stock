@@ -393,7 +393,7 @@
         },
 
         // ─── COOLDOWN & SCAN HANDLER ───────────────────────────────────────
-        handleCode(rawText) {
+        async handleCode(rawText) {
             if (!rawText) return;
             const text = String(rawText).trim();
             if (!text) return;
@@ -422,7 +422,36 @@
             this.stopCamera();
             this.hideCameraView();
 
-            const article = this.findArticle(text);
+            let article = this.findArticle(text);
+            if (!article) {
+                // If local sync isn't complete yet or newly added, query server directly
+                const area = document.getElementById('gdsScanResultArea');
+                if (area) {
+                    area.innerHTML = `
+                        <div style="background:#1e293b;border:1px solid rgba(59,130,246,0.3);border-radius:14px;padding:20px;text-align:center;color:#93c5fd;">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2" style="color:#3b82f6;"></i>
+                            <div style="font-weight:700;font-size:0.95rem;">Vérification serveur en cours...</div>
+                            <div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">Recherche de "${this.esc(text)}" dans MongoDB</div>
+                        </div>
+                    `;
+                }
+                try {
+                    const r = await fetch('/api/articles/' + encodeURIComponent(text), { headers: this.hdrs() });
+                    if (r.ok) {
+                        const d = await r.json();
+                        if (d && d.article) {
+                            article = d.article;
+                            if (article._id && !article.id) article.id = article._id;
+                            if (typeof DB !== 'undefined' && DB.data && Array.isArray(DB.data.articles)) {
+                                const idx = DB.data.articles.findIndex(a => a.id === article.id || (article._id && a._id === article._id) || a.code === article.code || a.barcode === article.barcode);
+                                if (idx >= 0) DB.data.articles[idx] = Object.assign({}, DB.data.articles[idx], article);
+                                else DB.data.articles.push(article);
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+
             if (article) {
                 this.playBeep('success'); this.haptic([60, 30, 60]);
                 this.currentArticle = article;

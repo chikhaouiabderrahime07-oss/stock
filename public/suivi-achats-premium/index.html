@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Suivi Achats, BC &amp; Paiements DP — Douroub</title>
+  <link rel="icon" type="image/svg+xml" href="/abdo-logo.svg" />
+  <link rel="shortcut icon" href="/abdo-logo.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -42,12 +44,7 @@
     <!-- TOP NAVIGATION BAR -->
     <header class="sa-topbar" id="appHeader">
       <div class="sa-brand">
-        <div class="ai-widget ai-widget-xs" id="headerAiWidget" style="display:inline-flex;margin-right:8px;vertical-align:middle;cursor:pointer;" onclick="if(window.triggerAiAction) window.triggerAiAction(this);" title="AI Engine — ABDO INTELLIGENT SYSTEMS">
-          <div class="ai-ring3"></div>
-          <div class="ai-orbit"></div>
-          <div class="ai-orbit ai-orbit-2"></div>
-          <div class="ai-core"></div>
-        </div>
+        <img src="/abdo-logo.svg" alt="Abdo Logo" style="width:32px;height:32px;border-radius:50%;margin-right:8px;vertical-align:middle;box-shadow:0 0 10px rgba(56,189,248,0.4);" />
         <img src="assets/image2.png" alt="Douroub Logo" class="sa-brand-logo" onerror="if(!this.dataset.triedParent){this.dataset.triedParent='1';this.src='../ERP_Douroub_v5/assets/image2.png';}else{this.style.display='none';}">
         <div class="sa-brand-text-wrap">
           <span class="sa-brand-text" id="appTitle">Suivi Achats</span>
@@ -58,7 +55,7 @@
       <!-- RIGHT ACTIONS & USER PROFILE -->
       <div class="sa-topbar-right">
         <div class="sa-topbar-credits" title="ABDO INTELLIGENT SYSTEMS — Developed by CHIKHAOUI ABDERRAHIME"><i class="fas fa-shield-halved me-1 text-primary"></i> <span class="credits-text">Dev: <strong>CHIKHAOUI ABDERRAHIME</strong> · <span class="credits-firm">ABDO INTELLIGENT SYSTEMS</span></span></div>
-        <a href="/" class="sa-nav-pill-link" id="linkToStock" title="Stock &amp; Flotte"><i class="fas fa-boxes-stacked"></i> <span>Stock</span></a>
+        <a href="/#stock" class="sa-nav-pill-link" id="linkToStock" onclick="try{localStorage.setItem('erp_active_module','stock');}catch(e){}" title="Stock &amp; Flotte"><i class="fas fa-boxes-stacked"></i> <span>Stock</span></a>
         <button class="sa-icon-btn" id="themeToggleBtn" title="Changer thème"><i class="fas fa-circle-half-stroke"></i></button>
         <select id="themeSelect" style="display:none;">
           <option value="light">Clair</option>

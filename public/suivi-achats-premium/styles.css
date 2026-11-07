@@ -3190,3 +3190,63 @@ textarea {
   .sa-top-tabs { overflow-x: auto; max-width: 55vw; }
 }
 
+/* --- High-Contrast Stock Alignment Theme --- */
+body:not([data-theme="dark"]) {
+  --bg: #f1f5f9;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --line: #e2e8f0;
+}
+body:not([data-theme="dark"]) .panel,
+body:not([data-theme="dark"]) .card,
+body:not([data-theme="dark"]) .page-header,
+body:not([data-theme="dark"]) .kpi-card,
+body:not([data-theme="dark"]) .chart-card,
+body:not([data-theme="dark"]) .comparison-container,
+body:not([data-theme="dark"]) .fin-stat-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+  color: #0f172a !important;
+}
+body:not([data-theme="dark"]) select,
+body:not([data-theme="dark"]) input[type="text"],
+body:not([data-theme="dark"]) input[type="date"],
+body:not([data-theme="dark"]) input[type="search"] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  font-weight: 600 !important;
+}
+body:not([data-theme="dark"]) .panel h3,
+body:not([data-theme="dark"]) .page-header h1,
+body:not([data-theme="dark"]) .kpi-title,
+body:not([data-theme="dark"]) .comparison-header h4 {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+body:not([data-theme="dark"]) .table th {
+  background: #f8fafc !important;
+  color: #1e293b !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+body:not([data-theme="dark"]) .table td {
+  color: #1e293b !important;
+}
+body:not([data-theme="dark"]) .sa-period-bar-container {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+}
+body:not([data-theme="dark"]) .sa-period-pill {
+  color: #475569 !important;
+  font-weight: 600 !important;
+}
+body:not([data-theme="dark"]) .sa-period-pill.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+

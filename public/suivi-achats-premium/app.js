@@ -682,7 +682,9 @@ function refreshAuthUi() {
 }
 
 window.openGdsStockScanner = function() {
-  window.location.href = '../ERP_Douroub_v5/index.html?scan_gds=1';
+  try { localStorage.setItem('erp_active_module', 'stock'); } catch(e) {}
+  const isHttp = (typeof window !== 'undefined' && window.location && window.location.protocol) ? window.location.protocol.startsWith('http') : false;
+  window.location.href = isHttp ? '/?scan_gds=1#stock' : '../index.html?scan_gds=1#stock';
 };
 
 function holidaysSet() {
@@ -2847,12 +2849,23 @@ function bindEvents() {
     if (window.SmartMatch) SmartMatch.run();
   });
 
-  // Cross-app navigation links dynamic resolution
+  // Cross-app navigation links dynamic resolution (Stock, Flotte, Magasin)
   const isHttp = (typeof window !== 'undefined' && window.location && window.location.protocol) ? window.location.protocol.startsWith('http') : false;
+  const targetStockUrl = isHttp ? '/#stock' : '../index.html#stock';
   const stockLink = $('linkToStock');
-  if (stockLink) stockLink.href = isHttp ? '/stock' : '../ERP_Douroub_v5/index.html';
+  if (stockLink) {
+    stockLink.href = targetStockUrl;
+    stockLink.addEventListener('click', () => {
+      try { localStorage.setItem('erp_active_module', 'stock'); } catch(e) {}
+    });
+  }
   const portalLink = $('linkToPortalAppro');
-  if (portalLink) portalLink.href = isHttp ? '/' : '../index.html';
+  if (portalLink) {
+    portalLink.href = targetStockUrl;
+    portalLink.addEventListener('click', () => {
+      try { localStorage.setItem('erp_active_module', 'stock'); } catch(e) {}
+    });
+  }
 
   // Bulletproof delegated tab switching so listeners never get lost
   const tabbar = $('tabbar');

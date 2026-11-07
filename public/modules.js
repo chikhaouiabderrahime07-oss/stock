@@ -2396,7 +2396,7 @@ window.Stock = {
                                         <td><strong class="font-monospace">${Utils.escapeHTML(a.code)}</strong></td>
                                         <td>${Utils.escapeHTML(a.designation)}</td>
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(a.category)}</span></td>
-                                        <td><span class="badge bg-info bg-opacity-10 text-info border border-info" style="font-size:11px;"><i class="fas fa-building me-1"></i>${Utils.escapeHTML(a.site || 'Dépôt Central')}</span></td>
+                                        <td><span class="badge" style="background:rgba(2,132,199,0.12) !important; color:#0369a1 !important; border:1px solid rgba(2,132,199,0.3) !important; font-size:11px; font-weight:700; padding:4px 8px; display:inline-flex; align-items:center;"><i class="fas fa-warehouse me-1" style="color:#0284c7;"></i>${Utils.escapeHTML(a.site || 'Dépôt Central')}</span></td>
                                         <td>${Utils.escapeHTML(a.section || '-')}</td>
                                         <td><span class="${getZoneBadgeClass(a.zone || 'Zone A')}"><i class="fas fa-layer-group me-1"></i>${Utils.escapeHTML(a.zone || 'Zone A')}</span></td>
                                         <td><strong style="font-size:14px;color:${isAlert ? 'var(--danger,#dc2626)' : 'inherit'};">${a.quantity}</strong></td>
@@ -4397,7 +4397,14 @@ window.Decharges = {
                                             </div>
                                             ${bsmRef ? `<small class="text-info font-monospace fw-bold d-block" style="font-size:10px;">${Utils.escapeHTML(bsmRef)}</small>` : ''}
                                         </td>
-                                        <td>${(d.date && !isNaN(new Date(d.date).getTime())) ? new Date(d.date).toLocaleDateString('fr-FR') : (d.createdAt && !isNaN(new Date(d.createdAt).getTime()) ? new Date(d.createdAt).toLocaleDateString('fr-FR') : (d.servedAt && !isNaN(new Date(d.servedAt).getTime()) ? new Date(d.servedAt).toLocaleDateString('fr-FR') : '-'))}</td>
+                                        <td>${(() => {
+                                            const parseD = (v) => {
+                                                if (!v) return null;
+                                                const dt = new Date(v);
+                                                return isNaN(dt.getTime()) ? null : dt.toLocaleDateString('fr-FR');
+                                            };
+                                            return parseD(d.date) || parseD(d.servedAt) || parseD(d.createdAt) || parseD(d.dateDecharge) || (d.ref && String(d.ref).includes('BSM-GDS-') ? new Date().toLocaleDateString('fr-FR') : '-');
+                                        })()}</td>
                                         <td><strong><i class="fas fa-user-circle text-primary me-1"></i> ${Utils.escapeHTML(d.beneficiary)}</strong></td>
                                         <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(d.service || '-')}</span></td>
                                         <td>${mat ? Utils.escapeHTML(mat.name + ' - ' + mat.immatriculation) : (d.immatriculation ? Utils.escapeHTML((d.materialName || '') + ' - ' + d.immatriculation) : '-')}</td>

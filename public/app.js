@@ -111,7 +111,7 @@ const App = {
 
             // 5. Check if logged in
             if (typeof Auth !== 'undefined' && Auth.isLoggedIn()) {
-                this.showApp();
+                this.showApp(false);
             } else {
                 this.showLogin();
             }
@@ -129,7 +129,7 @@ const App = {
         if (appEl) { appEl.style.display = 'none'; appEl.classList.add('hidden'); }
     },
 
-    showApp() {
+    showApp(isFreshLogin = false) {
         try {
             const loginEl = document.getElementById('loginScreen');
             const appEl = document.getElementById('appContainer');
@@ -141,17 +141,18 @@ const App = {
                     const role = (currentUser.role || '').toLowerCase();
                     const isAdmin = role === 'admin' || role === 'superadmin' || role === 'directeur';
                     const defMod = currentUser.defaultModule || 'stock';
+                    const hasActiveSession = Boolean((window.location.hash && window.location.hash !== '#') || localStorage.getItem('erp_active_module'));
 
-                    if (isAdmin) {
-                        // Hide login, keep app hidden, show fullscreen gate
+                    // Only show fullscreen gate modal if this is an explicit fresh login AND no target module was specified
+                    if (isAdmin && isFreshLogin && !hasActiveSession) {
                         if (loginEl) loginEl.style.display = 'none';
                         this.showModulePickerModal();
-                        return; // Do NOT load app yet — gate handles navigation
-                    } else if (defMod === 'bc' && localStorage.getItem('erp_jwt_token')) {
+                        return; // Gate handles navigation
+                    } else if (defMod === 'bc' && !hasActiveSession && localStorage.getItem('erp_jwt_token')) {
                         window.location.href = '/suivi-achats-premium/';
                         return;
                     }
-                    // defMod === 'stock' or 'both' → fall through and load app
+                    // Continue directly to application
                 }
             } catch (gateErr) {}
 
@@ -200,14 +201,18 @@ const App = {
                 }
             } catch (err) {}
 
-            // Load restored module from previous session or default to dashboard
-            const savedModule = localStorage.getItem('erp_active_module') || 'dashboard';
-            let savedTab = localStorage.getItem('erp_active_tab') || undefined;
+            // Load restored module from hash, previous session, or default to stock
+            const rawHash = (window.location.hash ? window.location.hash.slice(1) : '').trim();
+            const hashParts = rawHash.split(':');
+            const hashModule = hashParts[0] && hashParts[0] !== 'login' ? hashParts[0] : null;
+            const hashTab = hashParts[1] || undefined;
+            const savedModule = hashModule || localStorage.getItem('erp_active_module') || 'stock';
+            let savedTab = hashTab || localStorage.getItem('erp_active_tab') || undefined;
             if (savedTab === 'new') {
                 savedTab = 'kpi';
                 try { localStorage.setItem('erp_active_tab', 'kpi'); } catch (e) {}
             }
-            const targetMod = (typeof Auth !== 'undefined' && Auth.canView(savedModule)) ? savedModule : 'dashboard';
+            const targetMod = (typeof Auth !== 'undefined' && Auth.canView(savedModule)) ? savedModule : 'stock';
             this.loadModule(targetMod, savedTab, false);
 
             // Auto-open GDS Scanner if query param ?scan_gds=1 is present
@@ -546,6 +551,11 @@ const App = {
                     if (tab && tab !== 'new') localStorage.setItem('erp_active_tab', tab);
                     else if (tab === 'new') localStorage.setItem('erp_active_tab', 'kpi');
                     else localStorage.removeItem('erp_active_tab');
+
+                    const targetHash = '#' + mod + (tab ? ':' + tab : '');
+                    if (window.location.hash !== targetHash) {
+                        history.replaceState(null, '', targetHash);
+                    }
                 }
             } catch (e) {}
 
@@ -752,7 +762,7 @@ const App = {
                     const result = await Auth.login(username, password);
                     if (result) {
                         if (attemptBadge) attemptBadge.style.display = 'none';
-                        this.showApp();
+                        this.showApp(true);
                     } else {
                         loginForm.classList.add('shake-animation');
                         setTimeout(() => loginForm.classList.remove('shake-animation'), 700);
