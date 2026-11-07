@@ -3029,9 +3029,11 @@ function bindEvents() {
       resyncBcEl.textContent = '⏳ Resync en cours...';
       try {
         const token = localStorage.getItem('erp_jwt_token') || state.session?.token || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
         const r = await fetch('/api/bc/resync', {
           method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+          headers: headers
         });
         const d = await r.json();
         if (r.ok) {

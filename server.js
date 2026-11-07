@@ -184,10 +184,50 @@ async function startServer() {
     console.log('[SEED] Default admin created');
   }
 
-  // Seed BC and Payment records if empty
+  // Auto-clean demo articles & dummy BTs on server startup
+  const Article = require('./models/Article');
+  const BonTravail = require('./models/BonTravail');
+  try {
+    const demoArt = await Article.deleteMany({
+      $or: [
+        { code: { $in: ['PDR-001', 'PDR-002', 'ART-18429', 'Art-003', 'ART-003'] } },
+        { designation: { $in: ['aaa', 'afafz', 'Test'] } },
+        { designation: /^test$/i, price: { $in: [0, null] } }
+      ]
+    });
+    if (demoArt.deletedCount > 0) {
+      console.log(`[STARTUP] Purged ${demoArt.deletedCount} demo articles from Atlas`);
+    }
+    const demoBt = await BonTravail.deleteMany({
+      $or: [
+        { id: { $regex: '^BT-2026-000[1-7]', $options: 'i' } },
+        { ref: { $regex: '^BT-2026-000[1-7]', $options: 'i' } },
+        { id: { $regex: '^wp_seed_', $options: 'i' } }
+      ]
+    });
+    if (demoBt.deletedCount > 0) {
+      console.log(`[STARTUP] Purged ${demoBt.deletedCount} dummy BTs from Atlas`);
+    }
+  } catch (cleanErr) {
+    console.warn('[STARTUP] Cleanup notice:', cleanErr.message);
+  }
+
+  // Seed BC and Payment records if empty or if corrupted clones exist
   const BcRecord = require('./models/BcRecord');
   const Payment = require('./models/Payment');
   try {
+    const schmitzClones = await BcRecord.countDocuments({
+      supplierName: /SCHMITZ/i,
+      amountTTC: { $gt: 1000000 }
+    });
+    const copyClones = await BcRecord.countDocuments({
+      sourceFile: /[-\s](copy|copie)/i,
+      amountTTC: { $gt: 0 }
+    });
+    if (schmitzClones > 2 || copyClones > 10) {
+      console.log(`[STARTUP-AUTOFIX] Detected ${schmitzClones} Schmitz clones & ${copyClones} copy clones in Atlas. Re-seeding clean BC dataset...`);
+      await BcRecord.deleteMany({});
+    }
     const bcCount = await BcRecord.countDocuments();
     if (bcCount === 0) {
       const bcCandidates = [

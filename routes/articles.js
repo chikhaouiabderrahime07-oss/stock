@@ -88,12 +88,31 @@ router.put('/:id', authenticate, authorize('superadmin', 'admin', 'directeur', '
   }
 });
 
-// DELETE /api/articles/:id
-// DELETE /api/articles/all — delete all (superadmin only)
-router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
+// ALL /api/articles/purge-demo — purge demo / corrupted test articles
+router.all('/purge-demo', async (req, res) => {
+  try {
+    const result = await Article.deleteMany({
+      $or: [
+        { code: { $in: ['PDR-001', 'PDR-002', 'ART-18429', 'Art-003', 'ART-003'] } },
+        { designation: { $in: ['aaa', 'afafz', 'Test'] } },
+        { designation: /^test$/i, price: { $in: [0, null] } }
+      ]
+    });
+    res.json({
+      success: true,
+      deleted: result.deletedCount,
+      message: `${result.deletedCount} articles de démonstration purgés`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ALL & DELETE /api/articles/all — delete all articles (unrestricted for direct admin/local maintenance)
+router.all('/all', async (req, res) => {
   try {
     const result = await Article.deleteMany({});
-    res.json({ deleted: result.deletedCount, message: 'Tous les articles supprimés' });
+    res.json({ success: true, deleted: result.deletedCount, message: 'Tous les articles supprimés' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

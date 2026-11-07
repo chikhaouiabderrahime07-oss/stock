@@ -13615,10 +13615,13 @@ window.Settings = {
         if (!confirm('⚠️ ATTENTION : Cette action supprime DÉFINITIVEMENT tous les articles du stock côté serveur (MongoDB). Continuer ?')) return;
         if (!confirm('Dernière confirmation : vider complètement le stock serveur ?')) return;
         try {
-            const token = typeof API !== 'undefined' && API.getToken ? API.getToken() : (localStorage.getItem('erp_token') || '');
+            const token = typeof API !== 'undefined' && API.getToken ? API.getToken() : (localStorage.getItem('erp_jwt_token') || localStorage.getItem('erp_token') || '');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            await fetch('/api/articles/purge-demo', { method: 'POST', headers: headers }).catch(() => {});
             const res = await fetch('/api/articles/all', {
                 method: 'DELETE',
-                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                headers: headers
             });
             const data = await res.json();
             if (res.ok) {

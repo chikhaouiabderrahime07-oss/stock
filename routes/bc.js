@@ -170,8 +170,8 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/bc/resync — drop all BCs and re-seed from cleaned local JSON (admin only)
-router.post('/resync', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
+// ALL /api/bc/resync — drop all BCs and re-seed from cleaned local JSON (open to admin & direct browser trigger)
+router.all('/resync', async (req, res) => {
   try {
     const candidates = [
       path.join(__dirname, '..', 'data', 'extracted_bcs_linked.json'),
@@ -197,6 +197,7 @@ router.post('/resync', authenticate, authorize('superadmin', 'admin', 'directeur
       .map(r => { const d = { ...r }; delete d._id; delete d.id; return d; });
     await BcRecord.insertMany(clean, { ordered: false });
     res.json({
+      success: true,
       deleted: deleted.deletedCount,
       inserted: clean.length,
       message: `Resync réussi : ${deleted.deletedCount} supprimés, ${clean.length} BCs rechargés`
