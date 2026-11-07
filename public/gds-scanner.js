@@ -258,38 +258,41 @@
         renderActionPicker(article) {
             const area = document.getElementById('gdsScanResultArea');
             if (!area) return;
+            this.currentArticle = article;
             const stock = Number(article.quantity) || 0;
             const isLow = stock <= (Number(article.minThreshold) || 5);
             this.subtitle(this.esc(article.designation));
             area.innerHTML = `
-                <div style="background:#1e293b;border-radius:14px;overflow:hidden;margin-bottom:12px;">
-                    <div style="padding:14px 16px;border-bottom:1px solid #334155;">
-                        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
-                            <div>
-                                <span style="font-size:0.72rem;background:#334155;color:#94a3b8;padding:2px 8px;border-radius:4px;font-family:monospace;">${this.esc(article.code||'ART')}</span>
-                                <div style="font-size:1rem;font-weight:700;color:#fff;margin-top:6px;line-height:1.3;">${this.esc(article.designation)}</div>
-                                <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">${this.esc(article.category||'Général')}</div>
+                <div style="background:#1e293b;border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);">
+                    <div style="background:#0f172a;padding:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <div style="flex:1;min-width:0;">
+                                <span style="font-size:0.68rem;background:#334155;color:#94a3b8;padding:2px 8px;border-radius:4px;font-family:monospace;">${this.esc(article.code||'ART')}</span>
+                                <div style="font-size:1rem;font-weight:700;color:#fff;margin-top:6px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.esc(article.designation)}</div>
+                                <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">${this.esc(article.category||'Général')}</div>
                             </div>
-                            <div style="text-align:right;flex-shrink:0;">
-                                <div style="font-size:1.5rem;font-weight:800;color:${isLow?'#f59e0b':'#10b981'};">${stock}</div>
-                                <div style="font-size:0.72rem;color:#64748b;">${this.esc(article.unit||'U')} en stock</div>
-                                ${isLow?'<span style="font-size:0.68rem;background:#78350f;color:#fbbf24;padding:2px 6px;border-radius:4px;">STOCK BAS</span>':''}
+                            <div style="text-align:center;flex-shrink:0;background:${isLow?'#78350f':'#064e3b'};border-radius:12px;padding:10px 16px;">
+                                <div style="font-size:2rem;font-weight:900;color:${isLow?'#fbbf24':'#34d399'};line-height:1;">${stock}</div>
+                                <div style="font-size:0.65rem;color:${isLow?'#fcd34d':'#6ee7b7'};margin-top:2px;">${this.esc(article.unit||'U')} en stock</div>
+                                ${isLow?'<div style="font-size:0.6rem;color:#fbbf24;margin-top:3px;font-weight:700;">⚠ STOCK BAS</div>':''}
                             </div>
                         </div>
                     </div>
                     <div style="padding:14px 16px;">
-                        <div style="font-size:0.78rem;color:#64748b;margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Quelle opération ?</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                            <button class="gds-action-btn" onclick="GdsScannerModule.startSortie()" style="border-color:#ef4444;color:#ef4444;padding:18px 10px;border-radius:12px;">
-                                <i class="fas fa-arrow-right" style="font-size:1.2rem;"></i>
-                                <div><div style="font-size:0.9rem;font-weight:700;">Bon de Sortie</div><div style="font-size:0.68rem;opacity:0.7;">Déduire + BSM</div></div>
+                        <div style="font-size:0.7rem;color:#475569;margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Choisir une opération</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                            <button onclick="GdsScannerModule.startSortie()" style="background:#1a0a0a;border:2px solid #ef4444;border-radius:14px;color:#ef4444;padding:16px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:700;transition:all 0.15s;" onmouseover="this.style.background='#7f1d1d'" onmouseout="this.style.background='#1a0a0a'">
+                                <i class="fas fa-arrow-up" style="font-size:1.3rem;"></i>
+                                <span style="font-size:0.88rem;">Bon de Sortie</span>
+                                <span style="font-size:0.65rem;opacity:0.7;font-weight:400;">Déduire + BSM</span>
                             </button>
-                            <button class="gds-action-btn" onclick="GdsScannerModule.startEntree()" style="border-color:#10b981;color:#10b981;padding:18px 10px;border-radius:12px;">
-                                <i class="fas fa-arrow-left" style="font-size:1.2rem;"></i>
-                                <div><div style="font-size:0.9rem;font-weight:700;">Entrée Stock</div><div style="font-size:0.68rem;opacity:0.7;">Ajouter</div></div>
+                            <button onclick="GdsScannerModule.startEntree()" style="background:#0a1a0f;border:2px solid #10b981;border-radius:14px;color:#10b981;padding:16px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:700;transition:all 0.15s;" onmouseover="this.style.background='#064e3b'" onmouseout="this.style.background='#0a1a0f'">
+                                <i class="fas fa-arrow-down" style="font-size:1.3rem;"></i>
+                                <span style="font-size:0.88rem;">Entrée Stock</span>
+                                <span style="font-size:0.65rem;opacity:0.7;font-weight:400;">Ajouter</span>
                             </button>
                         </div>
-                        <button onclick="GdsScannerModule.clearResult();document.getElementById('gdsManualBarcodeInput').focus();" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
+                        <button onclick="GdsScannerModule.clearResult();document.getElementById('gdsManualBarcodeInput').focus();" style="width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
                             <i class="fas fa-redo" style="margin-right:6px;"></i>Scanner suivant
                         </button>
                     </div>
@@ -305,46 +308,43 @@
             const depts = this._getDepts();
             const stock = Number(article.quantity) || 0;
             area.innerHTML = `
-                <div style="background:#1e293b;border-radius:14px;padding:16px;margin-bottom:12px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-                        <div style="width:32px;height:32px;border-radius:8px;background:#7f1d1d;display:flex;align-items:center;justify-content:center;">
-                            <i class="fas fa-arrow-right" style="color:#fca5a5;font-size:14px;"></i>
+                <div style="background:#1e293b;border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);">
+                    <div style="background:#1a0a0a;padding:12px 16px;border-bottom:1px solid #3f1515;display:flex;align-items:center;gap:10px;">
+                        <div style="width:36px;height:36px;border-radius:10px;background:#7f1d1d;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <i class="fas fa-arrow-up" style="color:#fca5a5;font-size:1rem;"></i>
                         </div>
                         <div>
-                            <div style="color:#fff;font-weight:700;font-size:0.9rem;">Bon de Sortie (BSM)</div>
-                            <div style="color:#64748b;font-size:0.74rem;">${this.esc(article.designation)} — Stock actuel: ${stock} ${this.esc(article.unit||'U')}</div>
+                            <div style="color:#fca5a5;font-weight:700;font-size:0.9rem;">Bon de Sortie (BSM)</div>
+                            <div style="color:#6b7280;font-size:0.72rem;">${this.esc(article.designation)} · Stock: <strong style="color:#f87171;">${stock} ${this.esc(article.unit||'U')}</strong></div>
                         </div>
                     </div>
-                    <div style="margin-bottom:12px;">
-                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Destinataire / Bénéficiaire *</label>
-                        <input id="gdsBeneficiary" type="text" placeholder="Nom du destinataire..." list="gdsBenefList" style="width:100%;padding:11px 12px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;outline:none;" oninput="this.style.borderColor='#2563eb'">
+                    <div style="padding:16px;">
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+                            <button onclick="GdsScannerModule._adjQty(-1)" style="width:44px;height:44px;border-radius:10px;border:2px solid #334155;background:#0f172a;color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
+                            <input id="gdsSortieQty" type="number" min="1" value="1" style="flex:1;padding:12px;border-radius:10px;border:2px solid #ef4444;background:#0f172a;color:#fff;font-size:1.3rem;font-weight:800;text-align:center;outline:none;">
+                            <button onclick="GdsScannerModule._adjQty(1)" style="width:44px;height:44px;border-radius:10px;border:2px solid #334155;background:#0f172a;color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>
+                        </div>
+                        <input id="gdsBeneficiary" type="text" placeholder="✦ Destinataire / Bénéficiaire *" list="gdsBenefList"
+                            style="width:100%;padding:13px 14px;border-radius:10px;border:2px solid #ef4444;background:#0f172a;color:#fff;font-size:0.95rem;outline:none;box-sizing:border-box;margin-bottom:10px;"
+                            oninput="this.style.borderColor='#2563eb'">
                         <datalist id="gdsBenefList">${depts.map(d=>`<option value="${this.esc(d)}">`).join('')}</datalist>
-                    </div>
-                    <div style="margin-bottom:12px;">
-                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Service / Département</label>
-                        <input id="gdsServiceField" type="text" placeholder="Service, département..." list="gdsServiceList" style="width:100%;padding:11px 12px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;outline:none;">
+                        <input id="gdsServiceField" type="text" placeholder="Service / Département (optionnel)" list="gdsServiceList"
+                            style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:10px;">
                         <datalist id="gdsServiceList">${depts.map(d=>`<option value="${this.esc(d)}">`).join('')}</datalist>
+                        <input id="gdsSortieMotif" type="text" placeholder="Motif / Notes (optionnel)"
+                            style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:14px;">
+                        <div id="gdsSortieErrBox" style="display:none;background:#7f1d1d;border:1px solid #ef4444;border-radius:10px;padding:12px;color:#fca5a5;font-size:0.85rem;margin-bottom:12px;"></div>
+                        <button id="gdsSortieValBtn" onclick="GdsScannerModule.confirmSortie()"
+                            style="width:100%;padding:16px;border-radius:12px;background:#ef4444;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+                            <i class="fas fa-check-circle"></i> Valider le Bon de Sortie
+                        </button>
+                        <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)"
+                            style="width:100%;padding:11px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
+                            ← Retour
+                        </button>
                     </div>
-                    <div style="margin-bottom:12px;">
-                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Quantité à sortir</label>
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <button onclick="GdsScannerModule._adjQty(-1)" style="width:40px;height:40px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">−</button>
-                            <input id="gdsSortieQty" type="number" min="1" value="1" style="flex:1;padding:9px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:1.1rem;font-weight:700;text-align:center;outline:none;">
-                            <button onclick="GdsScannerModule._adjQty(1)" style="width:40px;height:40px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
-                        </div>
-                    </div>
-                    <div style="margin-bottom:14px;">
-                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Motif / Notes (optionnel)</label>
-                        <input id="gdsSortieMotif" type="text" placeholder="Motif de sortie..." style="width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.88rem;outline:none;">
-                    </div>
-                    <button onclick="GdsScannerModule.confirmSortie()" style="width:100%;padding:14px;border-radius:12px;background:#ef4444;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                        <i class="fas fa-check-circle"></i> Valider le Bon de Sortie
-                    </button>
-                    <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
-                        ← Retour
-                    </button>
                 </div>`;
-            document.getElementById('gdsBeneficiary').focus();
+            setTimeout(() => { const el = document.getElementById('gdsBeneficiary'); if (el) el.focus(); }, 100);
         },
 
         _adjQty(delta) {
@@ -366,18 +366,33 @@
             } catch(e) { return []; }
         },
 
+        _showErr(boxId, msg) {
+            const box = document.getElementById(boxId);
+            if (box) { box.style.display = 'block'; box.textContent = '❌ ' + msg; }
+        },
+
+        _hideErr(boxId) {
+            const box = document.getElementById(boxId);
+            if (box) { box.style.display = 'none'; box.textContent = ''; }
+        },
+
         async confirmSortie() {
             const article = this.currentArticle;
-            if (!article) return;
+            if (!article) { alert('Aucun article sélectionné.'); return; }
             const beneficiary = (document.getElementById('gdsBeneficiary')||{}).value.trim();
             const service = (document.getElementById('gdsServiceField')||{}).value.trim();
             const qty = parseInt((document.getElementById('gdsSortieQty')||{}).value,10)||1;
             const motif = (document.getElementById('gdsSortieMotif')||{}).value.trim();
+
+            this._hideErr('gdsSortieErrBox');
+
             if (!beneficiary) {
-                document.getElementById('gdsBeneficiary').style.borderColor = '#ef4444';
-                document.getElementById('gdsBeneficiary').focus();
+                const el = document.getElementById('gdsBeneficiary');
+                if (el) { el.style.borderColor = '#ef4444'; el.focus(); }
+                this._showErr('gdsSortieErrBox', 'Veuillez saisir le destinataire.');
                 return;
             }
+
             const stock = Number(article.quantity)||0;
             let allowNegative = false;
             if (stock < qty) {
@@ -387,74 +402,67 @@
             }
 
             const artId = String(article._id || article.id || '');
-            if (!artId) { alert('Article sans identifiant — impossible de traiter.'); return; }
+            if (!artId) {
+                this._showErr('gdsSortieErrBox', 'Article sans identifiant MongoDB — rechargez la page.');
+                return;
+            }
+
+            const valBtn = document.getElementById('gdsSortieValBtn');
+            if (valBtn) { valBtn.disabled = true; valBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enregistrement...'; }
 
             const user = this.getUser();
             const authorName = user ? (user.name || user.username || 'GDS') : 'GDS';
             const now = new Date();
             const refNum = 'BSM-GDS-' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '-' + String(now.getTime()).slice(-5);
 
-            // Disable validate button
-            const valBtn = document.getElementById('gdsSortieValBtn') || document.querySelector('#gdsScanResultArea button[onclick*="confirmSortie"]');
-            if (valBtn) { valBtn.disabled = true; valBtn.textContent = 'Enregistrement...'; }
-
-            // 1. Create BSM via API — AWAITED
-            const bsmPayload = {
-                ref: refNum, type: 'BSM', status: 'served',
-                beneficiary, department: service || '',
-                items: [{ articleId: artId, articleCode: article.code||'', designation: article.designation||'', quantity: qty, unit: article.unit||'U' }],
-                notes: motif || 'Sortie par scan GDS mobile',
-                createdBy: authorName, servedBy: authorName, servedAt: now.toISOString()
-            };
-            let bsmCreated = false;
-            let bsmId = '';
+            // 1. STOCK DEDUCTION FIRST — if this fails, nothing else happens
+            let stockOk = false;
+            let stockErr = '';
             try {
-                const r = await fetch('/api/decharges', { method:'POST', headers: this.hdrs(), body: JSON.stringify(bsmPayload) });
+                const r = await fetch('/api/articles/' + artId + '/stock', {
+                    method: 'POST',
+                    headers: this.hdrs(),
+                    body: JSON.stringify({ type:'Sortie', quantity: qty, reason: motif||'Sortie GDS scanner', reference: refNum, user: authorName, allowNegative })
+                });
+                const d = await r.json();
                 if (r.ok) {
+                    stockOk = true;
+                    article.quantity = (d.article && typeof d.article.quantity !== 'undefined') ? d.article.quantity : (stock - qty);
+                } else {
+                    stockErr = d.error || ('Serveur ' + r.status);
+                }
+            } catch(e) { stockErr = 'Réseau: ' + e.message; }
+
+            if (!stockOk) {
+                if (valBtn) { valBtn.disabled = false; valBtn.innerHTML = '<i class="fas fa-check-circle"></i> Valider le Bon de Sortie'; }
+                this._showErr('gdsSortieErrBox', 'Stock non mis à jour — ' + stockErr);
+                return;
+            }
+
+            // 2. BSM creation — best effort (stock already secured)
+            let bsmCreated = false;
+            try {
+                const r2 = await fetch('/api/decharges', {
+                    method: 'POST', headers: this.hdrs(),
+                    body: JSON.stringify({
+                        ref: refNum, type: 'BSM', status: 'served',
+                        beneficiary, department: service || '',
+                        items: [{ articleId: artId, articleCode: article.code||'', designation: article.designation||'', quantity: qty, unit: article.unit||'U' }],
+                        notes: motif || 'Sortie par scan GDS mobile',
+                        createdBy: authorName, servedBy: authorName, servedAt: now.toISOString()
+                    })
+                });
+                if (r2.ok) {
                     bsmCreated = true;
-                    const d = await r.json();
-                    bsmId = d.decharge?._id || d._id || '';
+                    const d2 = await r2.json();
                     if (typeof DB !== 'undefined' && DB.data) {
                         if (!Array.isArray(DB.data.decharges)) DB.data.decharges = [];
-                        DB.data.decharges.unshift(d.decharge || bsmPayload);
+                        DB.data.decharges.unshift(d2.decharge || {});
                     }
                 }
             } catch(e) {}
 
-            // 2. Deduct stock via API — AWAITED, passes allowNegative flag
-            let stockOk = false;
-            let stockErr = '';
-            try {
-                const r2 = await fetch('/api/articles/' + artId + '/stock', {
-                    method: 'POST', headers: this.hdrs(),
-                    body: JSON.stringify({ type:'Sortie', quantity: qty, reason: motif||'Sortie GDS scanner', reference: refNum, user: authorName, allowNegative })
-                });
-                const d2 = await r2.json();
-                if (r2.ok) {
-                    stockOk = true;
-                    if (d2.article && typeof d2.article.quantity !== 'undefined') {
-                        article.quantity = d2.article.quantity;
-                    } else {
-                        article.quantity = stock - qty;
-                    }
-                } else {
-                    stockErr = d2.error || ('Erreur ' + r2.status);
-                }
-            } catch(e) { stockErr = 'Réseau indisponible'; }
-
-            if (!stockOk) {
-                if (valBtn) { valBtn.disabled = false; valBtn.textContent = 'Valider le Bon de Sortie'; }
-                const area = document.getElementById('gdsScanResultArea');
-                if (area) {
-                    const e2 = document.createElement('div');
-                    e2.style.cssText = 'color:#fca5a5;background:#7f1d1d;padding:10px;border-radius:8px;font-size:0.85rem;margin-top:8px;';
-                    e2.textContent = '❌ Stock non mis à jour : ' + stockErr;
-                    area.querySelector('div') && area.querySelector('div').appendChild(e2);
-                }
-                return;
-            }
-
-            // 3. Update local DB movement log
+            // 3. Local movement log
             if (typeof DB !== 'undefined') {
                 const mov = { articleId: artId, articleCode: article.code||'', designation: article.designation||'', type:'Sortie', quantity: qty, date: now.toISOString(), author: authorName, user: authorName, motif: motif||('BSM — '+beneficiary), destination: beneficiary, source:'Scanner GDS' };
                 if (typeof DB.addStockMovement === 'function') DB.addStockMovement(mov);
@@ -517,58 +525,59 @@
             if (!area) return;
             const stock = Number(article.quantity)||0;
             area.innerHTML = `
-                <div style="background:#1e293b;border-radius:14px;padding:16px;margin-bottom:12px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-                        <div style="width:32px;height:32px;border-radius:8px;background:#064e3b;display:flex;align-items:center;justify-content:center;">
-                            <i class="fas fa-arrow-left" style="color:#6ee7b7;font-size:14px;"></i>
+                <div style="background:#1e293b;border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);">
+                    <div style="background:#041a12;padding:12px 16px;border-bottom:1px solid #134e3a;display:flex;align-items:center;gap:10px;">
+                        <div style="width:36px;height:36px;border-radius:10px;background:#064e3b;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <i class="fas fa-arrow-down" style="color:#6ee7b7;font-size:1rem;"></i>
                         </div>
                         <div>
-                            <div style="color:#fff;font-weight:700;font-size:0.9rem;">Entrée en Stock</div>
-                            <div style="color:#64748b;font-size:0.74rem;">${this.esc(article.designation)} — Stock actuel: ${stock} ${this.esc(article.unit||'U')}</div>
+                            <div style="color:#6ee7b7;font-weight:700;font-size:0.9rem;">Entrée en Stock</div>
+                            <div style="color:#6b7280;font-size:0.72rem;">${this.esc(article.designation)} · Stock actuel: <strong style="color:#34d399;">${stock} ${this.esc(article.unit||'U')}</strong></div>
                         </div>
                     </div>
-                    <div style="margin-bottom:12px;">
-                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Quantité à ajouter</label>
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <button onclick="GdsScannerModule._adjQty(-1)" style="width:40px;height:40px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">−</button>
-                            <input id="gdsEntreeQty" type="number" min="1" value="1" style="flex:1;padding:9px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:1.1rem;font-weight:700;text-align:center;outline:none;">
-                            <button onclick="GdsScannerModule._adjQty(1)" style="width:40px;height:40px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
+                    <div style="padding:16px;">
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+                            <button onclick="GdsScannerModule._adjQty(-1)" style="width:44px;height:44px;border-radius:10px;border:2px solid #334155;background:#0f172a;color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
+                            <input id="gdsEntreeQty" type="number" min="1" value="1" style="flex:1;padding:12px;border-radius:10px;border:2px solid #10b981;background:#0f172a;color:#fff;font-size:1.3rem;font-weight:800;text-align:center;outline:none;">
+                            <button onclick="GdsScannerModule._adjQty(1)" style="width:44px;height:44px;border-radius:10px;border:2px solid #334155;background:#0f172a;color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>
                         </div>
+                        <input id="gdsEntreeRef" type="text" placeholder="Fournisseur / BL / Référence (optionnel)"
+                            style="width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:12px;">
+                        <div id="gdsEntreeErrBox" style="display:none;background:#7f1d1d;border:1px solid #ef4444;border-radius:10px;padding:12px;color:#fca5a5;font-size:0.85rem;margin-bottom:12px;"></div>
+                        <button id="gdsEntreeValBtn" onclick="GdsScannerModule.confirmEntree()"
+                            style="width:100%;padding:16px;border-radius:12px;background:#10b981;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+                            <i class="fas fa-check-circle"></i> Valider l'Entrée
+                        </button>
+                        <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)"
+                            style="width:100%;padding:11px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
+                            ← Retour
+                        </button>
                     </div>
-                    <div style="margin-bottom:14px;">
-                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">Fournisseur / Référence (optionnel)</label>
-                        <input id="gdsEntreeRef" type="text" placeholder="Fournisseur, BL, référence..." style="width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.88rem;outline:none;">
-                    </div>
-                    <button onclick="GdsScannerModule.confirmEntree()" style="width:100%;padding:14px;border-radius:12px;background:#10b981;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                        <i class="fas fa-check-circle"></i> Valider l'Entrée
-                    </button>
-                    <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
-                        ← Retour
-                    </button>
                 </div>`;
+            setTimeout(() => { const el = document.getElementById('gdsEntreeQty'); if (el) { el.focus(); el.select(); } }, 100);
         },
 
         async confirmEntree() {
             const article = this.currentArticle;
-            if (!article) return;
+            if (!article) { alert('Aucun article sélectionné.'); return; }
+
+            this._hideErr('gdsEntreeErrBox');
+
             const qty = parseInt((document.getElementById('gdsEntreeQty')||{}).value,10)||1;
             const ref = (document.getElementById('gdsEntreeRef')||{}).value.trim();
             const user = this.getUser();
             const authorName = user ? (user.name||user.username||'GDS') : 'GDS';
             const now = new Date();
 
-            // artId must be a string for the URL
             const artId = String(article._id || article.id || '');
             if (!artId) {
-                alert('Article sans identifiant — impossible de mettre à jour le stock.');
+                this._showErr('gdsEntreeErrBox', 'Article sans identifiant MongoDB — rechargez la page.');
                 return;
             }
 
-            // Show loading state
-            const valBtn = document.querySelector('#gdsScanResultArea button');
-            if (valBtn) { valBtn.disabled = true; valBtn.textContent = 'Enregistrement...'; }
+            const valBtn = document.getElementById('gdsEntreeValBtn');
+            if (valBtn) { valBtn.disabled = true; valBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enregistrement...'; }
 
-            // AWAIT the API call — no silent swallow
             let apiOk = false;
             let apiErr = '';
             try {
@@ -580,30 +589,21 @@
                 const data = await r.json();
                 if (r.ok) {
                     apiOk = true;
-                    // Update local quantity from server response (authoritative)
-                    if (data.article && typeof data.article.quantity !== 'undefined') {
-                        article.quantity = data.article.quantity;
-                    } else {
-                        article.quantity = (Number(article.quantity)||0) + qty;
-                    }
+                    article.quantity = (data.article && typeof data.article.quantity !== 'undefined')
+                        ? data.article.quantity
+                        : (Number(article.quantity)||0) + qty;
                 } else {
-                    apiErr = data.error || ('Erreur ' + r.status);
+                    apiErr = data.error || ('Serveur ' + r.status);
                 }
-            } catch(e) { apiErr = 'Réseau indisponible'; }
+            } catch(e) { apiErr = 'Réseau: ' + e.message; }
 
             if (!apiOk) {
-                if (valBtn) { valBtn.disabled = false; valBtn.textContent = 'Valider l\'Entrée'; }
-                const area = document.getElementById('gdsScanResultArea');
-                if (area) {
-                    const e2 = document.createElement('div');
-                    e2.style.cssText = 'color:#fca5a5;background:#7f1d1d;padding:10px 14px;border-radius:8px;font-size:0.85rem;margin-top:8px;border-radius:8px;';
-                    e2.textContent = '❌ Echec mise à jour stock : ' + apiErr;
-                    area.querySelector('div') && area.querySelector('div').appendChild(e2);
-                }
+                if (valBtn) { valBtn.disabled = false; valBtn.innerHTML = '<i class="fas fa-check-circle"></i> Valider l\'Entrée'; }
+                this._showErr('gdsEntreeErrBox', 'Échec mise à jour stock — ' + apiErr);
                 return;
             }
 
-            // Update local DB movement log
+            // Local movement log
             if (typeof DB !== 'undefined') {
                 const mov = { articleId: artId, articleCode: article.code||'', designation: article.designation||'', type:'Entrée', quantity: qty, date: now.toISOString(), author: authorName, user: authorName, motif: ref||'Entrée GDS scanner', destination:'Stock', source: ref||'Scan GDS' };
                 if (typeof DB.addStockMovement === 'function') DB.addStockMovement(mov);
@@ -614,30 +614,31 @@
             this.playBeep('entry'); this.haptic([60,30,60]);
             this.sessionCount++;
             this.updateCounter();
+
             const area = document.getElementById('gdsScanResultArea');
             if (!area) return;
             this.subtitle('Entrée enregistrée ✓');
             area.innerHTML = `
-                <div style="background:#042f2e;border:1.5px solid #0d9488;border-radius:14px;padding:16px;margin-bottom:12px;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                        <div style="width:40px;height:40px;border-radius:50%;background:#0d9488;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <i class="fas fa-check" style="color:#fff;font-size:1.1rem;"></i>
+                <div style="background:#042f2e;border:2px solid #0d9488;border-radius:16px;padding:16px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+                        <div style="width:48px;height:48px;border-radius:50%;background:#0d9488;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <i class="fas fa-check" style="color:#fff;font-size:1.3rem;"></i>
                         </div>
                         <div>
-                            <div style="color:#2dd4bf;font-weight:800;font-size:1rem;">Entrée Enregistrée !</div>
-                            <div style="color:#99f6e4;font-size:0.74rem;">+${qty} ${this.esc(article.unit||'U')} ajouté(s)</div>
+                            <div style="color:#2dd4bf;font-weight:800;font-size:1.1rem;">Entrée Enregistrée !</div>
+                            <div style="color:#99f6e4;font-size:0.74rem;">Mis à jour dans MongoDB</div>
                         </div>
                     </div>
-                    <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:12px;margin-bottom:12px;font-size:0.85rem;color:#ccfbf1;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#5eead4;">Article</span><span style="font-weight:600;">${this.esc(article.designation)}</span></div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#5eead4;">Entrée</span><span style="font-weight:700;color:#34d399;">+${qty} ${this.esc(article.unit||'U')}</span></div>
-                        <div style="display:flex;justify-content:space-between;"><span style="color:#5eead4;">Nouveau stock</span><span style="font-weight:700;font-size:1.1rem;">${article.quantity} ${this.esc(article.unit||'U')}</span></div>
+                    <div style="background:rgba(0,0,0,0.3);border-radius:12px;padding:14px;margin-bottom:14px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#5eead4;font-size:0.82rem;">Article</span><span style="font-weight:600;color:#fff;font-size:0.82rem;">${this.esc(article.designation)}</span></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#5eead4;font-size:0.82rem;">Quantité ajoutée</span><span style="font-weight:800;color:#34d399;font-size:1rem;">+${qty} ${this.esc(article.unit||'U')}</span></div>
+                        <div style="display:flex;justify-content:space-between;border-top:1px solid #134e3a;padding-top:8px;margin-top:4px;"><span style="color:#5eead4;font-size:0.82rem;">Nouveau stock</span><span style="font-weight:900;color:#fff;font-size:1.3rem;">${article.quantity} ${this.esc(article.unit||'U')}</span></div>
                     </div>
-                    <button onclick="GdsScannerModule.clearResult();document.getElementById('gdsManualBarcodeInput').focus();" style="width:100%;padding:13px;border-radius:11px;background:#0d9488;color:#fff;border:none;font-weight:700;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                        <i class="fas fa-barcode"></i> <span id="gdsNextScanLabel">Scanner suivant <span id="gdsAutoTimer">(3)</span></span>
+                    <button onclick="GdsScannerModule.clearResult();document.getElementById('gdsManualBarcodeInput').focus();"
+                        style="width:100%;padding:14px;border-radius:12px;background:#0d9488;color:#fff;border:none;font-weight:700;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+                        <i class="fas fa-barcode"></i> <span>Scanner suivant <span id="gdsAutoTimer">(3)</span></span>
                     </button>
                 </div>`;
-            // Auto-advance in 3 seconds
             let countdown = 3;
             const timer = setInterval(() => {
                 countdown--;
