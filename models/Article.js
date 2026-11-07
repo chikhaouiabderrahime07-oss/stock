@@ -9,7 +9,7 @@ const articleSchema = new mongoose.Schema({
     unit: { type: String, required: true, default: 'Pièce' },
     price: { type: Number, default: 0, min: 0 },
     minThreshold: { type: Number, default: 0, min: 0 },
-    site: { type: String, default: '' },
+    site: { type: String, default: 'Dépôt Central' },
     zone: { type: String, default: 'Zone A' },
     section: { type: String, default: '' },
     barcode: { type: String, default: '', index: true },

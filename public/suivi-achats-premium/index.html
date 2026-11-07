@@ -4,14 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Suivi Achats, BC &amp; Paiements DP — Douroub</title>
-  <link rel="icon" type="image/svg+xml" href="/abdo-logo.svg" />
-  <link rel="shortcut icon" href="/abdo-logo.svg" />
+  <link rel="icon" type="image/gif" href="abdo-logo.gif" />
+  <link rel="shortcut icon" type="image/gif" href="abdo-logo.gif" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/all.min.css" />
-  <link rel="stylesheet" href="styles.css?v=6.3.0" />
-  <link rel="stylesheet" href="enhancements.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="enhancements.css?v=24" />
   <link rel="stylesheet" href="appro-nextgen.css?v=2" />
 </head>
 <body data-theme="light">
@@ -30,9 +30,12 @@
           <p>SPA DOUROUB ELDJAZAIR — Pilotage exécutif &amp; ordonnancement.</p>
         </div>
       </div>
-      
+      <div class="login-note">
+        <strong>Comptes locaux</strong>
+        <span>admin/admin · appro/appro123 · finance/finance123 · mag/mag123 · dg/dg123</span>
+      </div>
       <form id="loginForm" class="login-form">
-        <label class="field"><span>Utilisateur</span><input id="loginUsername" type="text" required placeholder="Nom d'utilisateur"></label>
+        <label class="field"><span>Utilisateur</span><input id="loginUsername" type="text" required placeholder="admin"></label>
         <label class="field"><span>Mot de passe</span><input id="loginPassword" type="password" required placeholder="••••••••"></label>
         <button class="btn btn-primary btn-block" type="submit">Entrer</button>
       </form>
@@ -44,7 +47,13 @@
     <!-- TOP NAVIGATION BAR -->
     <header class="sa-topbar" id="appHeader">
       <div class="sa-brand">
-        <img src="/abdo-logo.svg" alt="Abdo Logo" style="width:32px;height:32px;border-radius:50%;margin-right:8px;vertical-align:middle;box-shadow:0 0 10px rgba(56,189,248,0.4);" />
+        <img src="abdo-logo.gif" alt="Abdo Logo" style="width:34px;height:34px;border-radius:50%;margin-right:8px;vertical-align:middle;box-shadow:0 0 10px rgba(56,189,248,0.4);" />
+        <div class="ai-widget ai-widget-xs" id="headerAiWidget" style="display:inline-flex;margin-right:8px;vertical-align:middle;cursor:pointer;" onclick="if(window.triggerAiAction) window.triggerAiAction(this);" title="AI Engine — ABDO INTELLIGENT SYSTEMS">
+          <div class="ai-ring3"></div>
+          <div class="ai-orbit"></div>
+          <div class="ai-orbit ai-orbit-2"></div>
+          <div class="ai-core"></div>
+        </div>
         <img src="assets/image2.png" alt="Douroub Logo" class="sa-brand-logo" onerror="if(!this.dataset.triedParent){this.dataset.triedParent='1';this.src='../ERP_Douroub_v5/assets/image2.png';}else{this.style.display='none';}">
         <div class="sa-brand-text-wrap">
           <span class="sa-brand-text" id="appTitle">Suivi Achats</span>
@@ -52,16 +61,29 @@
         </div>
       </div>
 
+      <!-- CENTER TAB NAVIGATION -->
+      <nav class="sa-top-tabs tabbar" id="tabbar" role="navigation">
+        <button class="sa-top-tab tab active" data-tab="followup"><i class="fas fa-file-contract"></i><span class="tab-label">Bons de Commande</span></button>
+        <button class="sa-top-tab tab" data-tab="payments"><i class="fas fa-credit-card"></i><span class="tab-label">Paiements DP</span></button>
+        <button class="sa-top-tab tab" data-tab="smart-match"><i class="fas fa-wand-magic-sparkles"></i><span class="tab-label">Rapprochement IA</span></button>
+        <button class="sa-top-tab tab" data-tab="finance"><i class="fas fa-landmark"></i><span class="tab-label">Finances</span></button>
+        <button class="sa-top-tab tab" data-tab="reports"><i class="fas fa-chart-line"></i><span class="tab-label">Rapports</span></button>
+        <button class="sa-top-tab tab" data-tab="kpi"><i class="fas fa-gauge-high"></i><span class="tab-label">KPI</span></button>
+        <button class="sa-top-tab tab" data-tab="settings"><i class="fas fa-gear"></i><span class="tab-label">Paramètres</span></button>
+      </nav>
+
       <!-- RIGHT ACTIONS & USER PROFILE -->
       <div class="sa-topbar-right">
         <div class="sa-topbar-credits" title="ABDO INTELLIGENT SYSTEMS — Developed by CHIKHAOUI ABDERRAHIME"><i class="fas fa-shield-halved me-1 text-primary"></i> <span class="credits-text">Dev: <strong>CHIKHAOUI ABDERRAHIME</strong> · <span class="credits-firm">ABDO INTELLIGENT SYSTEMS</span></span></div>
         <a href="/#stock" class="sa-nav-pill-link" id="linkToStock" onclick="try{localStorage.setItem('erp_active_module','stock');}catch(e){}" title="Stock &amp; Flotte"><i class="fas fa-boxes-stacked"></i> <span>Stock</span></a>
+        <a href="/#stock?scan_gds=1" class="sa-nav-pill-link" id="linkToGdsScanner" onclick="try{localStorage.setItem('erp_active_module','stock');}catch(e){}" title="Scanner Mobile GDS & Déduction Rapide" style="display:inline-flex;color:#059669;border-color:rgba(5,150,105,0.3);"><i class="fas fa-qrcode"></i> <span>Scan GDS</span></a>
+        <a href="../index.html" class="sa-nav-pill-link" id="linkToPortalAppro" title="Portail"><i class="fas fa-th-large"></i> <span>Portail</span></a>
         <button class="sa-icon-btn" id="themeToggleBtn" title="Changer thème"><i class="fas fa-circle-half-stroke"></i></button>
         <select id="themeSelect" style="display:none;">
           <option value="light">Clair</option>
           <option value="dark">Sombre</option>
         </select>
-                <div class="sa-user-wrap">
+        <div class="sa-user-wrap">
           <button class="sa-user-btn" id="userChipWrap" title="Mon profil">
             <span class="sa-initials" id="currentUserLabel">AD</span>
           </button>
@@ -70,31 +92,16 @@
               <div class="sa-ucard-avatar" id="ucardInitials">AD</div>
               <div>
                 <strong id="ucardName">Administrateur</strong>
-                <span id="ucardRole">Role</span>
-                <span id="ucardService" style="font-size:0.75rem;color:var(--text-muted,#64748b);display:block;"></span>
+                <span id="ucardRole">Rôle</span>
               </div>
             </div>
             <div class="sa-ucard-divider"></div>
-            <a href="/" class="sa-ucard-link"><i class="fas fa-boxes-stacked"></i> Stock &amp; Magasin</a>
-            <a href="/general-settings.html" class="sa-ucard-link" id="bcLinkToSettings" style="display:none;"><i class="fas fa-sliders"></i> Parametres Generaux</a>
-            <button class="sa-ucard-link" id="bcSwitchModuleBtn" onclick="window.bcShowModuleGate && bcShowModuleGate()" style="display:none;"><i class="fas fa-th-large"></i> Changer de module</button>
-            <div class="sa-ucard-divider"></div>
             <div class="sa-ucard-credits"><div class="credit-firm"><i class="fas fa-shield-halved me-1"></i> ABDO INTELLIGENT SYSTEMS</div><div class="credit-dev">Developed by <strong>CHIKHAOUI ABDERRAHIME</strong></div></div>
-            <button class="sa-ucard-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Deconnexion</button>
+            <button class="sa-ucard-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
           </div>
         </div>
+      </div>
     </header>
-
-    <!-- TAB NAVIGATION — SEPARATE ROW -->
-    <nav class="sa-tab-row" id="tabbar" role="navigation">
-      <button class="sa-top-tab tab active" data-tab="followup"><i class="fas fa-file-contract"></i><span class="tab-label">Bons de Commande</span></button>
-      <button class="sa-top-tab tab" data-tab="payments"><i class="fas fa-credit-card"></i><span class="tab-label">Paiements DP</span></button>
-      <button class="sa-top-tab tab" data-tab="smart-match"><i class="fas fa-wand-magic-sparkles"></i><span class="tab-label">Rapprochement IA</span></button>
-      <button class="sa-top-tab tab" data-tab="finance"><i class="fas fa-landmark"></i><span class="tab-label">Finances</span></button>
-      <button class="sa-top-tab tab" data-tab="reports"><i class="fas fa-chart-line"></i><span class="tab-label">Rapports</span></button>
-      <button class="sa-top-tab tab" data-tab="kpi"><i class="fas fa-gauge-high"></i><span class="tab-label">KPI</span></button>
-      <button class="sa-top-tab tab" data-tab="settings"><i class="fas fa-gear"></i><span class="tab-label">Paramètres</span></button>
-    </nav>
 
     <!-- BODY: CONTENT ONLY (MAX HORIZONTAL SPACE) -->
     <div class="sa-body">
@@ -1093,10 +1100,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="data-preload.js?v=15"></script>
-  <script src="app.js?v=6.3"></script>
-  <script src="app-enhancements.js?v=6.1"></script>
+  <script src="app.js?v=6"></script>
+  <script src="app-enhancements.js?v=31"></script>
   <script src="fleet-analyzer.js?v=5"></script>
-  <script src="appro-nextgen.js?v=6.2.0"></script>
-  <script src="bc-api-bridge.js?v=6.3.0"></script>
+  <script src="appro-nextgen.js?v=1"></script>
 </body>
 </html>

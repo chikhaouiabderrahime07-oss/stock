@@ -797,7 +797,26 @@ function findBcById(id) { return state.bcRecords.find((row) => row.id === id); }
 function findPaymentById(id) { return state.payments.find((row) => row.id === id); }
 function findStockItemById(id) { return state.stockItems.find((row) => row.id === id); }
 
+function syncSuppliersFromBcRecords() {
+  if (!Array.isArray(state.bcRecords)) return;
+  if (!Array.isArray(state.suppliers)) state.suppliers = [];
+  const existingNames = new Set(state.suppliers.map(s => normalizeText(typeof s === 'string' ? s : (s.name || s))));
+  let added = false;
+  state.bcRecords.forEach(r => {
+    const sName = String(r.supplierName || '').trim();
+    if (sName && !existingNames.has(normalizeText(sName))) {
+      existingNames.add(normalizeText(sName));
+      state.suppliers.push({ id: uid('sup'), name: sName, address: '', phone: '', email: '', createdAt: nowIso() });
+      added = true;
+    }
+  });
+  if (added) {
+    state.suppliers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' }));
+  }
+}
+
 function fillReferenceLists() {
+  syncSuppliersFromBcRecords();
   const stdDepts = (typeof window.STANDARDIZED_DEPARTMENTS !== 'undefined') ? window.STANDARDIZED_DEPARTMENTS : [
     'Direction Générale',
     'Maintenance & Parc',
@@ -806,9 +825,31 @@ function fillReferenceLists() {
     'Finances & Comptabilité',
     'Magasin Central'
   ];
-  if ($('suppliersList')) $('suppliersList').innerHTML = state.suppliers.slice().sort((a, b) => a.name.localeCompare(b.name)).map((s) => `<option value="${escapeHtml(s.name)}"></option>`).join('');
+  const allSupplierNames = [...new Set([
+    ...state.suppliers.map(s => typeof s === 'string' ? s : (s.name || '')),
+    ...(state.bcRecords || []).map(r => r.supplierName || '')
+  ].map(s => String(s || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+  if ($('suppliersList')) $('suppliersList').innerHTML = allSupplierNames.map((name) => `<option value="${escapeHtml(name)}"></option>`).join('');
   if ($('requestersList')) $('requestersList').innerHTML = stdDepts.map((d) => `<option value="${escapeHtml(d)}"></option>`).join('');
   if ($('departmentsList')) $('departmentsList').innerHTML = stdDepts.map((d) => `<option value="${escapeHtml(d)}"></option>`).join('');
+
+  const kpiSup = $('kpiSupplierFilter');
+  if (kpiSup) {
+    const curVal = kpiSup.value || 'all';
+    kpiSup.innerHTML = ['<option value="all">Tous fournisseurs</option>'].concat(
+      allSupplierNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+    ).join('');
+    kpiSup.value = curVal;
+  }
+  const paySup = $('paymentFilterSupplier');
+  if (paySup) {
+    const curVal = paySup.value || 'all';
+    paySup.innerHTML = ['<option value="all">Tous fournisseurs</option>'].concat(
+      allSupplierNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+    ).join('');
+    paySup.value = curVal;
+  }
 }
 function refreshSelectOptions() {
   const payBc = $('paymentBcId');

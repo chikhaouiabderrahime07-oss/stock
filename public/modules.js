@@ -4412,7 +4412,7 @@ window.Decharges = {
                                         </td>
                                         <td>${(() => {
                                             const parseD = (v) => {
-                                                if (!v) return null;
+                                                if (!v || v === 'Invalid Date' || String(v).toLowerCase().includes('invalid')) return null;
                                                 const dt = new Date(v);
                                                 return isNaN(dt.getTime()) ? null : dt.toLocaleDateString('fr-FR');
                                             };

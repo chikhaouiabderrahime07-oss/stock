@@ -1885,8 +1885,13 @@ const ApproNextGen = window.ApproNextGen = {
     if (!section) {
       section = document.createElement('div');
       section.id = 'kpiSupplierComparisonSection';
-      const anchor = document.getElementById('kpiTopArticlesSection') || document.getElementById('kpiDelayAnalyticsSection') || document.getElementById('dashboardCharts') || document.getElementById('page-kpi');
-      if (anchor) anchor.insertAdjacentElement('afterend', section);
+      const anchor = document.getElementById('kpiTopArticlesSection') || document.getElementById('kpiDelayAnalyticsSection') || document.getElementById('dashboardCharts');
+      if (anchor) {
+        anchor.insertAdjacentElement('afterend', section);
+      } else {
+        const pk = document.getElementById('page-kpi');
+        if (pk) pk.appendChild(section);
+      }
     }
 
     const selected = this.selectedComparisonSuppliers;
@@ -1900,10 +1905,13 @@ const ApproNextGen = window.ApproNextGen = {
       return;
     }
 
-    const basePool = (typeof state !== 'undefined' && Array.isArray(state.bcRecords)) ? state.bcRecords : records;
+    const basePool = (typeof state !== 'undefined' && Array.isArray(state.bcRecords) && state.bcRecords.length > 0) ? state.bcRecords : records;
     const compData = selected.map(sup => {
       const normSup = String(sup || '').trim().toLowerCase();
-      const supRecords = basePool.filter(r => String(r.supplierName || '').trim().toLowerCase() === normSup);
+      const supRecords = basePool.filter(r => {
+        const rName = String(r.supplierName || '').trim().toLowerCase();
+        return rName === normSup || (normSup.length >= 4 && (rName.includes(normSup) || normSup.includes(rName)));
+      });
       const spend = supRecords.reduce((s, r) => s + (Number(r.amountTTC || r.amount) || 0), 0);
       const avgTicket = supRecords.length > 0 ? Math.round(spend / supRecords.length) : 0;
       const delivered = supRecords.filter(r => r.goodsReceivedDate || r.serviceDoneDate).length;

@@ -13,7 +13,7 @@ if (typeof window === 'undefined') {
 
 const STORAGE_KEY = 'erp_douroub_db';
 
-const CURRENT_DATA_VERSION = 8;
+const CURRENT_DATA_VERSION = 10;
 
 // =============================================================================
 // 1. DB (Database Engine) — localStorage wrapper
@@ -44,8 +44,13 @@ window.DB = {
         if (!this.data.counters) { this.data.counters = { decharge:1, pv:1, preorder:1, citerne:1 }; dirty = true; }
         if (!this.data.settings) { this.data.settings = this._defaultSettings(); dirty = true; }
 
-        // Clean migration to Version 7 (Zero data clean blank state)
+        // Clean migration to Version 10 (Zero dummy BT data clean blank state)
         if (!this.data.version || this.data.version < CURRENT_DATA_VERSION) {
+            try {
+                localStorage.removeItem('sde_work_plans');
+                localStorage.removeItem('sde_plans_travail');
+                localStorage.removeItem('erp_douroub_work_plans');
+            } catch(e) {}
             this.resetAllData();
             return;
         }
@@ -1095,7 +1100,7 @@ window.isUserEligibleForGdsScan = function() {
 // =============================================================================
 window.Utils = {
     formatDate(ts) {
-        if (!ts || ts === 'Invalid Date') return '-';
+        if (!ts || ts === 'Invalid Date' || String(ts).toLowerCase().includes('invalid')) return '-';
         const d = new Date(ts);
         if (isNaN(d.getTime())) {
             const m = String(ts).match(/(\d{4})(\d{2})(\d{2})/);
@@ -1105,7 +1110,7 @@ window.Utils = {
         return d.toLocaleDateString('fr-FR');
     },
     formatDateTime(ts) {
-        if (!ts || ts === 'Invalid Date') return '-';
+        if (!ts || ts === 'Invalid Date' || String(ts).toLowerCase().includes('invalid')) return '-';
         const d = new Date(ts);
         if (isNaN(d.getTime())) return this.formatDate(ts);
         return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});

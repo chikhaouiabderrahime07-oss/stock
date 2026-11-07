@@ -781,15 +781,15 @@ body {
 }
 :root {
   --bg: #f8fafc;
-  --surface: rgba(255,255,255,.98);
+  --surface: #ffffff;
   --surface-2: #f1f5f9;
   --surface-3: #e2e8f0;
   --text: #0f172a;
-  --muted: #64748b;
+  --muted: #475569;
   --line: #e2e8f0;
-  --primary: #881337;
-  --primary-soft: rgba(136,19,55,.10);
-  --shadow-sm: 0 8px 24px rgba(15, 23, 42, .06);
+  --primary: #2563eb;
+  --primary-soft: rgba(37,99,235,.10);
+  --shadow-sm: 0 4px 12px rgba(15, 23, 42, .06);
 }
 body[data-theme="dark"] {
   --bg: #0b1120;
@@ -939,10 +939,8 @@ body {
   font-family: var(--font-ui);
   font-variation-settings: normal;
   letter-spacing: -0.012em;
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--primary-soft) 70%, transparent) 0%, transparent 28%),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--info-soft) 65%, transparent) 0%, transparent 24%),
-    radial-gradient(circle at bottom, color-mix(in srgb, var(--surface-3) 70%, var(--bg)) 0%, var(--bg) 60%);
+  background: #f8fafc !important;
+  color: #0f172a !important;
 }
 .topbar-title-group h1,
 .page-header h2,

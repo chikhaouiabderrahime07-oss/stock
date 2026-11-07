@@ -78,10 +78,27 @@ router.put('/:id/close', authenticate, async (req, res) => {
   }
 });
 
-// DELETE /api/bt/:id
-router.delete('/:id', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+// DELETE /api/bt/all — Wipe all BT history (Admin only)
+router.delete('/all', authenticate, authorize('superadmin', 'directeur', 'admin'), async (req, res) => {
   try {
-    const bon = await BonTravail.findByIdAndDelete(req.params.id);
+    const result = await BonTravail.deleteMany({});
+    res.json({ message: 'Historique des bons de travail vidé avec succès', deletedCount: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/bt/:id
+router.delete('/:id', authenticate, authorize('superadmin', 'directeur', 'admin'), async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    let bon = null;
+    if (targetId.match(/^[0-9a-fA-F]{24}$/)) {
+      bon = await BonTravail.findByIdAndDelete(targetId);
+    }
+    if (!bon) {
+      bon = await BonTravail.findOneAndDelete({ $or: [{ ref: targetId }, { id: targetId }] });
+    }
     if (!bon) return res.status(404).json({ error: 'Bon de travail non trouvé' });
     res.json({ message: 'Bon de travail supprimé' });
   } catch (err) {

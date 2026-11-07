@@ -1122,8 +1122,9 @@ window.getKpiFilteredRecords = function() {
     const toDate = new Date(to);
     records = records.filter(r => new Date(r.date) <= toDate);
   }
-  if (supplier !== 'all') {
-    records = records.filter(r => r.supplierName === supplier);
+  if (supplier && supplier !== 'all') {
+    const norm = String(supplier).trim().toLowerCase();
+    records = records.filter(r => String(r.supplierName || '').trim().toLowerCase() === norm);
   }
   if (dept !== 'all') {
     records = records.filter(r => r.department === dept);
@@ -1155,39 +1156,21 @@ window.renderKpi = function() {
   if (_kpiRendering) return _baseRenderKpi();
   _kpiRendering = true;
   try {
-  // Populate KPI supplier filter with full list from DB & BC records
+  // Populate KPI supplier filter
   const kpiSupFilter = $('kpiSupplierFilter');
-  if (kpiSupFilter) {
-    const rawSups = [
-      ...(Array.isArray(state.bcRecords) ? state.bcRecords.map(r => r.supplierName) : []),
-      ...(Array.isArray(state.suppliers) ? state.suppliers.map(s => typeof s === 'object' ? s.name : s) : [])
-    ];
-    const suppliers = [...new Set(rawSups.map(s => String(s || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
-    if (suppliers.length > 0 && (kpiSupFilter.options.length <= 1 || kpiSupFilter.options.length !== suppliers.length + 1)) {
-      const currentVal = kpiSupFilter.value || 'all';
-      kpiSupFilter.innerHTML = ['<option value="all">Tous fournisseurs</option>'].concat(
-        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
-      ).join('');
-      if (suppliers.includes(currentVal)) kpiSupFilter.value = currentVal;
-      else kpiSupFilter.value = 'all';
-    }
+  if (kpiSupFilter && kpiSupFilter.options.length <= 1) {
+    const suppliers = [...new Set(state.bcRecords.map(r => r.supplierName).filter(Boolean))].sort();
+    suppliers.forEach(s => {
+      kpiSupFilter.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`);
+    });
   }
   // Populate KPI dept filter
   const kpiDeptFilter = $('kpiDeptFilter');
-  if (kpiDeptFilter) {
-    const rawDepts = [
-      ...(Array.isArray(state.bcRecords) ? state.bcRecords.map(r => r.department) : []),
-      ...(Array.isArray(state.departments) ? state.departments : [])
-    ];
-    const depts = [...new Set(rawDepts.map(d => String(d || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
-    if (depts.length > 0 && (kpiDeptFilter.options.length <= 1 || kpiDeptFilter.options.length !== depts.length + 1)) {
-      const currentDept = kpiDeptFilter.value || 'all';
-      kpiDeptFilter.innerHTML = ['<option value="all">Toutes structures</option>'].concat(
-        depts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`)
-      ).join('');
-      if (depts.includes(currentDept)) kpiDeptFilter.value = currentDept;
-      else kpiDeptFilter.value = 'all';
-    }
+  if (kpiDeptFilter && kpiDeptFilter.options.length <= 1) {
+    const depts = [...new Set(state.bcRecords.map(r => r.department).filter(Boolean))].sort();
+    depts.forEach(d => {
+      kpiDeptFilter.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`);
+    });
   }
 
   const records = getKpiFilteredRecords();
@@ -2372,8 +2355,16 @@ window.deleteUserFromSettings = function(username) {
   }
 };
 
-// Wire user modal controls (user chip is handled by app.js — do NOT re-bind here)
+// Wire user modal controls & user chip
 document.addEventListener('DOMContentLoaded', () => {
+  const chip = document.getElementById('userChipWrap') || document.querySelector('.user-chip');
+  if (chip) {
+    chip.addEventListener('click', () => {
+      const u = (typeof state !== 'undefined' && state.session) ? state.session.username : 'admin';
+      showUserModal(u);
+    });
+  }
+
   const addBtn = document.getElementById('addNewUserBtn');
   if (addBtn) addBtn.addEventListener('click', () => showUserModal());
 
@@ -2412,279 +2403,8 @@ if (document.readyState === 'loading') {
 
 // GDS Stock Mobile Scanner Inter-App Bridge
 window.openGdsStockScanner = function() {
-  try { localStorage.setItem('erp_active_module', 'stock'); } catch(e) {}
-  const isHttp = (typeof window !== 'undefined' && window.location && window.location.protocol) ? window.location.protocol.startsWith('http') : false;
-  window.location.href = isHttp ? '/?scan_gds=1#stock' : '../index.html?scan_gds=1#stock';
+  window.location.href = '../ERP_Douroub_v5/index.html?scan_gds=1';
 };
-
-// ================================================================
-// SHARED SETTINGS — Users & Backup sync with MongoDB (admin only)
-// Overrides local state.users with MongoDB /api/auth/users
-// ================================================================
-(function setupSharedUserManagement() {
-  'use strict';
-
-  function getToken() {
-    return localStorage.getItem('erp_jwt_token') || '';
-  }
-
-  function isAdmin() {
-    var session = (typeof state !== 'undefined') ? state.session : null;
-    if (!session) return false;
-    return session.role === 'admin' || session.role === 'superadmin' || session.role === 'directeur';
-  }
-
-  // ── Fetch users from MongoDB ──────────────────────────────────
-  async function fetchMongoUsers() {
-    var token = getToken();
-    if (!token) return null;
-    try {
-      var res = await fetch('/api/auth/users', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      if (!res.ok) return null;
-      var data = await res.json();
-      return Array.isArray(data.users) ? data.users : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // ── Override renderUsersSettingsTable to load from MongoDB ────
-  window.renderUsersSettingsTable = async function() {
-    var tbody = document.getElementById('usersSettingsTableBody');
-    if (!tbody) return;
-
-    // Show loading state
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:16px;color:#64748b;"><i class="fas fa-spinner fa-spin me-2"></i>Chargement depuis MongoDB...</td></tr>';
-
-    var mongoUsers = isAdmin() ? await fetchMongoUsers() : null;
-
-    if (mongoUsers && mongoUsers.length > 0) {
-      // Sync to state.users for local login fallback
-      state.users = mongoUsers.map(function(u) {
-        return { id: u.id || u._id, username: u.username, role: u.role, name: u.name || u.username };
-      });
-
-      tbody.innerHTML = mongoUsers.map(function(u) {
-        var roleColors = {
-          superadmin: 'background:rgba(239,68,68,0.15);color:#ef4444;',
-          admin: 'background:rgba(239,68,68,0.15);color:#ef4444;',
-          directeur: 'background:rgba(139,92,246,0.15);color:#7c3aed;',
-          magasinier: 'background:rgba(16,185,129,0.15);color:#10b981;',
-          procurement: 'background:rgba(59,130,246,0.15);color:#3b82f6;',
-          finance: 'background:rgba(245,158,11,0.15);color:#d97706;'
-        };
-        var roleColor = roleColors[u.role] || 'background:rgba(148,163,184,0.15);color:#64748b;';
-        var roleLabel = {
-          superadmin: 'Super Admin',
-          admin: 'Administrateur',
-          directeur: 'Directeur',
-          magasinier: 'Magasinier / GDS',
-          procurement: 'Acheteur / Appro',
-          finance: 'Finance / Trésorerie',
-          user: 'Utilisateur'
-        }[u.role] || u.role;
-
-        return '<tr>' +
-          '<td><strong>👤 ' + escapeHtml(u.username) + '</strong>' +
-          (u.name && u.name !== u.username ? '<br><small style="color:#64748b;">' + escapeHtml(u.name) + '</small>' : '') + '</td>' +
-          '<td><span style="' + roleColor + 'font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.78rem;">' + roleLabel + '</span></td>' +
-          '<td><code>••••••••</code></td>' +
-          '<td style="text-align:right;">' +
-          '<button class="btn btn-soft" type="button" style="padding:0.25rem 0.5rem;font-size:0.75rem;" onclick="showUserModal(\'' + escapeHtml(u.username) + '\')" title="Modifier">⚙️ Paramètres</button> ' +
-          (u.username !== 'admin' ? '<button class="btn btn-ghost" type="button" style="padding:0.25rem 0.4rem;font-size:0.75rem;color:#ef4444;" onclick="deleteUserFromSettings(\'' + escapeHtml(u.username) + '\',\'' + escapeHtml(u.id || u._id || '') + '\')" title="Supprimer">🗑️</button>' : '') +
-          '</td></tr>';
-      }).join('');
-    } else {
-      // Fallback to local state.users
-      var users = (typeof state !== 'undefined' && Array.isArray(state.users)) ? state.users : [];
-      if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:12px;">Aucun utilisateur configuré.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = users.map(function(u) {
-        return '<tr><td><strong>👤 ' + escapeHtml(u.username) + '</strong></td><td>' + escapeHtml(u.role) + '</td><td><code>••••••••</code></td>' +
-          '<td style="text-align:right;"><button class="btn btn-soft" type="button" style="padding:0.25rem 0.5rem;font-size:0.75rem;" onclick="showUserModal(\'' + escapeHtml(u.username) + '\')">⚙️ Paramètres</button></td></tr>';
-      }).join('');
-    }
-  };
-
-  // ── Override saveUserModal to POST/PUT to MongoDB ─────────────
-  window.saveUserModal = async function() {
-    var origInput = document.getElementById('userModalOriginalUsername');
-    var userInput = document.getElementById('userModalUsername');
-    var passInput = document.getElementById('userModalPassword');
-    var roleInput = document.getElementById('userModalRole');
-    var nameInput = document.getElementById('userModalName');
-
-    var origUsername = origInput ? origInput.value.trim() : '';
-    var newUsername = userInput ? userInput.value.trim() : '';
-    var newPassword = passInput ? passInput.value.trim() : '';
-    var newRole = roleInput ? roleInput.value : 'procurement';
-    var newName = nameInput ? nameInput.value.trim() : newUsername;
-
-    if (!newUsername) {
-      if (typeof showToast === 'function') showToast('Identifiant requis.');
-      return;
-    }
-
-    var token = getToken();
-    if (token && isAdmin()) {
-      try {
-        var res;
-        if (origUsername) {
-          // Find existing user id from state.users
-          var existingUser = (state.users || []).find(function(u) { return u.username === origUsername; });
-          var userId = existingUser ? (existingUser.id || existingUser._id) : null;
-          if (userId) {
-            var body = { name: newName || newUsername, role: newRole };
-            if (newPassword) body.password = newPassword;
-            res = await fetch('/api/auth/users/' + userId, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-              body: JSON.stringify(body)
-            });
-          } else {
-            res = { ok: false };
-          }
-        } else {
-          // Create new user
-          res = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ username: newUsername, password: newPassword || '123456', name: newName || newUsername, role: newRole })
-          });
-        }
-        if (res && res.ok) {
-          if (typeof showToast === 'function') showToast('Utilisateur enregistré dans MongoDB ✓');
-        } else {
-          var errData = res && res.json ? await res.json().catch(function() { return {}; }) : {};
-          if (typeof showToast === 'function') showToast('Erreur: ' + (errData.error || 'Sauvegarde échouée'));
-        }
-      } catch (e) {
-        if (typeof showToast === 'function') showToast('Erreur réseau: ' + e.message);
-      }
-    } else {
-      // Fallback: save to local state.users only
-      if (!Array.isArray(state.users)) state.users = [];
-      if (origUsername) {
-        var u = state.users.find(function(x) { return x.username === origUsername; });
-        if (u) { u.username = newUsername; if (newPassword) u.password = newPassword; u.role = newRole; }
-      } else {
-        if (state.users.some(function(x) { return x.username === newUsername; })) {
-          if (typeof showToast === 'function') showToast('Cet identifiant existe déjà.');
-          return;
-        }
-        state.users.push({ username: newUsername, password: newPassword || '123456', role: newRole });
-      }
-      if (typeof saveState === 'function') saveState();
-      if (typeof showToast === 'function') showToast('Paramètres utilisateur enregistrés.');
-    }
-
-    if (typeof closeUserModal === 'function') closeUserModal();
-    if (typeof renderUsersSettingsTable === 'function') renderUsersSettingsTable();
-  };
-
-  // ── Override deleteUserFromSettings to call MongoDB DELETE ────
-  window.deleteUserFromSettings = async function(username, userId) {
-    if (username === 'admin') {
-      if (typeof showToast === 'function') showToast('Impossible de supprimer le compte administrateur principal.');
-      return;
-    }
-    if (!confirm('Supprimer définitivement le compte "' + username + '" ?')) return;
-
-    var token = getToken();
-    if (token && isAdmin() && userId) {
-      try {
-        var res = await fetch('/api/auth/users/' + userId, {
-          method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (res.ok) {
-          if (typeof showToast === 'function') showToast('Utilisateur supprimé de MongoDB ✓');
-        } else {
-          var errData = await res.json().catch(function() { return {}; });
-          if (typeof showToast === 'function') showToast('Erreur: ' + (errData.error || 'Suppression échouée'));
-          return;
-        }
-      } catch (e) {
-        if (typeof showToast === 'function') showToast('Erreur réseau: ' + e.message);
-        return;
-      }
-    } else {
-      state.users = (state.users || []).filter(function(u) { return u.username !== username; });
-      if (typeof saveState === 'function') saveState();
-      if (typeof showToast === 'function') showToast('Utilisateur supprimé.');
-    }
-
-    if (typeof renderUsersSettingsTable === 'function') renderUsersSettingsTable();
-  };
-
-  // ── Add MongoDB Backup card to BC settings panel ──────────────
-  document.addEventListener('DOMContentLoaded', function() {
-    var settingsPage = document.getElementById('page-settings');
-    if (!settingsPage) return;
-    var backupPanel = settingsPage.querySelector('.panel-danger');
-    if (!backupPanel) return;
-
-    var mongoBackupCard = document.createElement('article');
-    mongoBackupCard.className = 'panel';
-    mongoBackupCard.id = 'panelMongoBackup';
-    mongoBackupCard.innerHTML = '<div class="panel-title-row"><h3>Sauvegarde Automatique MongoDB</h3><span class="panel-tag">Sécurité</span></div>' +
-      '<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;">Une sauvegarde automatique est effectuée chaque jour à <strong>00:00 (heure Algérie)</strong>.</p>' +
-      '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
-      '<button class="btn btn-soft" type="button" onclick="bcTriggerBackup()"><i class="fas fa-play me-1"></i>Déclencher une sauvegarde manuelle</button>' +
-      '<button class="btn btn-soft" type="button" onclick="bcShowBackupHistory()"><i class="fas fa-history me-1"></i>Voir l\'historique</button>' +
-      '</div>' +
-      '<div id="bcBackupHistoryList" style="display:none;margin-top:10px;max-height:180px;overflow-y:auto;font-size:0.8rem;"></div>';
-
-    backupPanel.parentNode.insertBefore(mongoBackupCard, backupPanel);
-  });
-
-  window.bcTriggerBackup = async function() {
-    var token = getToken();
-    if (!token) { if (typeof showToast === 'function') showToast('Non authentifié.'); return; }
-    try {
-      if (typeof showToast === 'function') showToast('Sauvegarde en cours...');
-      var res = await fetch('/api/backup', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-      var data = await res.json().catch(function() { return {}; });
-      if (res.ok) {
-        if (typeof showToast === 'function') showToast('Sauvegarde MongoDB créée avec succès !');
-      } else {
-        if (typeof showToast === 'function') showToast('Erreur: ' + (data.error || 'Sauvegarde échouée'));
-      }
-    } catch (e) {
-      if (typeof showToast === 'function') showToast('Erreur réseau: ' + e.message);
-    }
-  };
-
-  window.bcShowBackupHistory = async function() {
-    var token = getToken();
-    if (!token) return;
-    var list = document.getElementById('bcBackupHistoryList');
-    if (!list) return;
-    try {
-      var res = await fetch('/api/backup', { headers: { 'Authorization': 'Bearer ' + token } });
-      var data = await res.json().catch(function() { return {}; });
-      var backups = data.backups || [];
-      list.style.display = 'block';
-      if (backups.length === 0) {
-        list.innerHTML = '<p style="color:var(--muted)">Aucune sauvegarde trouvée.</p>';
-      } else {
-        list.innerHTML = '<table style="width:100%;border-collapse:collapse;">' +
-          backups.slice(0, 10).map(function(b) {
-            return '<tr style="border-bottom:1px solid var(--border)">' +
-              '<td style="padding:4px 6px;">' + escapeHtml(b.type || 'auto') + '</td>' +
-              '<td style="padding:4px 6px;color:var(--muted);">' + (b.createdAt ? new Date(b.createdAt).toLocaleString('fr-DZ') : '—') + '</td>' +
-              '</tr>';
-          }).join('') + '</table>';
-      }
-    } catch (e) {
-      if (list) list.innerHTML = '<p style="color:#ef4444">Erreur: ' + e.message + '</p>';
-    }
-  };
-})();
 
 
 

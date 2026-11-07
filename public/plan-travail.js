@@ -437,227 +437,12 @@ window.PlanTravailModule = {
         this.ensureStorage();
         if (!this.pendingSelection) this.pendingSelection = new Map();
 
-        // Seed realistic maintenance data if empty
-        if (!DB.data.workPlans || DB.data.workPlans.length === 0) {
-            DB.data.workPlans = [
-                {
-                    id: 'wp_seed_1',
-                    ref: 'BT-2026-0001',
-                    date: '2026-03-24',
-                    brand: 'MAN',
-                    model: 'TGS 19.400 4x2',
-                    immatriculation: '000065-525-07',
-                    vin: 'WMA06KZZ5SP312484',
-                    km: '185420',
-                    driver: 'Khelifi Ahmed',
-                    typeIntervention: 'Corrective',
-                    vehicleType: 'truck_heavy_4x2',
-                    affectedOrgans: ['Freins Avant & Étriers', 'Plaquettes de frein (Roue AV-G)'],
-                    wheelStates: { wheel_av_g: 'pads_only' },
-                    wheelSubComponents: { wheel_av_g: { plaquettes: true, pneu: false, disque: false, etrier: false, roulement: false, goujons: false } },
-                    defectDescription: "Sifflement intense au freinage sur le train avant gauche. Usure prononcee des plaquettes de frein d'origine.",
-                    workDone: "Remplacement jeu de plaquettes de frein avant MAN. Nettoyage de l'etrier et controle du disque de frein. Purge du circuit.",
-                    parts: [
-                        { designation: 'JEU DE PLAQUETTES DE FREIN AVANT MAN', ref: 'MAN-BRK-001', qty: 1, obs: "Piece d'origine MTC" },
-                        { designation: 'NETTOYANT FREINS AEROSOL', ref: 'CON-005', qty: 2, obs: 'Consommable atelier' }
-                    ],
-                    result: 'Fonctionnel',
-                    futureWork: 'Controler le serrage des ecrous de roue apres 100 km de roulage.',
-                    status: 'Valide',
-                    createdAt: '2026-03-24T10:30:00.000Z',
-                    signatures: {
-                        gestionStock: { name: 'LEKCIR YASSINE', date: '2026-03-24', role: 'Chef Section Gestion Stocks' },
-                        methode: { name: 'TOUNSI ALI', date: '2026-03-24', role: 'Chef Section Methode' },
-                        superviseur: { name: 'MERDACI ABDELDJALIL', date: '2026-03-24', role: 'Chef Service Exploitation' }
-                    }
-                },
-                {
-                    id: 'wp_seed_2',
-                    ref: 'BT-2026-0002',
-                    date: '2026-03-28',
-                    brand: 'HOWO',
-                    model: 'Sinotruk 6x4 Heavy',
-                    immatriculation: '000111-525-07',
-                    vin: 'LZZ5CLSC3SP112001',
-                    km: '94200',
-                    driver: 'Boussaid Mourad',
-                    typeIntervention: 'Preventive',
-                    vehicleType: 'truck_heavy_6x4',
-                    affectedOrgans: ['Paquets de Lames de Ressorts Renforces', 'Pont Moteur Tandem 1'],
-                    wheelStates: {},
-                    wheelSubComponents: {},
-                    defectDescription: 'Entretien periodique des 90 000 km. Graissage complet du tandem 6x4 et resserrage des brides de suspension.',
-                    workDone: 'Vidange huile de pont tandem 80W90. Graissage general des croisillons de transmission et axes de ressorts a lames.',
-                    parts: [
-                        { designation: 'GRAISSE MAGIC EP2-MAGEP2001', ref: 'LUB-012', qty: 4, obs: 'Graissage haute pression' },
-                        { designation: 'HUILE DE PONT 80W90', ref: 'OIL-008', qty: 18, obs: 'Bidons 1L' }
-                    ],
-                    result: 'Fonctionnel',
-                    futureWork: 'Prochaine vidange moteur a 105 000 km.',
-                    status: 'Valide',
-                    createdAt: '2026-03-28T14:15:00.000Z',
-                    signatures: {
-                        gestionStock: { name: 'LEKCIR YASSINE', date: '2026-03-28', role: 'Chef Section Gestion Stocks' },
-                        methode: { name: 'TOUNSI ALI', date: '2026-03-28', role: 'Chef Section Methode' },
-                        superviseur: { name: 'MERDACI ABDELDJALIL', date: '2026-03-28', role: 'Chef Service Exploitation' }
-                    }
-                },
-                {
-                    id: 'wp_seed_3',
-                    ref: 'BT-2026-0003',
-                    date: '2026-04-02',
-                    brand: 'FIAT',
-                    model: 'DOBLO 1.3 Multijet Diesel',
-                    immatriculation: '000028-323-07',
-                    vin: 'ZFA2630000654129',
-                    km: '68500',
-                    driver: 'Bensaad Tarek',
-                    typeIntervention: 'Corrective',
-                    vehicleType: 'diesel_car',
-                    affectedOrgans: ['Turbo & Circuit Suralimentation', 'Filtre a Carburant Gasoil'],
-                    wheelStates: {},
-                    wheelSubComponents: {},
-                    defectDescription: 'Perte de puissance et sifflement au niveau du turbo-compresseur au-dela de 2200 tr/min.',
-                    workDone: 'Remplacement durite de suralimentation percee. Nettoyage vanne EGR et changement filtre a gasoil.',
-                    parts: [
-                        { designation: 'DURITE TURBO MULTIJET', ref: 'TUR-002', qty: 1, obs: 'Durite silicone renforcee' },
-                        { designation: 'FILTRE GASOIL CARTOUCHE', ref: 'FLT-004', qty: 1, obs: 'Origine Fiat' }
-                    ],
-                    result: 'Fonctionnel',
-                    futureWork: 'Controler le serrage des colliers dans 500 km.',
-                    status: 'Valide',
-                    createdAt: '2026-04-02T09:00:00.000Z',
-                    signatures: {
-                        gestionStock: { name: 'LEKCIR YASSINE', date: '2026-04-02', role: 'Chef Section Gestion Stocks' },
-                        methode: { name: 'TOUNSI ALI', date: '2026-04-02', role: 'Chef Section Methode' },
-                        superviseur: { name: 'MERDACI ABDELDJALIL', date: '2026-04-02', role: 'Chef Service Exploitation' }
-                    }
-                },
-                {
-                    id: 'wp_seed_4',
-                    ref: 'BT-2026-0004',
-                    date: '2026-04-10',
-                    brand: 'ISUZU',
-                    model: 'NPR 75 Camion Leger',
-                    immatriculation: '000450-525-07',
-                    vin: 'JAANPR75K7201944',
-                    km: '112000',
-                    driver: 'Meziane Farouk',
-                    typeIntervention: 'Corrective',
-                    vehicleType: 'small_truck',
-                    affectedOrgans: ['Embrayage & Butee', 'Freinage Arriere Tambour'],
-                    wheelStates: {},
-                    wheelSubComponents: {},
-                    defectDescription: "Patinage du disque d'embrayage lors des demarrages en charge sur rampe.",
-                    workDone: 'Depose boite de vitesses, remplacement kit complet embrayage (mecanisme, disque, butee).',
-                    parts: [
-                        { designation: 'KIT EMBRAYAGE ISUZU NPR', ref: 'CLU-005', qty: 1, obs: 'Kit 3 pieces' }
-                    ],
-                    result: 'Fonctionnel',
-                    futureWork: 'Reglage de la garde de pedale apres 1000 km.',
-                    status: 'Valide',
-                    createdAt: '2026-04-10T11:00:00.000Z',
-                    signatures: {
-                        gestionStock: { name: 'LEKCIR YASSINE', date: '2026-04-10', role: 'Chef Section Gestion Stocks' },
-                        methode: { name: 'TOUNSI ALI', date: '2026-04-10', role: 'Chef Section Methode' },
-                        superviseur: { name: 'MERDACI ABDELDJALIL', date: '2026-04-10', role: 'Chef Service Exploitation' }
-                    }
-                },
-                {
-                    id: 'wp_seed_5',
-                    ref: 'BT-2026-0005',
-                    date: '2026-10-21',
-                    brand: 'MAN',
-                    model: 'TGS 19.400 4x2',
-                    immatriculation: '000065-525-07',
-                    vin: 'WMA06KZZ5SP312484',
-                    km: '198200',
-                    driver: 'Khelifi Ahmed',
-                    typeIntervention: 'Corrective',
-                    vehicleType: 'truck_heavy_4x2',
-                    affectedOrgans: ['Turbocompresseur & Intercooler', 'Filtre a Huile Moteur'],
-                    wheelStates: {},
-                    wheelSubComponents: {},
-                    defectDescription: 'Chute de pression de suralimentation détectée au diagnostic OBD. Fuite sur durite échangeur air-air.',
-                    workDone: 'Démontage échangeur intercooler, remplacement durite silicone renforcée et test d\'étanchéité circuit turbo.',
-                    parts: [
-                        { designation: 'DURITE SILICONE SURALIMENTATION MAN', ref: 'MAN-TRB-014', qty: 1, obs: 'Pièce renforcée' },
-                        { designation: 'COLLIER DE SERRAGE RENFORCE 85-90MM', ref: 'CON-088', qty: 2, obs: 'Inox' }
-                    ],
-                    result: 'A surveiller',
-                    futureWork: 'Essai en charge sur route nationale après serrage définitif.',
-                    status: 'En cours',
-                    createdAt: '2026-10-21T08:30:00.000Z',
-                    signatures: {
-                        gestionStock: { name: 'LEKCIR YASSINE', date: '2026-10-21', role: 'Chef Section Gestion Stocks' },
-                        methode: { name: 'TOUNSI ALI', date: '2026-10-21', role: 'Chef Section Methode' },
-                        superviseur: { name: 'MERDACI ABDELDJALIL', date: '2026-10-21', role: 'Chef Service Exploitation' }
-                    }
-                },
-                {
-                    id: 'wp_seed_6',
-                    ref: 'BT-2026-0006',
-                    date: '2026-10-22',
-                    brand: 'HOWO',
-                    model: 'Sinotruk 6x4 Heavy',
-                    immatriculation: '000111-525-07',
-                    vin: 'LZZ5CLSC3SP112001',
-                    km: '106400',
-                    driver: 'Boussaid Mourad',
-                    typeIntervention: 'Corrective',
-                    vehicleType: 'truck_heavy_6x4',
-                    affectedOrgans: ['Tandem Double Pont Moteur 6x4 & Balancier Bogie', 'Arbres de Transmission Tandem'],
-                    wheelStates: {},
-                    wheelSubComponents: {},
-                    defectDescription: 'Vibrations anormales sur le train tandem arrière lors des accélérations en charge.',
-                    workDone: 'Diagnostic en cours. Contrôle du jeu axial du pont intermédiaire et examen des silentblocs de balancier.',
-                    parts: [
-                        { designation: 'CROISILLON DE TRANSMISSION HOWO 6X4', ref: 'HOWO-DRV-003', qty: 2, obs: 'En attente magasin' }
-                    ],
-                    result: 'Non resolu',
-                    futureWork: 'Vérification du calage du différentiel inter-pont.',
-                    status: 'En attente',
-                    createdAt: '2026-10-22T14:00:00.000Z',
-                    signatures: {
-                        gestionStock: { name: 'LEKCIR YASSINE', date: '2026-10-22', role: 'Chef Section Gestion Stocks' },
-                        methode: { name: 'TOUNSI ALI', date: '2026-10-22', role: 'Chef Section Methode' },
-                        superviseur: { name: 'MERDACI ABDELDJALIL', date: '2026-10-22', role: 'Chef Service Exploitation' }
-                    }
-                },
-                {
-                    id: 'wp_seed_7',
-                    ref: 'BT-2026-0007',
-                    date: '2026-10-23',
-                    brand: 'FIAT',
-                    model: 'DOBLO 1.3 Multijet Diesel',
-                    immatriculation: '000028-323-07',
-                    vin: 'ZFA2630000654129',
-                    km: '74100',
-                    driver: 'Bensaad Tarek',
-                    typeIntervention: 'Preventive',
-                    vehicleType: 'diesel_car',
-                    affectedOrgans: ['Suspension McPherson Avant & Crémaillère', 'Roue Avant Gauche (AV-G)'],
-                    wheelStates: { wheel_fl: 'pads_only' },
-                    wheelSubComponents: { wheel_fl: { plaquettes: true, pneu: false, disque: false, etrier: false, roulement: false, goujons: false } },
-                    defectDescription: 'Contrôle des rotules de suspension et remplacement préventif des plaquettes avant.',
-                    workDone: 'Remplacement plaquettes de frein avant et graissage des colonnettes d\'étrier.',
-                    parts: [
-                        { designation: 'JEU PLAQUETTES DE FREIN FIAT DOBLO', ref: 'DOB-BRK-001', qty: 1, obs: 'Origine Fiat' }
-                    ],
-                    result: 'Fonctionnel',
-                    futureWork: 'Contrôle parallélisme dans 10 000 km.',
-                    status: 'Contrôle Qualité',
-                    createdAt: '2026-10-23T09:15:00.000Z',
-                    signatures: {
-                        gestionStock: { name: 'LEKCIR YASSINE', date: '2026-10-23', role: 'Chef Section Gestion Stocks' },
-                        methode: { name: 'TOUNSI ALI', date: '2026-10-23', role: 'Chef Section Methode' },
-                        superviseur: { name: 'MERDACI ABDELDJALIL', date: '2026-10-23', role: 'Chef Service Exploitation' }
-                    }
-                }
-            ];
-            DB.data.counters.workPlan = 8;
-            if (DB.save) DB.save();
+        // Keep workPlans clean - no forced dummy test seeds
+        if (!Array.isArray(DB.data.workPlans)) {
+            DB.data.workPlans = [];
         }
+        DB.data.plans_travail = DB.data.workPlans;
+        DB.data.reparations = DB.data.workPlans;
     },
 
     // 2. Component History & Recurrence Detection Engine
@@ -1752,14 +1537,21 @@ window.PlanTravailModule = {
                                 <i class="fas fa-arrow-rotate-left"></i>
                             </button>
                         </div>
+                        ${(typeof Auth !== 'undefined' && Auth.isAdmin && Auth.isAdmin()) ? `
+                        <div class="col-md-2 ms-auto text-end">
+                            <button type="button" class="btn btn-sm btn-danger text-white fw-bold w-100" onclick="PlanTravailModule.clearAllHistory()" title="Supprimer TOUT l'historique des bons de travail (Admin)">
+                                <i class="fas fa-trash-can me-1"></i> Vider Tout
+                            </button>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
 
                 <!-- Comprehensive History Table -->
                 <div class="card shadow-sm border-0" style="border-radius:12px;overflow:hidden;background:var(--surface);">
                     <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0" id="btHistoryTable">
+                        <div class="table-responsive" style="overflow-x:auto;">
+                            <table class="table table-hover align-middle mb-0" id="btHistoryTable" style="min-width:1320px;">
                                 <thead style="background:var(--surface-alt, #1e293b);font-size:11.5px;text-transform:uppercase;letter-spacing:0.5px;">
                                     <tr>
                                         <th class="ps-3" style="width:130px;">N° BT</th>
@@ -1771,7 +1563,7 @@ window.PlanTravailModule = {
                                         <th style="width:150px;">Mécanicien / Atelier</th>
                                         <th style="width:120px;">Coût Estimé</th>
                                         <th style="width:130px;">Statut</th>
-                                        <th class="text-end pe-3" style="min-width:260px;">Actions</th>
+                                        <th class="text-end pe-3" style="min-width:280px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1901,6 +1693,11 @@ window.PlanTravailModule = {
                                     <i class="fas fa-flag-checkered"></i>
                                 </button>
                             `}
+                            ${(typeof Auth !== 'undefined' && Auth.isAdmin && Auth.isAdmin()) ? `
+                                <button class="btn btn-outline-danger" onclick="PlanTravailModule.deletePlan('${p.id}')" title="Supprimer définitivement cet ordre (Admin)">
+                                    <i class="fas fa-trash-can"></i>
+                                </button>
+                            ` : ''}
                         </div>
                     </td>
                 </tr>
@@ -6649,16 +6446,98 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
         return true;
     },
 
-    deletePlan(planId) {
-        if (!confirm('Etes-vous sur de vouloir supprimer definitivement ce bon de travail ?')) return;
+    async deletePlan(planId) {
+        if (typeof Auth !== 'undefined' && Auth.isAdmin && !Auth.isAdmin()) {
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                Utils.showNotification('Action réservée aux administrateurs.', 'danger');
+            } else {
+                alert('Action réservée aux administrateurs.');
+            }
+            return;
+        }
+        if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement ce bon de travail ? Cette action est irréversible.')) return;
         this.ensureStorage();
-        DB.data.workPlans = (DB.data.workPlans || []).filter(p => p.id !== planId);
+
+        try {
+            const token = localStorage.getItem('erp_jwt_token') || sessionStorage.getItem('erp_jwt_token');
+            if (token) {
+                await fetch('/api/bt/' + encodeURIComponent(planId), {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                });
+            }
+        } catch (e) {
+            console.warn('API BT delete fallback to local:', e);
+        }
+
+        const targetId = String(planId);
+        DB.data.workPlans = (DB.data.workPlans || []).filter(p => String(p.id) !== targetId && String(p.ref) !== targetId && String(p._id) !== targetId);
         DB.data.plans_travail = DB.data.workPlans;
         DB.data.reparations = DB.data.workPlans;
         if (DB.save) DB.save();
-        Utils.showNotification('Bon de travail supprime.', 'info');
-        if (typeof App !== 'undefined' && App.currentModule === 'planTravail') {
-            App.loadModule('planTravail');
+
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('sde_work_plans', JSON.stringify(DB.data.workPlans));
+                localStorage.setItem('sde_plans_travail', JSON.stringify(DB.data.workPlans));
+            }
+        } catch(e) {}
+
+        if (typeof Utils !== 'undefined' && Utils.showNotification) {
+            Utils.showNotification('Bon de travail supprimé définitivement.', 'success');
+        }
+
+        const tbody = (typeof document !== "undefined" && typeof document.querySelector === "function") ? document.querySelector("#btHistoryTable tbody") : null;
+        if (tbody) {
+            tbody.innerHTML = this.renderHistoryTableRows(this.getFilteredHistoryPlans());
+        } else if (typeof App !== 'undefined' && App.loadModule) {
+            App.loadModule('planTravail', 'history');
+        }
+    },
+
+    async clearAllHistory() {
+        if (typeof Auth !== 'undefined' && Auth.isAdmin && !Auth.isAdmin()) {
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                Utils.showNotification('Action réservée aux administrateurs.', 'danger');
+            } else {
+                alert('Action réservée aux administrateurs.');
+            }
+            return;
+        }
+        if (!confirm("⚠️ ATTENTION : Êtes-vous sûr de vouloir supprimer TOUT l'historique des bons de travail ?\nTous les ordres de travail seront définitivement effacés.")) return;
+        this.ensureStorage();
+
+        try {
+            const token = localStorage.getItem('erp_jwt_token') || sessionStorage.getItem('erp_jwt_token');
+            if (token) {
+                await fetch('/api/bt/all', {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                });
+            }
+        } catch (e) {
+            console.warn('API BT clear all fallback to local:', e);
+        }
+
+        DB.data.workPlans = [];
+        DB.data.plans_travail = [];
+        DB.data.reparations = [];
+        if (DB.save) DB.save();
+
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.removeItem('sde_work_plans');
+                localStorage.removeItem('sde_plans_travail');
+                localStorage.removeItem('erp_douroub_work_plans');
+            }
+        } catch(e) {}
+
+        if (typeof Utils !== 'undefined' && Utils.showNotification) {
+            Utils.showNotification("Historique complet des bons de travail effacé.", 'info');
+        }
+
+        if (typeof App !== 'undefined' && App.loadModule) {
+            App.loadModule('planTravail', 'history');
         }
     },
 

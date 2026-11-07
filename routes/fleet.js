@@ -36,7 +36,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/fleet
-router.post('/', authenticate, authorize('superadmin', 'directeur', 'magasinier'), async (req, res) => {
+router.post('/', authenticate, authorize('superadmin', 'directeur', 'admin', 'magasinier'), async (req, res) => {
   try {
     const vehicle = await Fleet.create(req.body);
     res.status(201).json({ vehicle });
@@ -49,7 +49,7 @@ router.post('/', authenticate, authorize('superadmin', 'directeur', 'magasinier'
 });
 
 // PUT /api/fleet/:id
-router.put('/:id', authenticate, authorize('superadmin', 'directeur', 'magasinier'), async (req, res) => {
+router.put('/:id', authenticate, authorize('superadmin', 'directeur', 'admin', 'magasinier'), async (req, res) => {
   try {
     const vehicle = await Fleet.findByIdAndUpdate(req.params.id, req.body, {
       new: true, runValidators: true
@@ -62,7 +62,7 @@ router.put('/:id', authenticate, authorize('superadmin', 'directeur', 'magasinie
 });
 
 // DELETE /api/fleet/:id
-router.delete('/:id', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+router.delete('/:id', authenticate, authorize('superadmin', 'directeur', 'admin'), async (req, res) => {
   try {
     const vehicle = await Fleet.findByIdAndDelete(req.params.id);
     if (!vehicle) return res.status(404).json({ error: 'Véhicule non trouvé' });

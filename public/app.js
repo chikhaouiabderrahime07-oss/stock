@@ -971,7 +971,8 @@ const App = {
             if (typeof UI !== 'undefined' && UI.startClock) UI.startClock();
             if (typeof Notify !== 'undefined') { Notify.init(); Notify.updateBadge(); }
             if (typeof Cart !== 'undefined' && Cart.updateBadge) Cart.updateBadge();
-            this.loadModule('dashboard');
+            const target = (mod === 'stock') ? 'stock' : 'dashboard';
+            this.loadModule(target);
         }
     },
 
