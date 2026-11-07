@@ -7219,21 +7219,20 @@ window.Decharges = {
     },
 
     exportPDF: function(id) {
-        const d = DB.getDecharges().find(x => x.id === id);
-        if (!d) return;
+        const d = (typeof DB !== 'undefined' && DB.getDecharges)
+            ? DB.getDecharges().find(x => x.id === id || x._id === id || x.ref === id)
+            : null;
+        if (!d) {
+            Utils.showNotification('Document introuvable pour export PDF.', 'error');
+            return;
+        }
 
-        if (d.typeDoc === 'bsm') {
-            if (typeof PDFGen !== 'undefined') {
-                PDFGen.export('bsm', id);
-            } else {
-                this.printBSM(id);
-            }
+        const isBsm = (d.typeDoc === 'bsm') || (d.type === 'BSM') || (d.ref && String(d.ref).startsWith('BSM')) || Boolean(d.workPlanId || d.materialId);
+
+        if (typeof PDFGen !== 'undefined' && typeof PDFGen.export === 'function') {
+            PDFGen.export(isBsm ? 'bsm' : 'decharge', d.id || d._id || id);
         } else {
-            if (typeof PDFGen !== 'undefined') {
-                PDFGen.export('decharge', id);
-            } else {
-                Utils.showNotification('Moteur PDF indisponible.', 'error');
-            }
+            this.printBSM(d.id || d._id || id);
         }
     },
 

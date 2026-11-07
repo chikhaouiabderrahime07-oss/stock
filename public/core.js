@@ -281,7 +281,10 @@ window.DB = {
     },
 
     getAll(col) { return this.data[col] || []; },
-    getById(col, id) { return (this.data[col]||[]).find(i => i.id == id) || null; },
+    getById(col, id) {
+        if (!this.data[col] || id == null) return null;
+        return this.data[col].find(i => i && (i.id == id || i._id == id || (i.ref && i.ref == id))) || null;
+    },
     where(col, fn) { return (this.data[col]||[]).filter(fn); },
     count(col, fn) { return fn ? this.where(col,fn).length : (this.data[col]||[]).length; },
 
