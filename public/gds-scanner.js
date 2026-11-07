@@ -33,6 +33,7 @@
         isScanning: false,
         torchOn: false,
         currentArticle: null,
+        pendingCode: '',
         scanCooldown: false,
         lastScannedCode: null,
         lastScanTime: 0,
@@ -378,9 +379,11 @@
                 return;
             }
             const stock = Number(article.quantity)||0;
+            let allowNegative = false;
             if (stock < qty) {
                 const ok = confirm(`Stock actuel (${stock}) < quantité demandée (${qty}). Autoriser stock négatif ?`);
                 if (!ok) return;
+                allowNegative = true;
             }
 
             const artId = String(article._id || article.id || '');
@@ -418,13 +421,13 @@
                 }
             } catch(e) {}
 
-            // 2. Deduct stock via API — AWAITED
+            // 2. Deduct stock via API — AWAITED, passes allowNegative flag
             let stockOk = false;
             let stockErr = '';
             try {
                 const r2 = await fetch('/api/articles/' + artId + '/stock', {
                     method: 'POST', headers: this.hdrs(),
-                    body: JSON.stringify({ type:'Sortie', quantity: qty, reason: motif||'Sortie GDS scanner', reference: refNum, user: authorName })
+                    body: JSON.stringify({ type:'Sortie', quantity: qty, reason: motif||'Sortie GDS scanner', reference: refNum, user: authorName, allowNegative })
                 });
                 const d2 = await r2.json();
                 if (r2.ok) {
@@ -459,10 +462,6 @@
                 if (typeof DB.save === 'function') DB.save();
             }
 
-            this.playBeep('success'); this.haptic([60,30,120]);
-            this.sessionCount++;
-            this.updateCounter();
-            this.renderSortieSuccess(article, qty, beneficiary, refNum, bsmCreated);
             this.playBeep('success'); this.haptic([60,30,120]);
             this.sessionCount++;
             this.updateCounter();
@@ -657,6 +656,7 @@
         renderUnknownResult(scannedCode) {
             const area = document.getElementById('gdsScanResultArea');
             if (!area) return;
+            this.pendingCode = scannedCode;
             const safe = this.esc(scannedCode);
             this.subtitle('Code non reconnu');
             area.innerHTML = `
@@ -672,10 +672,10 @@
                     </div>
                     <div style="font-size:0.8rem;color:#d97706;margin-bottom:14px;">Ce code-barres n'est associé à aucun article dans le catalogue.</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                        <button onclick="GdsScannerModule.showLinkArticleModal('${safe}')" style="padding:13px 8px;border-radius:11px;border:1.5px solid #b45309;background:transparent;color:#fbbf24;cursor:pointer;font-weight:700;font-size:0.82rem;display:flex;flex-direction:column;align-items:center;gap:5px;">
+                        <button onclick="GdsScannerModule.showLinkArticleModal(GdsScannerModule.pendingCode)" style="padding:13px 8px;border-radius:11px;border:1.5px solid #b45309;background:transparent;color:#fbbf24;cursor:pointer;font-weight:700;font-size:0.82rem;display:flex;flex-direction:column;align-items:center;gap:5px;">
                             <i class="fas fa-link" style="font-size:1.1rem;"></i> Associer à existant
                         </button>
-                        <button onclick="GdsScannerModule.showCreateArticleModal('${safe}')" style="padding:13px 8px;border-radius:11px;border:1.5px solid #15803d;background:transparent;color:#34d399;cursor:pointer;font-weight:700;font-size:0.82rem;display:flex;flex-direction:column;align-items:center;gap:5px;">
+                        <button onclick="GdsScannerModule.showCreateArticleModal(GdsScannerModule.pendingCode)" style="padding:13px 8px;border-radius:11px;border:1.5px solid #15803d;background:transparent;color:#34d399;cursor:pointer;font-weight:700;font-size:0.82rem;display:flex;flex-direction:column;align-items:center;gap:5px;">
                             <i class="fas fa-plus-circle" style="font-size:1.1rem;"></i> Créer article
                         </button>
                     </div>
@@ -689,6 +689,8 @@
         showLinkArticleModal(scannedCode) {
             const area = document.getElementById('gdsScanResultArea');
             if (!area) return;
+            // Always use raw code — store on module so button onclick can access it safely
+            this.pendingCode = scannedCode;
             const articles = (typeof DB !== 'undefined' && DB.getArticles) ? DB.getArticles() :
                              (typeof DB !== 'undefined' && DB.data ? DB.data.articles||[] : []);
             const safe = this.esc(scannedCode);
@@ -716,11 +718,11 @@
                             ${opts}
                         </select>
                     </div>
-                    <button onclick="GdsScannerModule.commitLinkArticle('${safe}')"
+                    <button onclick="GdsScannerModule.commitLinkArticle(GdsScannerModule.pendingCode)"
                         style="width:100%;padding:14px;border-radius:12px;background:#2563eb;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
                         <i class="fas fa-link"></i> Associer ce code-barres
                     </button>
-                    <button onclick="GdsScannerModule.renderUnknownResult('${safe}')"
+                    <button onclick="GdsScannerModule.renderUnknownResult(GdsScannerModule.pendingCode)"
                         style="width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
                         ← Retour
                     </button>
@@ -781,6 +783,7 @@
         showCreateArticleModal(scannedCode) {
             const area = document.getElementById('gdsScanResultArea');
             if (!area) return;
+            this.pendingCode = scannedCode;
             const safe = this.esc(scannedCode);
             this.subtitle('Nouvel article');
             area.innerHTML = `
@@ -824,11 +827,11 @@
                                 style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;outline:none;box-sizing:border-box;">
                         </div>
                     </div>
-                    <button id="gdsCreateArticleBtn" onclick="GdsScannerModule.commitCreateArticle('${safe}')"
+                    <button id="gdsCreateArticleBtn" onclick="GdsScannerModule.commitCreateArticle(GdsScannerModule.pendingCode)"
                         style="width:100%;padding:14px;border-radius:12px;background:#16a34a;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
                         <i class="fas fa-save"></i> Créer et continuer
                     </button>
-                    <button onclick="GdsScannerModule.renderUnknownResult('${safe}')"
+                    <button onclick="GdsScannerModule.renderUnknownResult(GdsScannerModule.pendingCode)"
                         style="width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
                         ← Retour
                     </button>
@@ -852,8 +855,11 @@
             const btn = document.getElementById('gdsCreateArticleBtn');
             if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement...'; }
 
+            // Use raw pendingCode as barcode — never the HTML-escaped version
+            const rawBarcode = this.pendingCode || scannedCode;
+
             // POST to server FIRST — no client id — MongoDB generates _id
-            const payload = { code, designation: desig.trim(), quantity: qty, unit, category: cat, barcode: scannedCode, site: 'Dépôt Central', minThreshold: 5 };
+            const payload = { code, designation: desig.trim(), quantity: qty, unit, category: cat, barcode: rawBarcode, site: 'Dépôt Central', minThreshold: 5 };
             let savedArticle = null;
             let serverErr = null;
             try {

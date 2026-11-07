@@ -5,7 +5,7 @@ const articleSchema = new mongoose.Schema({
     designation: { type: String, required: true, trim: true },
     category: { type: String, required: true },
     family: { type: String, default: '' },
-    quantity: { type: Number, required: true, default: 0, min: 0 },
+    quantity: { type: Number, required: true, default: 0 },
     unit: { type: String, required: true, default: 'Pièce' },
     price: { type: Number, default: 0, min: 0 },
     minThreshold: { type: Number, default: 0, min: 0 },
