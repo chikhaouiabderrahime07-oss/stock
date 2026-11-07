@@ -2354,16 +2354,8 @@ window.deleteUserFromSettings = function(username) {
   }
 };
 
-// Wire user modal controls & user chip
+// Wire user modal controls (user chip is handled by app.js — do NOT re-bind here)
 document.addEventListener('DOMContentLoaded', () => {
-  const chip = document.getElementById('userChipWrap') || document.querySelector('.user-chip');
-  if (chip) {
-    chip.addEventListener('click', () => {
-      const u = (typeof state !== 'undefined' && state.session) ? state.session.username : 'admin';
-      showUserModal(u);
-    });
-  }
-
   const addBtn = document.getElementById('addNewUserBtn');
   if (addBtn) addBtn.addEventListener('click', () => showUserModal());
 

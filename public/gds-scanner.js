@@ -383,48 +383,86 @@
                 if (!ok) return;
             }
 
+            const artId = String(article._id || article.id || '');
+            if (!artId) { alert('Article sans identifiant — impossible de traiter.'); return; }
+
             const user = this.getUser();
             const authorName = user ? (user.name || user.username || 'GDS') : 'GDS';
             const now = new Date();
             const refNum = 'BSM-GDS-' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '-' + String(now.getTime()).slice(-5);
 
-            // 1. Deduct article locally
-            article.quantity = stock - qty;
-            if (typeof DB !== 'undefined') {
-                const mov = { articleId: article.id||article._id, articleCode: article.code||'', designation: article.designation||'', type:'Sortie', quantity: qty, date: now.toISOString(), author: authorName, user: authorName, motif: motif||('Bon de Sortie GDS — '+beneficiary), destination: beneficiary, source:'Scanner GDS' };
-                if (typeof DB.addStockMovement === 'function') DB.addStockMovement(mov);
-                else if (DB.data && Array.isArray(DB.data.stockMovements)) DB.data.stockMovements.push(mov);
-                if (typeof DB.save === 'function') DB.save();
-            }
+            // Disable validate button
+            const valBtn = document.getElementById('gdsSortieValBtn') || document.querySelector('#gdsScanResultArea button[onclick*="confirmSortie"]');
+            if (valBtn) { valBtn.disabled = true; valBtn.textContent = 'Enregistrement...'; }
 
-            // 2. Create BSM via API
+            // 1. Create BSM via API — AWAITED
             const bsmPayload = {
                 ref: refNum, type: 'BSM', status: 'served',
                 beneficiary, department: service || '',
-                items: [{ articleId: article._id||article.id||'', articleCode: article.code||'', designation: article.designation||'', quantity: qty, unit: article.unit||'U' }],
+                items: [{ articleId: artId, articleCode: article.code||'', designation: article.designation||'', quantity: qty, unit: article.unit||'U' }],
                 notes: motif || 'Sortie par scan GDS mobile',
                 createdBy: authorName, servedBy: authorName, servedAt: now.toISOString()
             };
             let bsmCreated = false;
+            let bsmId = '';
             try {
                 const r = await fetch('/api/decharges', { method:'POST', headers: this.hdrs(), body: JSON.stringify(bsmPayload) });
                 if (r.ok) {
                     bsmCreated = true;
-                    // Add to local DB too
+                    const d = await r.json();
+                    bsmId = d.decharge?._id || d._id || '';
                     if (typeof DB !== 'undefined' && DB.data) {
                         if (!Array.isArray(DB.data.decharges)) DB.data.decharges = [];
-                        const d = await r.json();
                         DB.data.decharges.unshift(d.decharge || bsmPayload);
                     }
                 }
             } catch(e) {}
 
-            // 3. Sync article to server
-            const artId = article._id || article.id;
-            if (artId) {
-                fetch('/api/articles/' + artId + '/stock', { method:'POST', headers: this.hdrs(), body: JSON.stringify({ type:'Sortie', quantity: qty, reason: motif||'Sortie GDS scanner', reference: refNum, user: authorName }) }).catch(()=>{});
+            // 2. Deduct stock via API — AWAITED
+            let stockOk = false;
+            let stockErr = '';
+            try {
+                const r2 = await fetch('/api/articles/' + artId + '/stock', {
+                    method: 'POST', headers: this.hdrs(),
+                    body: JSON.stringify({ type:'Sortie', quantity: qty, reason: motif||'Sortie GDS scanner', reference: refNum, user: authorName })
+                });
+                const d2 = await r2.json();
+                if (r2.ok) {
+                    stockOk = true;
+                    if (d2.article && typeof d2.article.quantity !== 'undefined') {
+                        article.quantity = d2.article.quantity;
+                    } else {
+                        article.quantity = stock - qty;
+                    }
+                } else {
+                    stockErr = d2.error || ('Erreur ' + r2.status);
+                }
+            } catch(e) { stockErr = 'Réseau indisponible'; }
+
+            if (!stockOk) {
+                if (valBtn) { valBtn.disabled = false; valBtn.textContent = 'Valider le Bon de Sortie'; }
+                const area = document.getElementById('gdsScanResultArea');
+                if (area) {
+                    const e2 = document.createElement('div');
+                    e2.style.cssText = 'color:#fca5a5;background:#7f1d1d;padding:10px;border-radius:8px;font-size:0.85rem;margin-top:8px;';
+                    e2.textContent = '❌ Stock non mis à jour : ' + stockErr;
+                    area.querySelector('div') && area.querySelector('div').appendChild(e2);
+                }
+                return;
             }
 
+            // 3. Update local DB movement log
+            if (typeof DB !== 'undefined') {
+                const mov = { articleId: artId, articleCode: article.code||'', designation: article.designation||'', type:'Sortie', quantity: qty, date: now.toISOString(), author: authorName, user: authorName, motif: motif||('BSM — '+beneficiary), destination: beneficiary, source:'Scanner GDS' };
+                if (typeof DB.addStockMovement === 'function') DB.addStockMovement(mov);
+                else if (DB.data && Array.isArray(DB.data.stockMovements)) DB.data.stockMovements.push(mov);
+                if (typeof DB.save === 'function') DB.save();
+            }
+
+            this.playBeep('success'); this.haptic([60,30,120]);
+            this.sessionCount++;
+            this.updateCounter();
+            this.renderSortieSuccess(article, qty, beneficiary, refNum, bsmCreated);
             this.playBeep('success'); this.haptic([60,30,120]);
             this.sessionCount++;
             this.updateCounter();
@@ -520,16 +558,58 @@
             const authorName = user ? (user.name||user.username||'GDS') : 'GDS';
             const now = new Date();
 
-            article.quantity = (Number(article.quantity)||0) + qty;
+            // artId must be a string for the URL
+            const artId = String(article._id || article.id || '');
+            if (!artId) {
+                alert('Article sans identifiant — impossible de mettre à jour le stock.');
+                return;
+            }
+
+            // Show loading state
+            const valBtn = document.querySelector('#gdsScanResultArea button');
+            if (valBtn) { valBtn.disabled = true; valBtn.textContent = 'Enregistrement...'; }
+
+            // AWAIT the API call — no silent swallow
+            let apiOk = false;
+            let apiErr = '';
+            try {
+                const r = await fetch('/api/articles/' + artId + '/stock', {
+                    method: 'POST',
+                    headers: this.hdrs(),
+                    body: JSON.stringify({ type:'Entrée', quantity: qty, reason: ref||'Entrée GDS scanner', user: authorName })
+                });
+                const data = await r.json();
+                if (r.ok) {
+                    apiOk = true;
+                    // Update local quantity from server response (authoritative)
+                    if (data.article && typeof data.article.quantity !== 'undefined') {
+                        article.quantity = data.article.quantity;
+                    } else {
+                        article.quantity = (Number(article.quantity)||0) + qty;
+                    }
+                } else {
+                    apiErr = data.error || ('Erreur ' + r.status);
+                }
+            } catch(e) { apiErr = 'Réseau indisponible'; }
+
+            if (!apiOk) {
+                if (valBtn) { valBtn.disabled = false; valBtn.textContent = 'Valider l\'Entrée'; }
+                const area = document.getElementById('gdsScanResultArea');
+                if (area) {
+                    const e2 = document.createElement('div');
+                    e2.style.cssText = 'color:#fca5a5;background:#7f1d1d;padding:10px 14px;border-radius:8px;font-size:0.85rem;margin-top:8px;border-radius:8px;';
+                    e2.textContent = '❌ Echec mise à jour stock : ' + apiErr;
+                    area.querySelector('div') && area.querySelector('div').appendChild(e2);
+                }
+                return;
+            }
+
+            // Update local DB movement log
             if (typeof DB !== 'undefined') {
-                const mov = { articleId: article.id||article._id, articleCode: article.code||'', designation: article.designation||'', type:'Entrée', quantity: qty, date: now.toISOString(), author: authorName, user: authorName, motif: ref||'Entrée stock GDS scanner', destination:'Stock', source: ref||'Scan GDS' };
+                const mov = { articleId: artId, articleCode: article.code||'', designation: article.designation||'', type:'Entrée', quantity: qty, date: now.toISOString(), author: authorName, user: authorName, motif: ref||'Entrée GDS scanner', destination:'Stock', source: ref||'Scan GDS' };
                 if (typeof DB.addStockMovement === 'function') DB.addStockMovement(mov);
                 else if (DB.data && Array.isArray(DB.data.stockMovements)) DB.data.stockMovements.push(mov);
                 if (typeof DB.save === 'function') DB.save();
-            }
-            const artId = article._id || article.id;
-            if (artId) {
-                fetch('/api/articles/' + artId + '/stock', { method:'POST', headers: this.hdrs(), body: JSON.stringify({ type:'Entrée', quantity: qty, reason: ref||'Entrée GDS scanner', user: authorName }) }).catch(()=>{});
             }
 
             this.playBeep('entry'); this.haptic([60,30,60]);
@@ -647,7 +727,7 @@
                 </div>`;
         },
 
-        commitLinkArticle(scannedCode) {
+        async commitLinkArticle(scannedCode) {
             const sel = document.getElementById('gdsSelectLinkArticle');
             if (!sel || !sel.value) {
                 if (sel) sel.style.borderColor = '#ef4444';
@@ -655,30 +735,46 @@
             }
             const articles = (typeof DB !== 'undefined' && DB.getArticles) ? DB.getArticles() :
                              (typeof DB !== 'undefined' && DB.data ? DB.data.articles||[] : []);
-            // Compare as strings — _id may be ObjectId or string
             const article = articles.find(a => String(a._id || a.id || '') === sel.value);
             if (!article) {
                 if (typeof Utils !== 'undefined' && Utils.showNotification) Utils.showNotification('Article introuvable', 'error');
                 return;
             }
-            // Save barcode to article
-            article.barcode = scannedCode;
-            if (typeof DB !== 'undefined' && DB.save) DB.save();
-            // Persist to server
             const artId = String(article._id || article.id || '');
-            if (artId) {
-                fetch('/api/articles/' + artId, { method:'PUT', headers: this.hdrs(), body: JSON.stringify({ barcode: scannedCode }) }).catch(()=>{});
+            const area = document.getElementById('gdsScanResultArea');
+            // Show saving spinner
+            const saveBtn = area ? area.querySelector('button[onclick*="commitLinkArticle"]') : null;
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Sauvegarde...'; }
+            try {
+                if (artId) {
+                    const r = await fetch('/api/articles/' + artId, {
+                        method: 'PUT',
+                        headers: this.hdrs(),
+                        body: JSON.stringify({ barcode: scannedCode })
+                    });
+                    if (!r.ok) {
+                        const err = await r.json().catch(() => ({ error: 'Erreur serveur' }));
+                        if (area) area.insertAdjacentHTML('beforeend', `<div style="color:#ef4444;padding:8px;text-align:center;">${err.error || 'Erreur sauvegarde'}</div>`);
+                        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✅ Associer'; }
+                        return;
+                    }
+                }
+                // Update local DB
+                article.barcode = scannedCode;
+                if (typeof DB !== 'undefined' && DB.save) DB.save();
+                if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                    Utils.showNotification(`✅ Code-barres associé à "${article.designation}" !`, 'success');
+                }
+                // Reset cooldown — article is now known, go straight to action picker
+                this.scanCooldown = false;
+                this.lastScannedCode = '';
+                this.lastScanTime = 0;
+                this.currentArticle = article;
+                this.renderActionPicker(article);
+            } catch (e) {
+                if (area) area.insertAdjacentHTML('beforeend', `<div style="color:#ef4444;padding:8px;text-align:center;">Erreur réseau: ${e.message}</div>`);
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✅ Associer'; }
             }
-            if (typeof Utils !== 'undefined' && Utils.showNotification) {
-                Utils.showNotification(`✅ Code-barres associé à "${article.designation}" !`, 'success');
-            }
-            // ⚠️ Reset cooldown so we can process the article immediately
-            this.scanCooldown = false;
-            this.lastScannedCode = '';
-            this.lastScanTime = 0;
-            // Show action picker directly (no re-scan needed — avoids cooldown trap)
-            this.currentArticle = article;
-            this.renderActionPicker(article);
         },
 
         // ─── CREATE NEW ARTICLE — inline in scanner, no popup modal ──────
