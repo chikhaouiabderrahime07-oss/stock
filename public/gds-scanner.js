@@ -401,9 +401,13 @@
                 allowNegative = true;
             }
 
-            const artId = String(article._id || article.id || '');
+            // Resolve the best identifier: prefer _id, fallback to barcode/code
+            let artId = String(article._id || '');
+            if (!artId || !/^[a-f0-9]{24}$/i.test(artId)) {
+                artId = article.barcode || article.code || article.id || '';
+            }
             if (!artId) {
-                this._showErr('gdsSortieErrBox', 'Article sans identifiant MongoDB — rechargez la page.');
+                this._showErr('gdsSortieErrBox', 'Article sans identifiant — rechargez la page.');
                 return;
             }
 
@@ -569,9 +573,13 @@
             const authorName = user ? (user.name||user.username||'GDS') : 'GDS';
             const now = new Date();
 
-            const artId = String(article._id || article.id || '');
+            // Resolve the best identifier: prefer _id, fallback to barcode/code
+            let artId = String(article._id || '');
+            if (!artId || !/^[a-f0-9]{24}$/i.test(artId)) {
+                artId = article.barcode || article.code || article.id || '';
+            }
             if (!artId) {
-                this._showErr('gdsEntreeErrBox', 'Article sans identifiant MongoDB — rechargez la page.');
+                this._showErr('gdsEntreeErrBox', 'Article sans identifiant — rechargez la page.');
                 return;
             }
 

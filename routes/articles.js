@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const Movement = require('../models/Movement');
 const { authenticate, authorize } = require('../middleware/auth');
@@ -40,7 +41,15 @@ router.get('/', authenticate, async (req, res) => {
 // GET /api/articles/:id
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const article = await Article.findById(req.params.id).lean();
+    let article;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      article = await Article.findById(req.params.id).lean();
+    }
+    if (!article) {
+      article = await Article.findOne({
+        $or: [{ barcode: req.params.id }, { code: req.params.id }]
+      }).lean();
+    }
     if (!article) return res.status(404).json({ error: 'Article non trouvé' });
     res.json({ article });
   } catch (err) {
@@ -144,8 +153,23 @@ router.post('/:id/stock', authenticate, async (req, res) => {
     const delta = type === 'Entrée' ? qty : -qty;
     const isSortie = delta < 0;
 
+    // Resolve the article — accept ObjectId, barcode, or code
+    let resolvedId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(resolvedId)) {
+      const lookup = await Article.findOne({
+        $or: [
+          { barcode: resolvedId },
+          { code: resolvedId }
+        ]
+      }).lean();
+      if (!lookup) {
+        return res.status(404).json({ error: 'Article non trouvé (id/code/barcode: ' + resolvedId + ')' });
+      }
+      resolvedId = lookup._id;
+    }
+
     // For Sortie: guard against negative stock unless allowNegative is true
-    const query = { _id: req.params.id };
+    const query = { _id: resolvedId };
     if (isSortie && !allowNegative) {
       query.quantity = { $gte: qty };
     }
@@ -157,7 +181,7 @@ router.post('/:id/stock', authenticate, async (req, res) => {
     );
 
     if (!article) {
-      const exists = await Article.findById(req.params.id).lean();
+      const exists = await Article.findById(resolvedId).lean();
       if (!exists) {
         return res.status(404).json({ error: 'Article non trouvé' });
       }
