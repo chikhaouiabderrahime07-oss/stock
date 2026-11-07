@@ -63,6 +63,11 @@ const settingSchema = new mongoose.Schema({
     type: String,
     default: 'SPA DOUROUB ELDJAZAIR'
   },
+  sector: { type: String, default: '' },
+  address: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  email: { type: String, default: '' },
+  website: { type: String, default: '' },
   gdsEnabled: {
     type: Boolean,
     default: false

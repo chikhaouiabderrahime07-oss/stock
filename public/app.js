@@ -133,15 +133,37 @@ const App = {
         try {
             const loginEl = document.getElementById('loginScreen');
             const appEl = document.getElementById('appContainer');
+
+            // --- MODULE GATE: Check where user should go BEFORE showing anything ---
+            try {
+                const currentUser = (typeof Auth !== 'undefined') ? Auth.getCurrentUser() : null;
+                if (currentUser) {
+                    const role = (currentUser.role || '').toLowerCase();
+                    const isAdmin = role === 'admin' || role === 'superadmin' || role === 'directeur';
+                    const defMod = currentUser.defaultModule || 'stock';
+
+                    if (isAdmin) {
+                        // Hide login, keep app hidden, show fullscreen gate
+                        if (loginEl) loginEl.style.display = 'none';
+                        this.showModulePickerModal();
+                        return; // Do NOT load app yet — gate handles navigation
+                    } else if (defMod === 'bc' && localStorage.getItem('erp_jwt_token')) {
+                        window.location.href = '/suivi-achats-premium/';
+                        return;
+                    }
+                    // defMod === 'stock' or 'both' → fall through and load app
+                }
+            } catch (gateErr) {}
+
             if (loginEl) loginEl.style.display = 'none';
             if (appEl) { appEl.style.display = ''; appEl.classList.remove('hidden'); }
-            
+
             // Show sync status
             if (typeof Utils !== 'undefined' && Utils.showNotification) {
                 const artCount = (DB && DB.data && DB.data.articles) ? DB.data.articles.length : 0;
                 Utils.showNotification('✅ Connecté — ' + artCount + ' articles chargés depuis MongoDB', 'success');
             }
-            
+
             // Branding: Top company name dynamically updated from settings
             const topComp = document.getElementById('topCompanyName');
             if (topComp) {
@@ -169,10 +191,18 @@ const App = {
                 Cart.updateBadge();
             }
 
+            // FIX 1: Redirect to BC module if ?redirect=bc is present AND we have a JWT token
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('redirect') === 'bc' && localStorage.getItem('erp_jwt_token')) {
+                    window.location.href = '/suivi-achats-premium/';
+                    return;
+                }
+            } catch (err) {}
+
             // Load restored module from previous session or default to dashboard
             const savedModule = localStorage.getItem('erp_active_module') || 'dashboard';
             let savedTab = localStorage.getItem('erp_active_tab') || undefined;
-            // Never auto-open modals on app startup
             if (savedTab === 'new') {
                 savedTab = 'kpi';
                 try { localStorage.setItem('erp_active_tab', 'kpi'); } catch (e) {}
@@ -205,9 +235,46 @@ const App = {
                 }
             } catch (err) {}
 
+            // ── MOBILE UI ─────────────────────────────────────────────────────
+            try {
+                if (window.innerWidth <= 768) {
+                    const mobileNav = document.getElementById('mobileBottomNav');
+                    if (mobileNav) mobileNav.style.display = 'flex';
+                    const hamburger = document.getElementById('mobileMenuBtn');
+                    if (hamburger) hamburger.style.display = 'flex';
+                }
+                // Also update active state on bottom nav when module changes
+                this._syncMobileNavActive();
+            } catch (err) {}
+
         } catch (e) {
             console.error('Erreur showApp:', e);
         }
+    },
+
+    toggleMobileNav() {
+        const nav = document.getElementById('mainNav');
+        if (!nav) return;
+        nav.classList.toggle('mobile-open');
+        // Close when clicking outside
+        if (nav.classList.contains('mobile-open')) {
+            const closeHandler = (e) => {
+                if (!nav.contains(e.target) && e.target.id !== 'mobileMenuBtn') {
+                    nav.classList.remove('mobile-open');
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler), 50);
+        }
+    },
+
+    _syncMobileNavActive() {
+        const btns = document.querySelectorAll('#mobileBottomNav .mob-nav-btn:not(.scan-fab-nav)');
+        const moduleMap = ['dashboard', 'stock', 'decharges'];
+        btns.forEach((btn, i) => {
+            if (moduleMap[i] === this.currentModule) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
     },
 
     updateUserInfo() {
@@ -241,6 +308,13 @@ const App = {
         if (udropAchatsLink) {
             const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'directeur' || user.role === 'management' || user.role === 'appro');
             udropAchatsLink.style.display = isAdmin ? 'flex' : 'none';
+        }
+
+        // General Settings link (admin only)
+        const udropGenSettings = document.getElementById('udropGeneralSettingsLink');
+        if (udropGenSettings) {
+            const isFullAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'directeur');
+            udropGenSettings.style.display = isFullAdmin ? 'flex' : 'none';
         }
 
         // GDS Scanner button & FAB visibility for eligible roles
@@ -459,6 +533,13 @@ const App = {
             this.currentModule = mod;
             this.currentTab = tab;
             this.updateNavActive(mod, tab);
+            // Sync mobile bottom nav active state
+            try { this._syncMobileNavActive(); } catch(e) {}
+            // Close mobile flyout nav if open
+            try {
+                const nav = document.getElementById('mainNav');
+                if (nav && nav.classList.contains('mobile-open')) nav.classList.remove('mobile-open');
+            } catch(e) {}
             try {
                 if (mod && mod !== 'cart') {
                     localStorage.setItem('erp_active_module', mod);
@@ -836,6 +917,52 @@ const App = {
             return this.loadModule('settings', tab || 'database');
         }
         return this.showUserSettings();
+    },
+
+    showModulePickerModal() {
+        const modal = document.getElementById('modulePickerModal');
+        if (!modal) return;
+        // Update greeting with user name
+        try {
+            const user = (typeof Auth !== 'undefined') ? Auth.getCurrentUser() : null;
+            const name = user ? (user.name || user.username || 'Administrateur') : 'Administrateur';
+            const titleEl = document.getElementById('gateWelcomeTitle');
+            if (titleEl) titleEl.textContent = 'Bienvenue, ' + name.split(' ')[0];
+        } catch(e) {}
+        modal.style.display = 'flex';
+    },
+
+    hideModulePickerModal() {
+        const modal = document.getElementById('modulePickerModal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    goToModule(mod) {
+        this.hideModulePickerModal();
+        if (mod === 'bc') {
+            window.location.href = '/suivi-achats-premium/';
+        } else if (mod === 'settings') {
+            window.location.href = '/general-settings.html';
+        } else {
+            // Load stock app
+            const appEl = document.getElementById('appContainer');
+            if (appEl) { appEl.style.display = ''; appEl.classList.remove('hidden'); }
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                const artCount = (DB && DB.data && DB.data.articles) ? DB.data.articles.length : 0;
+                Utils.showNotification('✅ Connecté — ' + artCount + ' articles chargés', 'success');
+            }
+            const topComp = document.getElementById('topCompanyName');
+            if (topComp) {
+                const s = (typeof DB !== 'undefined' && DB.getSettings) ? DB.getSettings() : {};
+                topComp.textContent = s.companyName || 'SPA DOUROUB ELDJAZAIR';
+            }
+            this.updateUserInfo();
+            this.buildSidebar();
+            if (typeof UI !== 'undefined' && UI.startClock) UI.startClock();
+            if (typeof Notify !== 'undefined') { Notify.init(); Notify.updateBadge(); }
+            if (typeof Cart !== 'undefined' && Cart.updateBadge) Cart.updateBadge();
+            this.loadModule('dashboard');
+        }
     },
 
     showUsers() {

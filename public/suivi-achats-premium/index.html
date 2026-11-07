@@ -64,7 +64,7 @@
           <option value="light">Clair</option>
           <option value="dark">Sombre</option>
         </select>
-        <div class="sa-user-wrap">
+                <div class="sa-user-wrap">
           <button class="sa-user-btn" id="userChipWrap" title="Mon profil">
             <span class="sa-initials" id="currentUserLabel">AD</span>
           </button>
@@ -73,15 +73,19 @@
               <div class="sa-ucard-avatar" id="ucardInitials">AD</div>
               <div>
                 <strong id="ucardName">Administrateur</strong>
-                <span id="ucardRole">Rôle</span>
+                <span id="ucardRole">Role</span>
+                <span id="ucardService" style="font-size:0.75rem;color:var(--text-muted,#64748b);display:block;"></span>
               </div>
             </div>
             <div class="sa-ucard-divider"></div>
+            <a href="/" class="sa-ucard-link"><i class="fas fa-boxes-stacked"></i> Stock &amp; Magasin</a>
+            <a href="/general-settings.html" class="sa-ucard-link" id="bcLinkToSettings" style="display:none;"><i class="fas fa-sliders"></i> Parametres Generaux</a>
+            <button class="sa-ucard-link" id="bcSwitchModuleBtn" onclick="window.bcShowModuleGate && bcShowModuleGate()" style="display:none;"><i class="fas fa-th-large"></i> Changer de module</button>
+            <div class="sa-ucard-divider"></div>
             <div class="sa-ucard-credits"><div class="credit-firm"><i class="fas fa-shield-halved me-1"></i> ABDO INTELLIGENT SYSTEMS</div><div class="credit-dev">Developed by <strong>CHIKHAOUI ABDERRAHIME</strong></div></div>
-            <button class="sa-ucard-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
+            <button class="sa-ucard-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Deconnexion</button>
           </div>
         </div>
-      </div>
     </header>
 
     <!-- TAB NAVIGATION — SEPARATE ROW -->

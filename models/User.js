@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
     qualite: { type: String, default: 'Agent' },
     canDeductStock: { type: Boolean, default: false },
     gdsOption: { type: Boolean, default: false },
+    defaultModule: { type: String, enum: ['stock', 'bc', 'both'], default: 'stock' },
     isActive: { type: Boolean, default: true },
     lastLogin: { type: Date },
     avatar: { type: String }

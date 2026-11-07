@@ -45,7 +45,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 // POST /api/auth/register (admin only)
 router.post('/register', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
   try {
-    const { username, password, name, role, department, service, canDeductStock, gdsOption } = req.body;
+    const { username, password, name, role, department, service, canDeductStock, gdsOption, defaultModule } = req.body;
     if (!username || !password || !name) {
       return res.status(400).json({ error: 'Champs requis manquants' });
     }
@@ -63,7 +63,8 @@ router.post('/register', authenticate, authorize('superadmin', 'directeur'), asy
       department: department || '',
       service: service || '',
       canDeductStock: canDeductStock !== undefined ? canDeductStock : true,
-      gdsOption: gdsOption || 'none'
+      gdsOption: gdsOption || false,
+      defaultModule: defaultModule || 'stock'
     });
 
     res.status(201).json({ user: user.toPublic() });
@@ -116,7 +117,7 @@ router.put('/password', authenticate, async (req, res) => {
 });
 
 // GET /api/auth/users (admin only)
-router.get('/users', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+router.get('/users', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
     const users = await User.find().sort({ createdAt: -1 });
     res.json({ users: users.map(u => u.toPublic()) });
@@ -126,9 +127,9 @@ router.get('/users', authenticate, authorize('superadmin', 'directeur'), async (
 });
 
 // PUT /api/auth/users/:id (admin only)
-router.put('/users/:id', authenticate, authorize('superadmin', 'directeur'), async (req, res) => {
+router.put('/users/:id', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
-    const { name, role, department, service, canDeductStock, gdsOption, password } = req.body;
+    const { name, role, department, service, canDeductStock, gdsOption, password, defaultModule } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
@@ -140,6 +141,7 @@ router.put('/users/:id', authenticate, authorize('superadmin', 'directeur'), asy
     if (service !== undefined) user.service = service;
     if (canDeductStock !== undefined) user.canDeductStock = canDeductStock;
     if (gdsOption !== undefined) user.gdsOption = gdsOption;
+    if (defaultModule !== undefined) user.defaultModule = defaultModule;
     if (password) user.password = password;
 
     await user.save();

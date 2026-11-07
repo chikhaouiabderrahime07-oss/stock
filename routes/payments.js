@@ -2,7 +2,7 @@ const router = require('express').Router();
 const fs = require('fs');
 const path = require('path');
 const Payment = require('../models/Payment');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 
 // GET /api/payments
 router.get('/', authenticate, async (req, res) => {
@@ -127,6 +127,16 @@ router.put('/:id', authenticate, async (req, res) => {
     const record = await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!record) return res.status(404).json({ error: 'Paiement non trouvé' });
     res.json({ payment: record });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/payments/all — delete all (admin only) — MUST BE BEFORE /:id
+router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
+  try {
+    const result = await Payment.deleteMany({});
+    res.json({ deleted: result.deletedCount, message: 'Tous les paiements supprimés' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

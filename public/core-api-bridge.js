@@ -206,6 +206,24 @@
         '| Fleet:', (DB.data.materials || []).length,
         '| Orders:', (DB.data.preOrders || []).length);
 
+      // FIX 3: Trigger full re-render of articles list after server data loads
+      try {
+        if (typeof window !== 'undefined') {
+          if (typeof window.renderArticles === 'function') window.renderArticles();
+          if (typeof window.renderInventory === 'function') window.renderInventory();
+          if (typeof window.refreshView === 'function') window.refreshView();
+          if (typeof window.App !== 'undefined' && typeof window.App.refreshCurrentModule === 'function') {
+            window.App.refreshCurrentModule();
+          }
+          // Dispatch a custom event so modules can react
+          try {
+            window.dispatchEvent(new CustomEvent('erp:dataLoaded', { detail: { articles: DB.data.articles.length } }));
+          } catch (e2) {}
+        }
+      } catch (renderErr) {
+        console.warn('[BRIDGE] Re-render after load failed:', renderErr);
+      }
+
     } catch (err) {
       console.error('[BRIDGE] ❌ Failed to load from server:', err);
     } finally {

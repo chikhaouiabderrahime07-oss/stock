@@ -80,6 +80,16 @@ router.put('/:id', authenticate, authorize('superadmin', 'admin', 'directeur', '
 });
 
 // DELETE /api/articles/:id
+// DELETE /api/articles/all — delete all (superadmin only)
+router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
+  try {
+    const result = await Article.deleteMany({});
+    res.json({ deleted: result.deletedCount, message: 'Tous les articles supprimés' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/:id', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
@@ -125,26 +135,28 @@ router.post('/bulk', authenticate, authorize('superadmin', 'admin', 'directeur',
 // POST /api/articles/:id/stock — Atomic stock adjustment with concurrency check
 router.post('/:id/stock', authenticate, async (req, res) => {
   try {
-    const { type, quantity, reason, reference } = req.body;
+    const { type, quantity, reason, reference, allowNegative } = req.body;
     const qty = parseFloat(quantity);
     if (isNaN(qty) || qty <= 0) {
       return res.status(400).json({ error: 'Quantité invalide' });
     }
 
     const delta = type === 'Entrée' ? qty : -qty;
+    const isSortie = delta < 0;
 
-    // Atomic findOneAndUpdate with $inc — first-come-first-served
+    // For Sortie: guard against negative stock unless allowNegative is true
+    const query = { _id: req.params.id };
+    if (isSortie && !allowNegative) {
+      query.quantity = { $gte: qty };
+    }
+
     const article = await Article.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        ...(delta < 0 ? { quantity: { $gte: qty } } : {})
-      },
+      query,
       { $inc: { quantity: delta } },
       { new: true }
     );
 
     if (!article) {
-      // Check if article exists to give proper error
       const exists = await Article.findById(req.params.id).lean();
       if (!exists) {
         return res.status(404).json({ error: 'Article non trouvé' });
