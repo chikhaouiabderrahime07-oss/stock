@@ -1494,16 +1494,6 @@ const ApproNextGen = window.ApproNextGen = {
     const advWrap = document.createElement('div');
     advWrap.id = 'kpiNextGenControls';
     advWrap.innerHTML = `
-      <!-- Preset Time Periods -->
-      <div class="kpi-presets-bar">
-        <span style="font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-right:0.4rem;">Période :</span>
-        <button type="button" class="btn-kpi-preset active" data-period="all" onclick="ApproNextGen.setKpiPeriod('all')">Tout l'historique</button>
-        <button type="button" class="btn-kpi-preset" data-period="2026" onclick="ApproNextGen.setKpiPeriod('2026')">Année 2026</button>
-        <button type="button" class="btn-kpi-preset" data-period="q1" onclick="ApproNextGen.setKpiPeriod('q1')">Ce trimestre</button>
-        <button type="button" class="btn-kpi-preset" data-period="month" onclick="ApproNextGen.setKpiPeriod('month')">Ce mois</button>
-        <button type="button" class="btn-kpi-preset" data-period="30d" onclick="ApproNextGen.setKpiPeriod('30d')">Derniers 30 jours</button>
-      </div>
-
       <!-- Advanced Dual Filters: Spending Tier & Payment Delay -->
       <div id="kpiDualFilterBox" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;background:#f8fafc;padding:0.75rem;border-radius:8px;border:1px solid #e2e8f0;">
         <div style="flex:1;min-width:200px;">
@@ -1533,13 +1523,17 @@ const ApproNextGen = window.ApproNextGen = {
           </select>
         </div>
 
-        <div style="flex:1;min-width:240px;">
-          <label style="font-size:0.75rem;font-weight:700;color:#334155;text-transform:uppercase;display:block;margin-bottom:0.25rem;">
-            ⚖️ Comparateur Multi-Fournisseurs
-          </label>
-          <select id="kpiMultiSupplierCompare" class="form-select form-select-sm" multiple style="height:32px;" onchange="ApproNextGen.updateSupplierComparison(this)">
-            <!-- Options populated dynamically -->
+        <div style="flex:1;min-width:260px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+            <label style="font-size:0.75rem;font-weight:700;color:#334155;text-transform:uppercase;margin:0;">
+              ⚖️ Comparateur Fournisseur(s)
+            </label>
+            <button type="button" onclick="ApproNextGen.clearSupplierComparison()" style="background:none;border:none;color:#ef4444;font-size:0.72rem;cursor:pointer;padding:0;font-weight:600;">Réinitialiser</button>
+          </div>
+          <select id="kpiMultiSupplierCompare" class="form-select form-select-sm" onchange="ApproNextGen.addSupplierToComparison(this.value);this.value='';" style="font-size:0.85rem;font-weight:600;border-color:#3b82f6;">
+            <option value="">+ Ajouter un fournisseur à comparer...</option>
           </select>
+          <div id="kpiSelectedSuppliersChips" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;"></div>
         </div>
       </div>
     `;
@@ -1587,9 +1581,43 @@ const ApproNextGen = window.ApproNextGen = {
     renderKpi();
   },
 
-  updateSupplierComparison(selectEl) {
-    this.selectedComparisonSuppliers = Array.from(selectEl.selectedOptions).map(o => o.value);
+  addSupplierToComparison(sup) {
+    if (!sup) return;
+    if (!this.selectedComparisonSuppliers) this.selectedComparisonSuppliers = [];
+    if (!this.selectedComparisonSuppliers.includes(sup)) {
+      this.selectedComparisonSuppliers.push(sup);
+    }
+    this.renderSupplierChips();
     renderKpi();
+  },
+
+  removeSupplierCompare(sup) {
+    if (!this.selectedComparisonSuppliers) return;
+    this.selectedComparisonSuppliers = this.selectedComparisonSuppliers.filter(s => s !== sup);
+    this.renderSupplierChips();
+    renderKpi();
+  },
+
+  renderSupplierChips() {
+    const host = document.getElementById('kpiSelectedSuppliersChips');
+    if (!host) return;
+    const list = this.selectedComparisonSuppliers || [];
+    if (list.length === 0) {
+      host.innerHTML = '';
+      return;
+    }
+    host.innerHTML = list.map(s => `
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:0.75rem;font-weight:600;box-shadow:0 1px 3px rgba(37,99,235,0.3);">
+        ${escapeHtml(s)}
+        <i class="fas fa-times" style="cursor:pointer;opacity:0.8;" onclick="ApproNextGen.removeSupplierCompare('${escapeHtml(s)}')" title="Retirer" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'"></i>
+      </span>
+    `).join('');
+  },
+
+  updateSupplierComparison(selectEl) {
+    if (!selectEl) return;
+    const val = selectEl.value;
+    if (val) this.addSupplierToComparison(val);
   },
 
   overrideKpiDashboard() {
@@ -1843,11 +1871,11 @@ const ApproNextGen = window.ApproNextGen = {
     }
 
     const selected = this.selectedComparisonSuppliers;
-    if (!selected || selected.length < 2) {
+    if (!selected || selected.length === 0) {
       section.innerHTML = `
-        <div class="comparison-container" style="background:#f8fafc;text-align:center;padding:1.5rem;">
-          <h5 style="margin:0 0 0.25rem 0;color:#334155;font-weight:700;">⚖️ Comparateur Multi-Fournisseurs</h5>
-          <p class="text-muted small mb-0">Sélectionnez au moins 2 fournisseurs dans le filtre supérieur pour afficher la matrice comparative détaillée côte à côte.</p>
+        <div class="comparison-container" style="background:#f8fafc;text-align:center;padding:1.5rem;border-radius:12px;border:1px dashed #cbd5e1;">
+          <h5 style="margin:0 0 0.25rem 0;color:#334155;font-weight:700;">⚖️ Comparateur Fournisseurs</h5>
+          <p class="text-muted small mb-0">Sélectionnez un ou plusieurs fournisseurs dans le filtre supérieur pour afficher leur analyse détaillée et les comparer côte à côte.</p>
         </div>
       `;
       return;
@@ -1869,17 +1897,25 @@ const ApproNextGen = window.ApproNextGen = {
       };
     });
 
+    const isSingle = selected.length === 1;
+
     section.innerHTML = `
-      <div class="comparison-container">
-        <div class="comparison-header">
+      <div class="comparison-container" style="background:#fff;border-radius:12px;padding:1.2rem;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+        <div class="comparison-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
           <div>
             <h4 style="margin:0;font-size:1.05rem;font-weight:800;color:#0f172a;">
-              ⚖️ Matrice Comparative Multi-Fournisseurs (${selected.length} fournisseurs sélectionnés)
+              ${isSingle ? '📊 Scorecard & Analyse Fournisseur' : `⚖️ Matrice Comparative Multi-Fournisseurs (${selected.length} sélectionnés)`}
             </h4>
-            <small class="text-muted">Analyse comparative des volumes, paniers moyens et taux d'exécution</small>
+            <small class="text-muted">${isSingle ? 'Indicateurs clés de performance du fournisseur sélectionné' : 'Analyse comparative des volumes, paniers moyens et taux d\'exécution'}</small>
           </div>
-          <button class="btn btn-ghost btn-xs" type="button" onclick="ApproNextGen.clearSupplierComparison()">Réinitialiser comparaison</button>
+          <button class="btn btn-ghost btn-xs" type="button" onclick="ApproNextGen.clearSupplierComparison()" style="color:#ef4444;font-weight:600;"><i class="fas fa-trash-alt me-1"></i> Réinitialiser</button>
         </div>
+
+        ${isSingle ? `
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;font-size:0.8rem;color:#1e40af;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-info-circle"></i> <span>Astuce : Ajoutez un 2ème fournisseur dans le sélecteur ci-dessus pour lancer la comparaison directe côte-à-côte.</span>
+          </div>
+        ` : ''}
 
         <div class="comparison-cards-grid">
           ${compData.map(c => `
@@ -1910,10 +1946,7 @@ const ApproNextGen = window.ApproNextGen = {
 
   clearSupplierComparison() {
     this.selectedComparisonSuppliers = [];
-    const select = document.getElementById('kpiMultiSupplierCompare');
-    if (select) {
-      Array.from(select.options).forEach(o => o.selected = false);
-    }
+    this.renderSupplierChips();
     renderKpi();
   },
 
