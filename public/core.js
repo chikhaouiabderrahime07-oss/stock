@@ -311,7 +311,7 @@ window.DB = {
     update(col, id, updates, note='Modification') {
         const arr = this.data[col];
         if (!arr) return null;
-        const idx = arr.findIndex(i => i.id == id);
+        const idx = arr.findIndex(i => (id != null && (i.id == id || i._id == id)));
         if (idx > -1) {
             const old = { ...arr[idx] };
             arr[idx] = { ...old, ...updates, updatedAt:Date.now() };
@@ -505,16 +505,16 @@ window.DB = {
         }));
     },
     addArticle(a)       { return this.insert('articles', a); },
-    updateArticle(a)    { return this.update('articles', a.id, a); },
+    updateArticle(a)    { return this.update('articles', a.id || a._id, a); },
     deleteArticle(id)   { return this.delete('articles', id); },
     getArticle(id)      {
-        const a = this.getById('articles', id);
+        const a = (this.data && Array.isArray(this.data.articles)) ? this.data.articles.find(x => x.id === id || x._id === id || x.code === id) : this.getById('articles', id);
         return a ? { ...a, zone: a.zone || 'Zone A' } : null;
     },
     addStock(articleId, quantity, type = 'Entrée', reason = '', user = '', reference = '') {
         const qtyNum = Number(quantity) || 0;
         const articles = (this.data && Array.isArray(this.data.articles)) ? this.data.articles : [];
-        const article = articles.find(a => a.id === articleId || a.code === articleId);
+        const article = articles.find(a => a.id === articleId || a._id === articleId || a.code === articleId || (a.barcode && a.barcode === articleId));
         if (!article) {
             console.warn('DB.addStock: Article not found for ID/code:', articleId);
             return null;
