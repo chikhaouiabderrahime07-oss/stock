@@ -3206,18 +3206,5 @@
     "delayDpToPaymentDays": 0,
     "totalPaymentDelayDays": 0,
     "delayStatus": "rapide"
-  },
-  {
-    "id": "dp_test_123",
-    "paymentRef": "DP-TEST-999",
-    "amount": 88000,
-    "isDirect": false,
-    "linkedBcIds": [],
-    "linkedBcRefs": []
-  },
-  {
-    "id": "p_sync_1",
-    "paymentRef": "SYNC-DP-01",
-    "amount": 100
   }
 ]

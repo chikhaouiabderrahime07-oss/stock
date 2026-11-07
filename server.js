@@ -184,76 +184,137 @@ async function startServer() {
     console.log('[SEED] Default admin created');
   }
 
-  // Auto-clean demo articles & dummy BTs on server startup
+  // ─── Auto-clean demo articles, movements & dummy BTs on server startup ───
+  const mongoose = require('mongoose');
   const Article = require('./models/Article');
+  const Movement = require('./models/Movement');
   const BonTravail = require('./models/BonTravail');
   try {
-    const demoArt = await Article.deleteMany({
+    // 1. Purge demo stock articles (PDR-001, PDR-002, ART-18429, Art-003, and test designations)
+    const demoArtFilter = {
       $or: [
-        { code: { $in: ['PDR-001', 'PDR-002', 'ART-18429', 'Art-003', 'ART-003'] } },
-        { designation: { $in: ['aaa', 'afafz', 'Test'] } },
+        { code: { $regex: '^(PDR-001|PDR-002|ART-18429|Art-003)$', $options: 'i' } },
+        { designation: { $in: ['aaa', 'afafz', 'Test', 'test'] } },
         { designation: /^test$/i, price: { $in: [0, null] } }
       ]
-    });
+    };
+    const demoArt = await Article.deleteMany(demoArtFilter);
     if (demoArt.deletedCount > 0) {
-      console.log(`[STARTUP] Purged ${demoArt.deletedCount} demo articles from Atlas`);
+      console.log(`[STARTUP] Purged ${demoArt.deletedCount} demo stock articles from Atlas`);
     }
-    const demoBt = await BonTravail.deleteMany({
+
+    // 2. Clean associated stock movements for purged demo articles
+    const demoMov = await Movement.deleteMany({
       $or: [
-        { id: { $regex: '^BT-2026-000[1-7]', $options: 'i' } },
-        { ref: { $regex: '^BT-2026-000[1-7]', $options: 'i' } },
-        { id: { $regex: '^wp_seed_', $options: 'i' } }
+        { articleCode: { $regex: '^(PDR-001|PDR-002|ART-18429|Art-003)$', $options: 'i' } },
+        { articleDesignation: { $in: ['aaa', 'afafz', 'Test', 'test'] } }
       ]
     });
-    if (demoBt.deletedCount > 0) {
-      console.log(`[STARTUP] Purged ${demoBt.deletedCount} dummy BTs from Atlas`);
+    if (demoMov.deletedCount > 0) {
+      console.log(`[STARTUP] Purged ${demoMov.deletedCount} movements for demo articles`);
     }
+
+    // 3. Purge dummy BTs (Bons de Travail)
+    const dummyBtFilter = {
+      $or: [
+        { ref: { $regex: '^BT-2026-000[1-7]', $options: 'i' } },
+        { id: { $regex: '^BT-2026-000[1-7]', $options: 'i' } },
+        { ref: { $regex: '^BT-API-TEST', $options: 'i' } },
+        { id: { $regex: '^BT-API-TEST', $options: 'i' } },
+        { ref: { $regex: '^wp_', $options: 'i' } },
+        { id: { $regex: '^wp_', $options: 'i' } }
+      ]
+    };
+    const demoBt = await BonTravail.deleteMany(dummyBtFilter);
+    if (demoBt.deletedCount > 0) {
+      console.log(`[STARTUP] Purged ${demoBt.deletedCount} dummy BTs from Atlas (bontravails)`);
+    }
+
+    // Also clean native work_plans collection if present
+    try {
+      if (mongoose.connection && mongoose.connection.db) {
+        const wpCol = mongoose.connection.db.collection('work_plans');
+        const wpRes = await wpCol.deleteMany(dummyBtFilter);
+        if (wpRes.deletedCount > 0) {
+          console.log(`[STARTUP] Purged ${wpRes.deletedCount} dummy records from work_plans collection`);
+        }
+      }
+    } catch (_) {}
   } catch (cleanErr) {
     console.warn('[STARTUP] Cleanup notice:', cleanErr.message);
   }
 
-  // Seed BC and Payment records if empty or if corrupted clones exist
+  // ─── Auto-Reseed 361 Clean BC Records & Payments with Idempotent Versioning ───
   const BcRecord = require('./models/BcRecord');
   const Payment = require('./models/Payment');
+  Setting.schema.set('strict', false);
+
   try {
-    const schmitzClones = await BcRecord.countDocuments({
-      supplierName: /SCHMITZ/i,
-      amountTTC: { $gt: 1000000 }
-    });
+    const globalSetting = await Setting.findOne({ key: 'global' }).lean();
+    const bcCount = await BcRecord.countDocuments();
     const copyClones = await BcRecord.countDocuments({
       sourceFile: /[-\s](copy|copie)/i,
       amountTTC: { $gt: 0 }
     });
-    if (schmitzClones > 2 || copyClones > 10) {
-      console.log(`[STARTUP-AUTOFIX] Detected ${schmitzClones} Schmitz clones & ${copyClones} copy clones in Atlas. Re-seeding clean BC dataset...`);
+    const schmitzClones = await BcRecord.countDocuments({
+      supplierName: /SCHMITZ/i,
+      amountTTC: { $gt: 1000000 }
+    });
+    const hasTestBcs = await BcRecord.countDocuments({
+      $or: [{ ref: /^TEST/i }, { ref: /^SYNC/i }]
+    });
+
+    const isDatasetDirty = (
+      bcCount === 0 ||
+      bcCount < 361 ||
+      bcCount === 386 ||
+      copyClones > 0 ||
+      schmitzClones > 2 ||
+      hasTestBcs > 0 ||
+      !globalSetting ||
+      globalSetting.bcDatasetVersion !== 'v6_clean_361'
+    );
+
+    if (isDatasetDirty) {
+      console.log(`[STARTUP-AUTOFIX] Reseeding clean 361 BC dataset in Atlas (count: ${bcCount}, copyClones: ${copyClones}, version: ${globalSetting ? globalSetting.bcDatasetVersion : 'none'})...`);
       await BcRecord.deleteMany({});
-    }
-    const bcCount = await BcRecord.countDocuments();
-    if (bcCount === 0) {
+
       const bcCandidates = [
         path.join(__dirname, 'data', 'extracted_bcs_linked.json'),
-        path.join(__dirname, '..', 'data', 'extracted_bcs_linked.json'),
-        path.join(__dirname, 'data', 'extracted_bcs.json'),
-        path.join(__dirname, '..', 'data', 'extracted_bcs.json')
+        path.join(__dirname, '..', 'data', 'extracted_bcs_linked.json')
       ];
-      for (const p of bcCandidates) {
-        if (fs.existsSync(p)) {
-          const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+      for (const bcSourceFile of bcCandidates) {
+        if (fs.existsSync(bcSourceFile)) {
+          const raw = JSON.parse(fs.readFileSync(bcSourceFile, 'utf8'));
           if (Array.isArray(raw) && raw.length > 0) {
-            const clean = raw.map(r => {
-              const d = { ...r };
-              delete d._id;
-              delete d.id;
-              return d;
-            });
-            await BcRecord.insertMany(clean);
-            console.log(`[SEED] Seeded ${clean.length} Bons de Commande into MongoDB Atlas`);
+            const clean = raw
+              .filter(r => r.ref && !/TEST/i.test(String(r.ref)) && !/SYNC/i.test(String(r.ref)))
+              .map(r => {
+                const d = { ...r };
+                delete d._id;
+                delete d.id;
+                return d;
+              });
+            await BcRecord.insertMany(clean, { ordered: false });
+            console.log(`[SEED] Seeded ${clean.length} clean Bons de Commande into MongoDB Atlas`);
+
+            await Setting.findOneAndUpdate(
+              { key: 'global' },
+              {
+                $set: {
+                  bcDatasetVersion: 'v6_clean_361',
+                  bcCanonicalCount: clean.length,
+                  bcLastReseededAt: new Date()
+                }
+              },
+              { upsert: true, strict: false }
+            );
             break;
           }
         }
       }
     } else {
-      console.log(`[SEED] BC records verified: ${bcCount} present in MongoDB Atlas`);
+      console.log(`[SEED] BC records verified: ${bcCount} clean records in Atlas (version: ${globalSetting.bcDatasetVersion})`);
     }
 
     const payCount = await Payment.countDocuments();
@@ -266,16 +327,18 @@ async function startServer() {
       ];
       for (const p of payCandidates) {
         if (fs.existsSync(p)) {
-          const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
-          if (Array.isArray(raw) && raw.length > 0) {
-            const clean = raw.map(pDoc => {
-              const d = { ...pDoc };
-              delete d._id;
-              delete d.id;
-              return d;
-            });
-            await Payment.insertMany(clean);
-            console.log(`[SEED] Seeded ${clean.length} Demandes de Paiement into MongoDB Atlas`);
+          const rawPay = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (Array.isArray(rawPay) && rawPay.length > 0) {
+            const cleanPay = rawPay
+              .filter(pDoc => pDoc.paymentRef && !/TEST/i.test(String(pDoc.paymentRef)) && !/SYNC/i.test(String(pDoc.paymentRef)))
+              .map(pDoc => {
+                const d = { ...pDoc };
+                delete d._id;
+                delete d.id;
+                return d;
+              });
+            await Payment.insertMany(cleanPay, { ordered: false });
+            console.log(`[SEED] Seeded ${cleanPay.length} Demandes de Paiement into MongoDB Atlas`);
             break;
           }
         }

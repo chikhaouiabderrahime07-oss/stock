@@ -1,3 +1,4 @@
+const SUIVI_DATA_VERSION = 'v2026_02_clean_361';
 const STORAGE_KEYS = ['suivi_linked_v30', 'suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
 const SESSION_KEYS = ['suivi_linked_session_v30', 'suivi_compact_session_v20', 'suivi_local_session_v12', 'suivi_local_session_v11'];
 const PANEL_PREFS_KEY = 'suivi_compact_panel_prefs_v1';
@@ -376,6 +377,19 @@ function loadState() {
   }
   try {
     const parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== SUIVI_DATA_VERSION) {
+      console.warn('[app.js] Cache version mismatch or legacy data detected. Discarding stale cache.');
+      try { localStorage.removeItem(STORAGE_KEYS[0]); } catch (e) {}
+      if (typeof window !== 'undefined' && window.PRELOAD_DATA) {
+        if (Array.isArray(window.PRELOAD_DATA.bcRecords) && window.PRELOAD_DATA.bcRecords.length) {
+          base.bcRecords = window.PRELOAD_DATA.bcRecords.map(normalizeBcRecord);
+        }
+        if (Array.isArray(window.PRELOAD_DATA.payments) && window.PRELOAD_DATA.payments.length) {
+          base.payments = window.PRELOAD_DATA.payments.map(normalizePayment);
+        }
+      }
+      return base;
+    }
     let loadedBcs = Array.isArray(parsed.bcRecords) && parsed.bcRecords.length ? parsed.bcRecords.map(normalizeBcRecord) : [];
     let loadedPayments = Array.isArray(parsed.payments) && parsed.payments.length ? parsed.payments.map(normalizePayment) : [];
 
@@ -409,6 +423,7 @@ function loadState() {
 }
 function saveState() {
   localStorage.setItem(STORAGE_KEYS[0], JSON.stringify({
+    version: SUIVI_DATA_VERSION,
     settings: state.settings,
     users: state.users,
     suppliers: state.suppliers,

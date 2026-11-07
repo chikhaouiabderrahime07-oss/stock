@@ -109,13 +109,19 @@ window.normalizeBcRecord = function(row = {}) {
   if (state.requesters) {
     state.requesters = state.requesters.map(r => typeof r === "string" ? { id: "req_" + Math.random().toString(36).substr(2, 6), name: r } : r);
   }
-  // Refresh appro cache state specifically without wiping other portal modules
-  if (localStorage.getItem('suivi_reset_v15') !== 'true') {
-    localStorage.removeItem('suivi-achats-state');
-    localStorage.removeItem('suivi_achats_v3');
-    localStorage.setItem('suivi_reset_v15', 'true');
-    console.log('[app-enhancements] Suivi state cache refreshed: 364 BCs, 148 DPs loaded.');
-  }
+  // Clean up legacy reset flags and ensure clean 361 records preload
+  const SUIVI_DATA_VERSION = 'v2026_02_clean_361';
+  try {
+    localStorage.removeItem('suivi_reset_v15');
+    if (localStorage.getItem('suivi_data_version') !== SUIVI_DATA_VERSION) {
+      localStorage.removeItem('suivi-achats-state');
+      localStorage.removeItem('suivi_achats_v3');
+      localStorage.removeItem('sde_suivi_state');
+      localStorage.removeItem('sde_suivi_cache');
+      localStorage.setItem('suivi_data_version', SUIVI_DATA_VERSION);
+      console.log('[app-enhancements] Suivi state cache refreshed: 361 clean BCs, 148 DPs.');
+    }
+  } catch (e) {}
 
   if (!window.PRELOAD_DATA || !window.PRELOAD_DATA.bcRecords) {
     console.log('[app-enhancements] No PRELOAD_DATA found — using localStorage data only. Import JSON via Paramètres.');
@@ -127,6 +133,9 @@ window.normalizeBcRecord = function(row = {}) {
   }
   
   const preloadRecords = window.PRELOAD_DATA.bcRecords;
+  if (!Array.isArray(state.bcRecords) || state.bcRecords.length === 0) {
+    state.bcRecords = preloadRecords.map(normalizeBcRecord);
+  }
   const existingRefs = new Map(state.bcRecords.map(r => [r.ref, r]));
   
   preloadRecords.forEach(preloadRec => {
