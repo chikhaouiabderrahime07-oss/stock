@@ -605,35 +605,80 @@
                 </div>`;
         },
 
-        // ─── LINK TO EXISTING ──────────────────────────────────────────────
+        // ─── LINK TO EXISTING — inline in scanner ──────────────────────────
         showLinkArticleModal(scannedCode) {
+            const area = document.getElementById('gdsScanResultArea');
+            if (!area) return;
             const articles = (typeof DB !== 'undefined' && DB.getArticles) ? DB.getArticles() :
                              (typeof DB !== 'undefined' && DB.data ? DB.data.articles||[] : []);
-            const opts = articles.map(a => `<option value="${this.esc(a.id||a._id)}">${this.esc(a.code)} — ${this.esc(a.designation)} (${a.quantity} ${a.unit||'U'})</option>`).join('');
-            const html = `<div class="p-2"><p class="small text-muted mb-3">Associer définitivement le code <strong>${this.esc(scannedCode)}</strong> à un article :</p>
-                <div class="mb-3"><label class="form-label fw-bold small">Sélectionner l'article :</label>
-                <select id="gdsSelectLinkArticle" class="form-select">${opts}</select></div>
-                <div class="d-flex justify-content-end gap-2">
-                    <button class="btn btn-secondary btn-sm" onclick="if(window.UI&&UI.closeModal)UI.closeModal();">Annuler</button>
-                    <button class="btn btn-primary btn-sm fw-bold" onclick="GdsScannerModule.commitLinkArticle('${this.esc(scannedCode)}')"><i class="fas fa-save me-1"></i>Associer</button>
-                </div></div>`;
-            if (typeof UI !== 'undefined' && UI.showModal) UI.showModal('Associer Code-Barres', html);
+            const safe = this.esc(scannedCode);
+            const opts = articles.map(a => {
+                const id = String(a._id || a.id || '');
+                return `<option value="${id}">${this.esc(a.code||'')} — ${this.esc(a.designation||'')} (stock: ${a.quantity||0} ${a.unit||'U'})</option>`;
+            }).join('');
+            this.subtitle('Associer à un article');
+            area.innerHTML = `
+                <div style="background:#1e293b;border-radius:14px;padding:16px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                        <div style="width:32px;height:32px;border-radius:8px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-link" style="color:#60a5fa;font-size:14px;"></i>
+                        </div>
+                        <div>
+                            <div style="color:#fff;font-weight:700;font-size:0.9rem;">Associer à un article existant</div>
+                            <div style="font-family:monospace;font-size:0.72rem;color:#64748b;">${safe}</div>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:14px;">
+                        <label style="display:block;font-size:0.74rem;font-weight:600;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;">Choisir l'article</label>
+                        <select id="gdsSelectLinkArticle"
+                            style="width:100%;padding:12px;border-radius:8px;border:1.5px solid #334155;background:#0f172a;color:#fff;font-size:0.9rem;outline:none;box-sizing:border-box;">
+                            <option value="">— Sélectionner —</option>
+                            ${opts}
+                        </select>
+                    </div>
+                    <button onclick="GdsScannerModule.commitLinkArticle('${safe}')"
+                        style="width:100%;padding:14px;border-radius:12px;background:#2563eb;color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+                        <i class="fas fa-link"></i> Associer ce code-barres
+                    </button>
+                    <button onclick="GdsScannerModule.renderUnknownResult('${safe}')"
+                        style="width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.82rem;">
+                        ← Retour
+                    </button>
+                </div>`;
         },
 
         commitLinkArticle(scannedCode) {
             const sel = document.getElementById('gdsSelectLinkArticle');
-            if (!sel || !sel.value) return;
+            if (!sel || !sel.value) {
+                if (sel) sel.style.borderColor = '#ef4444';
+                return;
+            }
             const articles = (typeof DB !== 'undefined' && DB.getArticles) ? DB.getArticles() :
                              (typeof DB !== 'undefined' && DB.data ? DB.data.articles||[] : []);
-            const article = articles.find(a => (a.id||a._id) === sel.value);
-            if (article) {
-                article.barcode = scannedCode;
-                if (typeof DB !== 'undefined' && DB.save) DB.save();
-                fetch('/api/articles/' + (article._id||article.id), { method:'PUT', headers: this.hdrs(), body: JSON.stringify({ barcode: scannedCode }) }).catch(()=>{});
-                if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
-                if (typeof Utils !== 'undefined' && Utils.showNotification) Utils.showNotification(`Code-barres associé à "${article.designation}" !`, 'success');
-                this.handleCode(scannedCode);
+            // Compare as strings — _id may be ObjectId or string
+            const article = articles.find(a => String(a._id || a.id || '') === sel.value);
+            if (!article) {
+                if (typeof Utils !== 'undefined' && Utils.showNotification) Utils.showNotification('Article introuvable', 'error');
+                return;
             }
+            // Save barcode to article
+            article.barcode = scannedCode;
+            if (typeof DB !== 'undefined' && DB.save) DB.save();
+            // Persist to server
+            const artId = String(article._id || article.id || '');
+            if (artId) {
+                fetch('/api/articles/' + artId, { method:'PUT', headers: this.hdrs(), body: JSON.stringify({ barcode: scannedCode }) }).catch(()=>{});
+            }
+            if (typeof Utils !== 'undefined' && Utils.showNotification) {
+                Utils.showNotification(`✅ Code-barres associé à "${article.designation}" !`, 'success');
+            }
+            // ⚠️ Reset cooldown so we can process the article immediately
+            this.scanCooldown = false;
+            this.lastScannedCode = '';
+            this.lastScanTime = 0;
+            // Show action picker directly (no re-scan needed — avoids cooldown trap)
+            this.currentArticle = article;
+            this.renderActionPicker(article);
         },
 
         // ─── CREATE NEW ARTICLE — inline in scanner, no popup modal ──────
