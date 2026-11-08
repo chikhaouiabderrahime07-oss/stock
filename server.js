@@ -276,7 +276,7 @@ async function startServer() {
     );
 
     if (isDatasetDirty) {
-      console.log(`[STARTUP-AUTOFIX] Reseeding clean 361 BC dataset in Atlas (count: ${bcCount}, copyClones: ${copyClones}, version: ${globalSetting ? globalSetting.bcDatasetVersion : 'none'})...`);
+      console.log(`[STARTUP-AUTOFIX] Reseeding canonical 364 BC dataset in Atlas (count: ${bcCount}, copyClones: ${copyClones}, version: ${globalSetting ? globalSetting.bcDatasetVersion : 'none'})...`);
       await BcRecord.deleteMany({});
 
       const bcCandidates = [
@@ -302,7 +302,7 @@ async function startServer() {
               { key: 'global' },
               {
                 $set: {
-                  bcDatasetVersion: 'v6_clean_361',
+                  bcDatasetVersion: 'v2026_04_canonical_364',
                   bcCanonicalCount: clean.length,
                   bcLastReseededAt: new Date()
                 }

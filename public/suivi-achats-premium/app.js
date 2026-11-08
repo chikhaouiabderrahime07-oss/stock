@@ -1,4 +1,4 @@
-const SUIVI_DATA_VERSION = 'v2026_02_clean_361';
+const SUIVI_DATA_VERSION = 'v2026_04_canonical_364';
 const STORAGE_KEYS = ['suivi_linked_v30', 'suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
 const SESSION_KEYS = ['suivi_linked_session_v30', 'suivi_compact_session_v20', 'suivi_local_session_v12', 'suivi_local_session_v11'];
 const PANEL_PREFS_KEY = 'suivi_compact_panel_prefs_v1';

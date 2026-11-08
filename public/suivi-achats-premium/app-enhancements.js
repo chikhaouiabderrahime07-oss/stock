@@ -110,7 +110,7 @@ window.normalizeBcRecord = function(row = {}) {
     state.requesters = state.requesters.map(r => typeof r === "string" ? { id: "req_" + Math.random().toString(36).substr(2, 6), name: r } : r);
   }
   // Clean up legacy reset flags and ensure clean 361 records preload
-  const SUIVI_DATA_VERSION = 'v2026_02_clean_361';
+  const SUIVI_DATA_VERSION = 'v2026_04_canonical_364';
   try {
     localStorage.removeItem('suivi_reset_v15');
     if (localStorage.getItem('suivi_data_version') !== SUIVI_DATA_VERSION) {
