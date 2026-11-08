@@ -136,6 +136,11 @@ const App = {
 
             // --- MODULE GATE: Check where user should go BEFORE showing anything ---
             try {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('redirect') === 'bc' && localStorage.getItem('erp_jwt_token')) {
+                    window.location.href = '/suivi-achats-premium/';
+                    return;
+                }
                 const currentUser = (typeof Auth !== 'undefined') ? Auth.getCurrentUser() : null;
                 if (currentUser) {
                     const role = (currentUser.role || '').toLowerCase();
@@ -308,11 +313,25 @@ const App = {
         if (roleEl) roleEl.textContent = roleLabels[user.role] || user.role || 'Utilisateur';
         if (serviceEl) serviceEl.textContent = user.service || user.department || '';
 
-        // Suivi Achats dropdown link visibility for eligible roles
+        // Suivi Achats dropdown & header link visibility for eligible roles
+        const canAccessAchats = Boolean(user && (
+            user.role === 'admin' ||
+            user.role === 'superadmin' ||
+            user.role === 'directeur' ||
+            user.role === 'management' ||
+            user.role === 'appro' ||
+            user.role === 'admin_appro' ||
+            user.role === 'acheteur' ||
+            user.defaultModule === 'bc' ||
+            user.defaultModule === 'both'
+        ));
         const udropAchatsLink = document.getElementById('udropAchatsLink');
         if (udropAchatsLink) {
-            const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'directeur' || user.role === 'management' || user.role === 'appro');
-            udropAchatsLink.style.display = isAdmin ? 'flex' : 'none';
+            udropAchatsLink.style.display = canAccessAchats ? 'flex' : 'none';
+        }
+        const linkToAppro = document.getElementById('linkToAppro');
+        if (linkToAppro) {
+            linkToAppro.style.display = canAccessAchats ? 'inline-flex' : 'none';
         }
 
         // General Settings link (admin only)

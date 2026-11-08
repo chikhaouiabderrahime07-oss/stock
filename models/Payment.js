@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
+  id: { type: String },
   bcId: { type: String, default: '' },
   paymentRef: { type: String, default: '' },
   requestDate: { type: String, default: '' },
@@ -23,8 +24,9 @@ const paymentSchema = new mongoose.Schema({
   totalPaymentDelayDays: { type: Number, default: 0 },
   delayStatus: { type: String, default: 'normal' },
   manualLink: { type: Boolean, default: false }
-}, { timestamps: true, minimize: false, strict: false });
+}, { timestamps: true, minimize: false, strict: false, id: false });
 
+paymentSchema.index({ id: 1 });
 paymentSchema.index({ paymentRef: 1 });
 paymentSchema.index({ status: 1 });
 

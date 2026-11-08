@@ -337,18 +337,32 @@
           name: u.name,
           department: u.department || 'Direction Générale',
           service: u.service || u.department || '',
-          canDeductStock: u.canDeductStock !== undefined ? u.canDeductStock : true,
-          gdsOption: u.gdsOption || 'none',
+          canDeductStock: u.canDeductStock !== undefined ? Boolean(u.canDeductStock) : true,
+          gdsOption: Boolean(u.gdsOption && u.gdsOption !== 'none'),
+          defaultModule: u.defaultModule || 'stock',
           qualite: u.qualite || 'Agent'
         };
 
         try {
           var serialized = JSON.stringify(this.currentUser);
+          var suiviSession = JSON.stringify({
+            id: this.currentUser.id,
+            username: this.currentUser.username,
+            role: this.currentUser.role,
+            name: this.currentUser.name,
+            department: this.currentUser.department,
+            service: this.currentUser.service,
+            defaultModule: this.currentUser.defaultModule,
+            at: new Date().toISOString()
+          });
           localStorage.setItem('erp_currentUser', serialized);
           localStorage.setItem('erp_douroub_session', serialized);
           localStorage.setItem('sde_user_role', this.currentUser.role);
+          localStorage.setItem('suivi_session', suiviSession);
           sessionStorage.setItem('erp_currentUser', serialized);
           sessionStorage.setItem('erp_douroub_session', serialized);
+          sessionStorage.setItem('sde_user_role', this.currentUser.role);
+          sessionStorage.setItem('suivi_session', suiviSession);
         } catch(e) {}
 
         // Update GDS scanner visibility
@@ -397,15 +411,32 @@
             name: u.name,
             department: u.department || 'Direction Générale',
             service: u.service || u.department || '',
-            canDeductStock: u.canDeductStock !== undefined ? u.canDeductStock : true,
-            gdsOption: u.gdsOption || 'none',
+            canDeductStock: u.canDeductStock !== undefined ? Boolean(u.canDeductStock) : true,
+            gdsOption: Boolean(u.gdsOption && u.gdsOption !== 'none'),
+            defaultModule: u.defaultModule || 'stock',
             qualite: u.qualite || 'Agent'
           };
 
           try {
             var serialized = JSON.stringify(this.currentUser);
+            var suiviSession = JSON.stringify({
+              id: this.currentUser.id,
+              username: this.currentUser.username,
+              role: this.currentUser.role,
+              name: this.currentUser.name,
+              department: this.currentUser.department,
+              service: this.currentUser.service,
+              defaultModule: this.currentUser.defaultModule,
+              at: new Date().toISOString()
+            });
             localStorage.setItem('erp_currentUser', serialized);
             localStorage.setItem('erp_douroub_session', serialized);
+            localStorage.setItem('sde_user_role', this.currentUser.role);
+            localStorage.setItem('suivi_session', suiviSession);
+            sessionStorage.setItem('erp_currentUser', serialized);
+            sessionStorage.setItem('erp_douroub_session', serialized);
+            sessionStorage.setItem('sde_user_role', this.currentUser.role);
+            sessionStorage.setItem('suivi_session', suiviSession);
           } catch(e) {}
 
           await DB.loadFromServer();

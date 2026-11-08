@@ -1,8 +1,13 @@
 const router = require('express').Router();
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 const Payment = require('../models/Payment');
 const { authenticate, authorize } = require('../middleware/auth');
+
+function isValidObjectId24(val) {
+  return typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val) && mongoose.Types.ObjectId.isValid(val);
+}
 
 // GET /api/payments
 router.get('/', authenticate, async (req, res) => {
@@ -17,7 +22,9 @@ router.get('/', authenticate, async (req, res) => {
 // POST /api/payments
 router.post('/', authenticate, async (req, res) => {
   try {
-    const record = await Payment.create(req.body);
+    const doc = { ...(req.body || {}) };
+    if (!isValidObjectId24(String(doc._id || ''))) delete doc._id;
+    const record = await Payment.create(doc);
     res.status(201).json({ payment: record });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -29,7 +36,6 @@ async function scanAndUpsertDps(recordsToUpsert) {
   let records = recordsToUpsert;
   if (!records || !Array.isArray(records) || records.length === 0) {
     const candidates = [
-      path.join(__dirname, '..', 'sauvegarde_suivi_2026-11-08.json'),
       path.join(__dirname, '..', 'data', 'extracted_dps_linked.json'),
       path.join(__dirname, '..', '..', 'data', 'extracted_dps_linked.json'),
       path.join(__dirname, '..', 'data', 'extracted_dps.json'),
@@ -77,7 +83,9 @@ async function scanAndUpsertDps(recordsToUpsert) {
 // POST /api/payments/bulk — upsert many
 router.post('/bulk', authenticate, async (req, res) => {
   try {
-    const { payments } = req.body;
+    const payments = Array.isArray(req.body)
+      ? req.body
+      : (req.body && (Array.isArray(req.body.payments) ? req.body.payments : req.body.records));
     if (!Array.isArray(payments)) {
       return res.status(400).json({ error: 'payments array required' });
     }
@@ -87,8 +95,10 @@ router.post('/bulk', authenticate, async (req, res) => {
     const ops = payments.map(p => {
       const doc = { ...p };
       delete doc._id;
-      delete doc.id;
-      const filter = doc.paymentRef ? { paymentRef: doc.paymentRef } : { amount: doc.amount, beneficiary: doc.beneficiary, requestDate: doc.requestDate };
+      delete doc.__v;
+      const filter = doc.paymentRef
+        ? { paymentRef: doc.paymentRef }
+        : (doc.id ? { id: doc.id } : { amount: doc.amount, beneficiary: doc.beneficiary, requestDate: doc.requestDate });
       return {
         updateOne: {
           filter,
@@ -123,10 +133,24 @@ router.post('/scan', authenticate, scanDpHandler);
 router.scanDpHandler = scanDpHandler;
 router.scanAndUpsertDps = scanAndUpsertDps;
 
-// PUT /api/payments/:id
+// PUT /api/payments/:id — update by _id, client id, or paymentRef without CastErrors
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const record = await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const paramId = String(req.params.id || '').trim();
+    const updateDoc = { ...(req.body || {}) };
+    delete updateDoc._id;
+    delete updateDoc.__v;
+    let record = null;
+    if (isValidObjectId24(paramId)) {
+      record = await Payment.findByIdAndUpdate(paramId, { $set: updateDoc }, { new: true, runValidators: true });
+    }
+    if (!record) {
+      record = await Payment.findOneAndUpdate(
+        { $or: [{ id: paramId }, { paymentRef: paramId }] },
+        { $set: updateDoc },
+        { new: true, runValidators: true }
+      );
+    }
     if (!record) return res.status(404).json({ error: 'Paiement non trouvé' });
     res.json({ payment: record });
   } catch (err) {
@@ -144,11 +168,14 @@ router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'
   }
 });
 
-// DELETE /api/payments/:id
+// DELETE /api/payments/:id — delete by _id, client id, or paymentRef without CastErrors
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const record = await Payment.findByIdAndDelete(req.params.id);
-    if (!record) return res.status(404).json({ error: 'Paiement non trouvé' });
+    const paramId = String(req.params.id || '').trim();
+    const orClauses = [{ id: paramId }, { paymentRef: paramId }];
+    if (isValidObjectId24(paramId)) orClauses.unshift({ _id: paramId });
+    const result = await Payment.deleteMany({ $or: orClauses });
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Paiement non trouvé' });
     res.json({ message: 'Paiement supprimé' });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -79,10 +79,23 @@ const settingSchema = new mongoose.Schema({
   defaultSite: {
     type: String,
     default: ''
+  },
+  bcDatasetVersion: {
+    type: String,
+    default: ''
+  },
+  bcCanonicalCount: {
+    type: Number,
+    default: 0
+  },
+  bcLastReseededAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true,
-  minimize: false
+  minimize: false,
+  strict: false
 });
 
 module.exports = mongoose.model('Setting', settingSchema);

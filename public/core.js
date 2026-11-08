@@ -917,6 +917,7 @@ window.Auth = {
                 const match = users.find(u => (u.username && u.username.toLowerCase() === targetUname) || (targetId && u.id === targetId));
 
                 if (match) {
+                    const rawGds = match.gdsOption !== undefined ? match.gdsOption : (sessionObj.gdsOption !== undefined ? sessionObj.gdsOption : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds'));
                     this.currentUser = {
                         id: match.id,
                         username: match.username,
@@ -924,11 +925,13 @@ window.Auth = {
                         name: match.name,
                         department: match.department || sessionObj.department || 'Direction Générale',
                         service: match.service || sessionObj.service || match.department || '',
-                        canDeductStock: match.canDeductStock !== undefined ? match.canDeductStock : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds'),
-                        gdsOption: match.gdsOption !== undefined ? match.gdsOption : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds'),
+                        canDeductStock: match.canDeductStock !== undefined ? Boolean(match.canDeductStock) : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds'),
+                        gdsOption: Boolean(rawGds && rawGds !== 'none'),
+                        defaultModule: match.defaultModule || sessionObj.defaultModule || 'stock',
                         qualite: match.qualite || 'Agent'
                     };
                 } else {
+                    const rawGds = sessionObj.gdsOption !== undefined ? sessionObj.gdsOption : (sessionObj.role === 'admin' || sessionObj.role === 'magasinier' || sessionObj.role === 'mag' || sessionObj.role === 'gds');
                     this.currentUser = {
                         id: sessionObj.id || ('u_' + (sessionObj.username || 'user')),
                         username: sessionObj.username || 'user',
@@ -936,20 +939,33 @@ window.Auth = {
                         name: sessionObj.name || sessionObj.username || 'Utilisateur',
                         department: sessionObj.department || 'Direction Générale',
                         service: sessionObj.service || sessionObj.department || '',
-                        canDeductStock: sessionObj.canDeductStock !== undefined ? sessionObj.canDeductStock : (sessionObj.role === 'admin' || sessionObj.role === 'magasinier' || sessionObj.role === 'mag' || sessionObj.role === 'gds'),
-                        gdsOption: sessionObj.gdsOption !== undefined ? sessionObj.gdsOption : (sessionObj.role === 'admin' || sessionObj.role === 'magasinier' || sessionObj.role === 'mag' || sessionObj.role === 'gds'),
+                        canDeductStock: sessionObj.canDeductStock !== undefined ? Boolean(sessionObj.canDeductStock) : (sessionObj.role === 'admin' || sessionObj.role === 'magasinier' || sessionObj.role === 'mag' || sessionObj.role === 'gds'),
+                        gdsOption: Boolean(rawGds && rawGds !== 'none'),
+                        defaultModule: sessionObj.defaultModule || 'stock',
                         qualite: sessionObj.qualite || 'Agent'
                     };
                 }
 
                 try {
                     const serialized = JSON.stringify(this.currentUser);
+                    const suiviSession = JSON.stringify({
+                        id: this.currentUser.id,
+                        username: this.currentUser.username,
+                        role: this.currentUser.role,
+                        name: this.currentUser.name,
+                        department: this.currentUser.department,
+                        service: this.currentUser.service,
+                        defaultModule: this.currentUser.defaultModule,
+                        at: new Date().toISOString()
+                    });
                     localStorage.setItem('erp_currentUser', serialized);
                     localStorage.setItem('erp_douroub_session', serialized);
                     localStorage.setItem('sde_user_role', this.currentUser.role);
+                    localStorage.setItem('suivi_session', suiviSession);
                     sessionStorage.setItem('erp_currentUser', serialized);
                     sessionStorage.setItem('erp_douroub_session', serialized);
                     sessionStorage.setItem('sde_user_role', this.currentUser.role);
+                    sessionStorage.setItem('suivi_session', suiviSession);
                 } catch(e) {}
             }
         }
@@ -959,6 +975,7 @@ window.Auth = {
         const users = DB.getAll('users');
         const match = users.find(u => u.username === username && u.password === password && u.active !== false);
         if (match) {
+            const rawGds = match.gdsOption !== undefined ? match.gdsOption : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds');
             this.currentUser = {
                 id: match.id,
                 username: match.username,
@@ -966,20 +983,31 @@ window.Auth = {
                 name: match.name,
                 department: match.department || 'Direction Générale',
                 service: match.service || match.department || '',
-                canDeductStock: match.canDeductStock !== undefined ? match.canDeductStock : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds'),
-                gdsOption: match.gdsOption !== undefined ? match.gdsOption : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds'),
+                canDeductStock: match.canDeductStock !== undefined ? Boolean(match.canDeductStock) : (match.role === 'admin' || match.role === 'magasinier' || match.role === 'mag' || match.role === 'gds'),
+                gdsOption: Boolean(rawGds && rawGds !== 'none'),
+                defaultModule: match.defaultModule || 'stock',
                 qualite: match.qualite || 'Agent'
             };
             try {
-                localStorage.setItem('erp_currentUser', JSON.stringify(this.currentUser));
-                localStorage.setItem('erp_douroub_session', JSON.stringify(this.currentUser));
-                localStorage.setItem('sde_user_role', this.currentUser.role);
-                localStorage.setItem('suivi_session', JSON.stringify({
+                const serialized = JSON.stringify(this.currentUser);
+                const suiviSession = JSON.stringify({
+                    id: this.currentUser.id,
                     username: this.currentUser.username,
                     role: this.currentUser.role,
                     name: this.currentUser.name,
+                    department: this.currentUser.department,
+                    service: this.currentUser.service,
+                    defaultModule: this.currentUser.defaultModule,
                     at: new Date().toISOString()
-                }));
+                });
+                localStorage.setItem('erp_currentUser', serialized);
+                localStorage.setItem('erp_douroub_session', serialized);
+                localStorage.setItem('sde_user_role', this.currentUser.role);
+                localStorage.setItem('suivi_session', suiviSession);
+                sessionStorage.setItem('erp_currentUser', serialized);
+                sessionStorage.setItem('erp_douroub_session', serialized);
+                sessionStorage.setItem('sde_user_role', this.currentUser.role);
+                sessionStorage.setItem('suivi_session', suiviSession);
             } catch(e) {}
             if (typeof window.isUserEligibleForGdsScan === 'function') {
                 const isEligible = window.isUserEligibleForGdsScan();

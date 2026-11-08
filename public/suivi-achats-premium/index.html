@@ -10,10 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/all.min.css" />
-  <link rel="stylesheet" href="styles.css?v=4" />
-  <link rel="stylesheet" href="enhancements.css?v=20261108_aligned13_live" />
-  <link rel="stylesheet" href="appro-nextgen.css?v=2" />
-</head>
+  <link rel="stylesheet" href="styles.css" />
+    </head>
 <body data-theme="light">
   <div class="login-shell" id="loginScreen">
     <div class="login-card">
@@ -359,6 +357,7 @@
               <option value="livre">Livré / Réceptionné</option>
               <option value="paye">Payé (Tous)</option>
               <option value="non_paye">Non payé (Créances dues)</option>
+              <option value="non_livre">Non livré (En attente réception)</option>
               <option value="transmis">Transmis / En cours</option>
               <option value="clos">Clôturé</option>
             </select>
@@ -413,10 +412,36 @@
             <button class="btn btn-outline-primary" type="button" onclick="FleetAnalyzer.openModal()" style="font-weight:700;"><i class="fas fa-truck-pickup me-1"></i> Suivi Vidanges & Flotte</button>
             <button class="btn btn-ghost" id="resetFollowupFiltersBtn" type="button">Réinitialiser filtres</button>
           </div>
+                    <!-- Bulk Action Toolbar -->
+          <div id="followupBulkActionBar" class="bulk-action-bar" style="display:none; align-items:center; justify-content:space-between; padding:0.6rem 1rem; margin-bottom:0.75rem; background:linear-gradient(90deg, #1e293b, #0f172a); border:1px solid #38bdf8; border-radius:8px; color:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.25);">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              <span style="font-weight:700; color:#38bdf8; font-size:0.95rem;">
+                <i class="fas fa-check-square me-1"></i> <span id="followupSelectedCount">0</span> BC(s) sélectionné(s)
+              </span>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm" id="bulkCloseBcsBtn" style="font-weight:700; background:#0ea5e9; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-check-double me-1"></i> Clôturer sélection
+              </button>
+              <button type="button" class="btn btn-sm" id="bulkMarkLivrePayeBtn" style="font-weight:700; background:#10b981; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-money-check-alt me-1"></i> Marquer Livré &amp; Payé
+              </button>
+              <button type="button" class="btn btn-sm" id="bulkMarkLivreBtn" style="font-weight:700; background:#3b82f6; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-truck-loading me-1"></i> Marquer Livré
+              </button>
+              <button type="button" class="btn btn-sm" id="bulkDeleteBcsBtn" style="font-weight:700; background:#ef4444; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-trash-alt me-1"></i> Supprimer
+              </button>
+              <button type="button" class="btn btn-sm btn-ghost" id="bulkDeselectAllBtn" style="color:#94a3b8; padding:6px 10px; cursor:pointer;">
+                Annuler
+              </button>
+            </div>
+          </div>
           <div class="table-shell">
-            <table class="dense-table compact-table followup-table">
+            <table class="dense-table compact-table followup-table" id="followupTable">
               <thead>
                 <tr>
+                  <th style="width:36px; text-align:center;"><input type="checkbox" id="selectAllFollowupBcs" title="Tout sélectionner" style="cursor:pointer; width:16px; height:16px;" /></th>
                   <th>BC</th>
                   <th>DA</th>
                   <th>Date</th>
@@ -1115,8 +1140,5 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="data-preload.js"></script>
   <script src="app.js"></script>
-  <script src="app-enhancements.js"></script>
-  <script src="fleet-analyzer.js"></script>
-  <script src="appro-nextgen.js"></script>
-</body>
+      </body>
 </html>

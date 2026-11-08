@@ -20,6 +20,8 @@ const backupSchema = new mongoose.Schema({
     fleet: { type: mongoose.Schema.Types.Mixed, default: [] },
     citernes: { type: mongoose.Schema.Types.Mixed, default: [] },
     bonsTravail: { type: mongoose.Schema.Types.Mixed, default: [] },
+    bcRecords: { type: mongoose.Schema.Types.Mixed, default: [] },
+    payments: { type: mongoose.Schema.Types.Mixed, default: [] },
     settings: { type: mongoose.Schema.Types.Mixed, default: [] }
   },
   sizeBytes: {

@@ -252,7 +252,7 @@ async function startServer() {
     console.warn('[STARTUP] Cleanup notice:', cleanErr.message);
   }
 
-  // ─── Auto-Reseed 361 Clean BC Records & Payments with Idempotent Versioning ───
+  // ─── BC & Payment Startup Verification (Respects manual_empty, Zero Ghost Reseed) ───
   const BcRecord = require('./models/BcRecord');
   const Payment = require('./models/Payment');
   Setting.schema.set('strict', false);
@@ -260,52 +260,45 @@ async function startServer() {
   try {
     const globalSetting = await Setting.findOne({ key: 'global' }).lean();
     const bcCount = await BcRecord.countDocuments();
-    const copyClones = await BcRecord.countDocuments({
-      sourceFile: /[-\s](copy|copie)/i,
-      amountTTC: { $gt: 0 }
-    });
-    const schmitzClones = await BcRecord.countDocuments({
-      supplierName: /SCHMITZ/i,
-      amountTTC: { $gt: 1000000 }
-    });
-    const hasTestBcs = await BcRecord.countDocuments({
-      $or: [{ ref: /^TEST/i }, { ref: /^SYNC/i }]
-    });
+    const isManualEmpty = Boolean(globalSetting && globalSetting.bcDatasetVersion === 'manual_empty');
 
-    if (bcCount === 0) {
-      console.log(`[SEED] Seeding 305 BC dataset into empty Atlas database...`);
+    if (isManualEmpty) {
+      console.log(`[SEED] BC auto-seed skipped (bcDatasetVersion: manual_empty, current count: ${bcCount})`);
+    } else if (bcCount === 0) {
       const bcCandidates = [
-        path.join(__dirname, 'sauvegarde_suivi_2026-11-08.json'),
-        path.join(__dirname, 'data', 'extracted_bcs_linked.json'),
-        path.join(__dirname, '..', 'data', 'extracted_bcs_linked.json')
+        path.join(__dirname, 'data', 'extracted_bcs_linked.json')
       ];
       for (const bcSourceFile of bcCandidates) {
         if (fs.existsSync(bcSourceFile)) {
           const raw = JSON.parse(fs.readFileSync(bcSourceFile, 'utf8'));
-          const list = Array.isArray(raw) ? raw : (raw.bcRecords || []);
+          const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.bcRecords) ? raw.bcRecords : []);
           if (Array.isArray(list) && list.length > 0) {
             const clean = list
-              .filter(r => r.ref && !/TEST/i.test(String(r.ref)) && !/SYNC/i.test(String(r.ref)))
+              .filter(r => r && r.ref && !/TEST/i.test(String(r.ref)) && !/SYNC/i.test(String(r.ref)))
               .map(r => {
                 const d = { ...r };
                 delete d._id;
-                delete d.id;
+                if (!d.id || typeof d.id !== 'string' || !d.id.trim()) {
+                  delete d.id;
+                }
                 return d;
               });
-            await BcRecord.insertMany(clean, { ordered: false });
-            console.log(`[SEED] Seeded ${clean.length} clean Bons de Commande into MongoDB Atlas`);
+            if (clean.length > 0) {
+              await BcRecord.insertMany(clean, { ordered: false });
+              console.log(`[SEED] Seeded ${clean.length} clean Bons de Commande into MongoDB Atlas`);
 
-            await Setting.findOneAndUpdate(
-              { key: 'global' },
-              {
-                $set: {
-                  bcDatasetVersion: 'v2026_07_smart_matched_all_305_live',
-                  bcCanonicalCount: clean.length,
-                  bcLastReseededAt: new Date()
-                }
-              },
-              { upsert: true, strict: false }
-            );
+              await Setting.findOneAndUpdate(
+                { key: 'global' },
+                {
+                  $set: {
+                    bcDatasetVersion: 'v2026_07_smart_matched_all_305_live',
+                    bcCanonicalCount: clean.length,
+                    bcLastReseededAt: new Date()
+                  }
+                },
+                { upsert: true, strict: false }
+              );
+            }
             break;
           }
         }

@@ -50,10 +50,20 @@
 
         function enforceStockRole() {
             const linkAppro = document.getElementById('linkToAppro');
-            if (isAdmin || role === 'superadmin' || role === 'admin' || role === 'directeur' || role === 'admin_appro' || role === 'acheteur') {
+            let hasBcModule = false;
+            try {
+                const rawSess = localStorage.getItem('erp_currentUser') || localStorage.getItem('erp_douroub_session');
+                if (rawSess) {
+                    const parsedSess = JSON.parse(rawSess);
+                    if (parsedSess && (parsedSess.defaultModule === 'bc' || parsedSess.defaultModule === 'both')) {
+                        hasBcModule = true;
+                    }
+                }
+            } catch (e) {}
+            if (isAdmin || hasBcModule || role === 'superadmin' || role === 'admin' || role === 'directeur' || role === 'management' || role === 'appro' || role === 'admin_appro' || role === 'acheteur') {
                 if (linkAppro) linkAppro.style.display = 'inline-flex';
             } else {
-                if (linkAppro) linkAppro.style.display = 'inline-flex';
+                if (linkAppro) linkAppro.style.display = 'none';
             }
 
             // Seamless navigation between Achats and Stock: lockout removed for buyers coming from Achats

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const bcRecordSchema = new mongoose.Schema({
+  id: { type: String },
   ref: { type: String, default: '' },
   daRef: { type: String, default: '' },
   daStatus: { type: String, default: 'draft' },
@@ -19,6 +20,8 @@ const bcRecordSchema = new mongoose.Schema({
   promisedDate: { type: String, default: '' },
   goodsReceivedDate: { type: String, default: '' },
   serviceDoneDate: { type: String, default: '' },
+  closedAt: { type: String, default: '' },
+  closedBy: { type: String, default: '' },
   requester: { type: String, default: '' },
   department: { type: String, default: '' },
   paymentTerms: { type: String, default: '' },
@@ -42,12 +45,17 @@ const bcRecordSchema = new mongoose.Schema({
   timbre: { type: Number, default: 0 },
   dpRef: { type: String, default: '' },
   dpDate: { type: String, default: '' },
+  paymentRef: { type: String, default: '' },
+  paymentStatus: { type: String, default: '' },
   paymentPaidDate: { type: String, default: '' },
+  linkedDpIds: { type: [String], default: [] },
+  linkedDpRefs: { type: [String], default: [] },
   delayBcToDpDays: { type: Number, default: 0 },
   totalPaymentDelayDays: { type: Number, default: 0 },
   delayStatus: { type: String, default: 'normal' }
-}, { timestamps: true, minimize: false, strict: false });
+}, { timestamps: true, minimize: false, strict: false, id: false });
 
+bcRecordSchema.index({ id: 1 });
 bcRecordSchema.index({ ref: 1 });
 bcRecordSchema.index({ supplierName: 1 });
 bcRecordSchema.index({ date: -1 });

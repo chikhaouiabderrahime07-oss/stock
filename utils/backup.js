@@ -7,6 +7,8 @@ const Movement = require('../models/Movement');
 const Fleet = require('../models/Fleet');
 const Citerne = require('../models/Citerne');
 const BonTravail = require('../models/BonTravail');
+const BcRecord = require('../models/BcRecord');
+const Payment = require('../models/Payment');
 const Setting = require('../models/Setting');
 
 const RETENTION_DAYS = parseInt(process.env.BACKUP_RETENTION_DAYS) || 30;
@@ -22,7 +24,7 @@ async function performBackup(type = 'auto', createdBy = 'system') {
   });
 
   try {
-    const [articles, users, orders, decharges, movements, fleet, citernes, bonsTravail, settings] =
+    const [articles, users, orders, decharges, movements, fleet, citernes, bonsTravail, bcRecords, payments, settings] =
       await Promise.all([
         Article.find().lean(),
         User.find().select('-password').lean(),
@@ -32,6 +34,8 @@ async function performBackup(type = 'auto', createdBy = 'system') {
         Fleet.find().lean(),
         Citerne.find().lean(),
         BonTravail.find().lean(),
+        BcRecord.find().lean(),
+        Payment.find().lean(),
         Setting.find().lean()
       ]);
 
@@ -44,6 +48,8 @@ async function performBackup(type = 'auto', createdBy = 'system') {
       fleet,
       citernes,
       bonsTravail,
+      bcRecords,
+      payments,
       settings
     };
 
