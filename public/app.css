@@ -1,0 +1,24 @@
+/* ============================================================
+   ERP DOUROUB V5 — Application Core Stylesheet (Responsive 100% Zoom)
+   Combines style.css and plan-travail.css with responsive safeguards
+   ============================================================ */
+@import url("style.css");
+@import url("plan-travail.css");
+
+/* Universal Container & Responsive Flow: Zero rigid min-widths forcing zoom out */
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.main-content {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1440px) {
+  .main-content {
+    padding: 12px 16px;
+  }
+}

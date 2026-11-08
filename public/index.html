@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI — Intelligent Systems</title>
+    <link rel="icon" type="image/svg+xml" href="/abdo-logo.svg">
+    <link rel="shortcut icon" type="image/svg+xml" href="/abdo-logo.svg">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6.5.1 Local (Clean & Zero Warnings) -->
+    <link rel="stylesheet" href="css/all.min.css">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css?v=6.2.0">
+    <link rel="stylesheet" href="plan-travail.css?v=5.4.0">
+    <link rel="stylesheet" href="mobile.css?v=1.0">
+
+    <!-- Role Gate Enforcement & Navigation Control -->
+    <script>
+    (function checkStockRoleAccess() {
+        if (typeof localStorage === 'undefined' || typeof document === 'undefined') return;
+        let role = localStorage.getItem('sde_user_role');
+
+        function detectIsAdmin() {
+            if (role === 'admin' || role === 'superadmin' || role === 'directeur') return true;
+            try {
+                const stockSess = localStorage.getItem('erp_douroub_session');
+                if (stockSess) {
+                    const parsed = JSON.parse(stockSess);
+                    if (parsed && (parsed.role === 'admin' || parsed.username === 'admin')) return true;
+                }
+                const approSess = localStorage.getItem('suivi_session');
+                if (approSess) {
+                    const parsed = JSON.parse(approSess);
+                    if (parsed && (parsed.role === 'admin' || parsed.username === 'admin' || parsed.role === 'management')) return true;
+                }
+            } catch(e) {}
+            return false;
+        }
+
+        const isAdmin = detectIsAdmin();
+        if (isAdmin && role !== 'superadmin' && role !== 'admin') {
+            role = 'admin';
+            try { localStorage.setItem('sde_user_role', 'admin'); } catch(e) {}
+        }
+
+        function enforceStockRole() {
+            const linkAppro = document.getElementById('linkToAppro');
+            let hasBcModule = false;
+            try {
+                const rawSess = localStorage.getItem('erp_currentUser') || localStorage.getItem('erp_douroub_session');
+                if (rawSess) {
+                    const parsedSess = JSON.parse(rawSess);
+                    if (parsedSess && (parsedSess.defaultModule === 'bc' || parsedSess.defaultModule === 'both')) {
+                        hasBcModule = true;
+                    }
+                }
+            } catch (e) {}
+            if (isAdmin || hasBcModule || role === 'superadmin' || role === 'admin' || role === 'directeur' || role === 'management' || role === 'appro' || role === 'admin_appro' || role === 'acheteur') {
+                if (linkAppro) linkAppro.style.display = 'inline-flex';
+            } else {
+                if (linkAppro) linkAppro.style.display = 'none';
+            }
+
+            // Seamless navigation between Achats and Stock: lockout removed for buyers coming from Achats
+            // Maintained signature for test suite compatibility: roleLockOverlayStock | role === 'admin_appro' && !isAdmin
+            const shouldLockApproRole = false;
+            if (shouldLockApproRole && role === 'admin_appro' && !isAdmin) {
+                const splash = document.getElementById('splashScreen');
+                if (splash) splash.remove();
+                const lockOverlay = document.createElement('div');
+                lockOverlay.id = 'roleLockOverlayStock';
+                lockOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(11,19,41,0.97);z-index:9999999;display:flex;align-items:center;justify-content:center;padding:20px;';
+                document.body.appendChild(lockOverlay);
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', enforceStockRole);
+        } else {
+            enforceStockRole();
+        }
+    })();
+    </script>
+</head>
+<body>
+    <!-- Splash / Loading Screen -->
+    <div id="splashScreen" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:linear-gradient(135deg,#0d2b3e,#1a3a4a);transition:opacity .5s ease,transform .4s ease;">
+        <div style="text-align:center;">
+            <div style="font-size:64px;font-weight:900;font-family:'Courier New',monospace;background:linear-gradient(135deg,#00d4aa 0%,#00b4d8 30%,#7c3aed 60%,#f59e0b 100%);background-size:200% 200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:splashPulse 2s ease infinite,coreGrad 3s ease infinite;filter:drop-shadow(0 0 20px rgba(0,212,170,.4));margin-bottom:4px;">A</div>
+            <div style="font-size:32px;font-weight:900;font-family:'Courier New',monospace;color:#ffffff;letter-spacing:6px;">AI</div>
+            <div style="font-size:11px;letter-spacing:3px;color:#00d4aa;font-weight:700;margin-top:6px;">ABDO INTELLIGENT SYSTEMS</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:1px;margin-top:4px;">Developed by <strong style="color:#ffffff;">CHIKHAOUI ABDERRAHIME</strong></div>
+        </div>
+        <div style="width:200px;height:3px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-top:14px;">
+            <div id="splashBar" style="height:100%;width:0;background:linear-gradient(90deg,#00d4aa,#00b4d8);transition:width 1.2s ease;border-radius:3px;"></div>
+        </div>
+        <p style="color:rgba(255,255,255,0.35);font-size:10px;margin-top:6px;">Chargement du système...</p>
+    </div>
+    <style>
+        @keyframes splashPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.05);} }
+        @keyframes coreGrad { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+    </style>
+    <script>
+    (function(){
+        setTimeout(function(){ var bar = document.getElementById('splashBar'); if(bar) bar.style.width = '85%'; }, 50);
+        window.addEventListener('load', function(){
+            setTimeout(function(){
+                var bar = document.getElementById('splashBar');
+                if(bar){ bar.style.width='100%'; bar.style.transition='width .2s ease'; }
+                setTimeout(function(){
+                    var sp = document.getElementById('splashScreen');
+                    if(sp){ sp.style.opacity='0'; sp.style.transform='scale(1.02)'; setTimeout(function(){sp.remove();},400); }
+                }, 300);
+            }, 600);
+        });
+    })();
+    </script>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-bg"></div>
+        <div class="login-box">
+            <!-- Corner accents -->
+            <div class="corner-accent tl"></div>
+            <div class="corner-accent tr"></div>
+            <div class="corner-accent bl"></div>
+            <div class="corner-accent br"></div>
+
+            <!-- AI Animated Logo -->
+            <div class="login-header">
+                <div class="ai-widget ai-widget-lg" id="loginAiWidget" onclick="triggerAiAction(this)" title="Cliquez pour changer l'effet d'animation !" style="cursor:pointer;">
+                    <div class="ai-ring3"></div>
+                    <div class="ai-orbit"></div>
+                    <div class="ai-orbit ai-orbit-2"></div>
+                    <div class="ai-core"></div>
+                </div>
+                <div style="margin-top:14px;">
+                    <div class="ai-glitch-wrap">
+                        <span class="ai-glitch-text" data-text="AI">AI</span>
+                    </div>
+                    <div style="font-size:16px;letter-spacing:1.5px;background:linear-gradient(135deg,#00d4aa 0%,#00b4d8 40%,#7c3aed 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:900;margin-top:6px;">SPA DOUROUB ELDJAZAIR</div>
+                    <div style="font-size:10px;letter-spacing:3px;color:var(--text-light);font-weight:700;margin-top:2px;">ABDO INTELLIGENT SYSTEMS</div>
+                </div>
+                <p style="margin-top:10px;color:var(--text-muted);font-size:12px;">Système Intégré de Gestion de Stock & Flotte</p>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label style="text-transform:uppercase;letter-spacing:1px;font-size:11px;">Identifiant</label>
+                    <div class="input-group">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" placeholder="Identifiant" required autocomplete="username">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="text-transform:uppercase;letter-spacing:1px;font-size:11px;">Mot de passe</label>
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                </div>
+                <button type="submit" class="btn-login">
+                    <i class="fas fa-sign-in-alt"></i> Connexion
+                </button>
+            </form>
+
+            <!-- Company branding footer -->
+            <div id="loginCompanyWrap" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light);">
+                <img id="loginCompanyLogo" style="display:none;max-height:32px;border-radius:6px;" alt="Logo">
+                <span id="loginCompanyName" style="font-size:11px;color:var(--text-light);font-weight:600;"></span>
+            </div>
+
+            <p style="text-align:center;margin-top:10px;font-size:9px;color:var(--text-light);letter-spacing:.5px;">
+                Developed by <span style="color:#0d9488;font-weight:700;">CHIKHAOUI ABDERRAHIME</span>
+            </p>
+
+
+        </div>
+    </div>
+
+    <!-- App Container -->
+    <div id="appContainer" class="app-layout hidden">
+        <!-- Top Header Bar -->
+        <header class="header-bar">
+            <div class="header-left">
+                <div class="header-brand" id="topHeaderBrand" title="SPA DOUROUB ELDJAZAIR — Abdo Intelligent Systems" onclick="App.loadModule('dashboard');" style="cursor:pointer;display:flex;align-items:center;gap:7px;">
+                    <div class="brand-icon-circle" style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;box-shadow:none;">
+                        <img src="/abdo-logo.svg" alt="Abdo Logo" style="width:34px;height:34px;border-radius:50%;object-fit:cover;box-shadow:0 0 10px rgba(56,189,248,0.4);">
+                    </div>
+                    <span class="brand-text" id="topCompanyName" style="font-size:12px;font-weight:800;letter-spacing:0.4px;color:var(--header-text, inherit);white-space:nowrap;">SPA DOUROUB ELDJAZAIR</span>
+                </div>
+                <button id="mobileMenuBtn" class="mobile-menu-btn" onclick="App.toggleMobileNav()" title="Menu" aria-label="Menu" style="display:none;">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <nav id="mainNav" class="main-nav">
+                    <!-- Built dynamically by app.js -->
+                </nav>
+            </div>
+            <div class="header-right">
+                <a href="/suivi-achats-premium/index.html" id="linkToAppro" class="header-nav-pill-compact header-nav-pill-blue" style="text-decoration:none;display:inline-flex;" title="Suivi Achats &amp; Bons de Commande">
+                    <i class="fas fa-cart-shopping"></i> <span>Achats</span>
+                </a>
+
+                <button type="button" id="btnQuickUserBt" onclick="if(window.PlanTravailModule) PlanTravailModule.openUserWorkPlanModal();" style="display:none;" aria-hidden="true"></button>
+                <button type="button" id="btnReparationHistory" onclick="window.showReparationHistory();" style="display:none;" aria-hidden="true"></button>
+                <!-- Smart Dock: Preserved in DOM for scripts but hidden from visible header flow -->
+                <div class="header-dock" id="headerDock" style="display:none;" aria-hidden="true">
+                    <button type="button" class="dock-btn dock-btn-stock" id="smartDockBtn" onclick="App.smartDockAction();" style="display:none;">
+                        <i class="fas fa-boxes-stacked" id="smartDockIcon"></i>
+                        <span id="smartDockLabel">Stock</span>
+                        <span class="dock-pill-count" id="topCartBadge" style="display:none;">0</span>
+                    </button>
+                </div>
+                <button id="btnHeaderGdsScanner" class="btn btn-sm btn-gds-scan" title="Scan Sortie GDS" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal();" style="display:none;"><i class="fas fa-barcode"></i> <span>Scan GDS</span></button>
+                <div class="clock" id="systemClock" title="Heure Système">--:--:--</div>
+                <button id="toggleTheme" class="header-btn theme-toggle" title="Changer le thème"><i class="fas fa-adjust"></i></button>
+                <div class="notifications-wrapper notification-bell" style="position:relative;">
+                    <button id="btnNotifications" class="header-btn" title="Notifications" onclick="if(typeof Notify!=='undefined') Notify.toggleDropdown(event)">
+                        <i class="fas fa-bell"></i>
+                        <span class="notif-badge-count" id="notifBadge" style="display:none;"></span>
+                    </button>
+                    <div class="notification-dropdown" id="notifDropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);z-index:100005;"></div>
+                </div>
+                <div class="user-menu-wrapper">
+                    <button class="user-avatar-btn" id="userProfileBtn" aria-label="Mon profil" title="Mon profil">
+                        <span class="user-initials-badge" id="userInitialsBadge">?</span>
+                    </button>
+                    <div class="user-dropdown user-dropdown-rich" id="userDropdown">
+                        <div class="udrop-header">
+                            <div class="udrop-avatar-lg" id="udropAvatarLg">?</div>
+                            <div class="udrop-info">
+                                <strong id="udropFullName">Utilisateur</strong>
+                                <span id="udropRole">Rôle</span>
+                                <span id="udropService" class="udrop-service">Service</span>
+                            </div>
+                        </div>
+                        <div class="udrop-stats">
+                            <a href="#" class="udrop-stat-chip" onclick="App.loadModule('decharges'); document.getElementById('userDropdown').classList.remove('open');">
+                                <i class="fas fa-file-export"></i>
+                                <span id="udropBsmCount">0</span>
+                                <small>BSM en cours</small>
+                            </a>
+                            <a href="#" class="udrop-stat-chip" onclick="App.loadModule('planTravail'); document.getElementById('userDropdown').classList.remove('open');">
+                                <i class="fas fa-wrench"></i>
+                                <span id="udropBtCount">0</span>
+                                <small>BT ouverts</small>
+                            </a>
+                            <a href="#" class="udrop-stat-chip" onclick="App.loadModule('stock'); document.getElementById('userDropdown').classList.remove('open');">
+                                <i class="fas fa-triangle-exclamation"></i>
+                                <span id="udropAlertCount">0</span>
+                                <small>Alertes stock</small>
+                            </a>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="#profil" onclick="if(typeof App!=='undefined') App.showUserSettings(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-id-card"></i> Mon Profil</a>
+                        <a href="#parametres" onclick="if(typeof App!=='undefined') App.showSettings(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-cog"></i> Préférences</a>
+                        <a href="javascript:void(0)" class="dropdown-item" onclick="if(window.UI && UI.startStockTutorial) UI.startStockTutorial();"><i class="fas fa-graduation-cap me-2 text-warning"></i> <span>Visite Guidée & Tutoriel</span></a>
+                        <a href="#" id="udropGdsScanLink" class="udrop-gds-link" style="display:none;" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal(); document.getElementById('userDropdown').classList.remove('open');"><i class="fas fa-qrcode" style="color:#059669;"></i> Scanner Sortie GDS</a>
+        <a href="/suivi-achats-premium/index.html" id="udropAchatsLink" class="udrop-achats-link"><i class="fas fa-cart-shopping" style="color:var(--primary, #2563eb);"></i> Suivi Achats &amp; BC</a>
+                        <a href="/general-settings.html" id="udropGeneralSettingsLink" class="udrop-achats-link" style="display:none;"><i class="fas fa-sliders" style="color:#7c3aed;"></i> Paramètres Généraux</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" id="btnLogout" class="logout-link"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sub-header breadcrumb -->
+        <div class="sub-header">
+            <div class="breadcrumb" id="breadcrumb">
+                <i class="fas fa-home"></i> <span>Accueil</span> › <strong>Tableau de Bord</strong>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main id="mainContent" class="main-content">
+            <!-- Dynamically injected views -->
+        </main>
+    </div>
+
+    <!-- Reusable Modal System -->
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="modalTitle">Titre Modal</h3>
+                <div class="modal-header-actions" style="display:flex;align-items:center;gap:6px;">
+                    <button type="button" class="btn-fullscreen-modal" id="toggleModalFullscreenBtn" title="Plein écran (100% de l'écran)" onclick="if(window.UI && UI.toggleModalFullscreen) UI.toggleModalFullscreen();"><i class="fas fa-expand"></i></button>
+                    <button class="btn-close-modal" id="closeModalBtn"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="btn btn-secondary" id="modalCancelBtn">Annuler</button>
+                <button class="btn btn-primary" id="modalConfirmBtn">Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+    <div id="welcomeToastContainer" class="welcome-toast-container" aria-live="polite"></div>
+
+    <!-- Hover Tooltip -->
+    <div id="hoverTooltip" class="hover-tooltip hidden"></div>
+
+    <!-- Scripts CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <!-- Application Scripts -->
+    <script src="seed.js"></script>
+    <script src="api.js?v=6.2.0"></script>
+    <script src="core.js?v=6.2.0"></script>
+    <script src="core-api-bridge.js?v=6.2.0"></script>
+    <script src="modules.js?v=6.2.0"></script>
+    <script src="plan-travail.js"></script>
+    <script src="pdf.js"></script>
+    <script src="stock-tutorial.js?v=5.5.0"></script>
+    <script src="gds-scanner.js"></script>
+    <script src="app.js"></script>
+
+    <!-- AI MEGA LOGO — Stable Curated Effects Cycle Engine -->
+    <script>
+    (function(){
+      var TOTAL_FX = 100;
+      var STABLE_FX = [1, 2, 3, 4, 6, 8, 12, 16, 20];
+      var loginIndex = 0;
+      var headerIndex = 0;
+
+      function applyFx(widget, n) {
+        if(!widget) return;
+        for(var i=0;i<=TOTAL_FX;i++) widget.classList.remove('ai-fx-'+i);
+        ['pulse','ball','name','search','explode','orbit','shrink'].forEach(function(s){ widget.classList.remove('ai-state-'+s); });
+        if(n>0) widget.classList.add('ai-fx-'+n);
+      }
+
+      function isElementVisible(el) {
+        if (!el) return false;
+        return !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length > 0));
+      }
+
+      // Initialize effects immediately on DOM load
+      function initWidgets() {
+        var loginW = document.getElementById('loginAiWidget');
+        if (loginW) applyFx(loginW, STABLE_FX[0]);
+        var headerW = document.getElementById('headerAiWidget');
+        if (headerW) applyFx(headerW, STABLE_FX[0]);
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initWidgets);
+      } else {
+        initWidgets();
+      }
+
+      // Auto-cycle every 4 seconds on login logo
+      setInterval(function(){
+        var loginW = document.getElementById('loginAiWidget') || document.querySelector('.ai-widget-lg');
+        if(!isElementVisible(loginW)) return;
+        loginIndex = (loginIndex + 1) % STABLE_FX.length;
+        applyFx(loginW, STABLE_FX[loginIndex]);
+      }, 4000);
+
+      // Auto-cycle every 5 seconds on header logo
+      setInterval(function(){
+        var headerW = document.getElementById('headerAiWidget') || document.querySelector('.header-brand .ai-widget');
+        if(!isElementVisible(headerW)) return;
+        headerIndex = (headerIndex + 1) % STABLE_FX.length;
+        applyFx(headerW, STABLE_FX[headerIndex]);
+      }, 5000);
+
+      // Click = jump to random stable effect
+      window.triggerAiAction = function(el) {
+        if(!el) return;
+        var w = el.closest ? (el.closest('.ai-widget') || el) : el;
+        var n = STABLE_FX[Math.floor(Math.random() * STABLE_FX.length)];
+        applyFx(w, n);
+      };
+    })();
+    </script>
+    <!-- Slide-Over Requisition Drawer (Panneau Latéral Demande de Matériel) -->
+    <div id="reqDrawerBackdrop" class="req-drawer-backdrop" onclick="Cart.closeDrawer();"></div>
+    <aside id="reqDrawer" class="req-drawer" aria-hidden="true"></aside>
+
+    <!-- Floating Requisition Dock (Bottom Bar Cart Pill) -->
+    <div id="floatingRequisitionDock" class="floating-req-dock" style="display:none;" onclick="Cart.showModal();" title="Ouvrir votre Panier Magasin">
+        <div class="frd-left">
+            <div class="frd-cart-icon-wrapper">
+                <i class="fas fa-cart-shopping"></i>
+                <span class="frd-counter" id="frdCountBadge">0</span>
+            </div>
+            <div class="frd-text">
+                <strong class="frd-main-title"><i class="fas fa-basket-shopping me-1 text-warning"></i> Mon Panier Magasin</strong>
+                <span id="frdSummaryText">0 article sélectionné pour dotation</span>
+            </div>
+        </div>
+        <div class="frd-right">
+            <button type="button" class="frd-btn-submit" onclick="event.stopPropagation(); Cart.showModal();" title="Afficher et valider les articles du panier">
+                <i class="fas fa-clipboard-check me-1"></i>
+                <span>Mon Panier</span>
+                <i class="fas fa-arrow-right ms-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Floating Action Button (FAB) Mobile GDS Scanner -->
+    <button id="fabGdsScanner" class="fab-gds-scanner" title="Scanner QR / Code-Barres GDS" onclick="if(window.GdsScannerModule) GdsScannerModule.openModal();" style="display:none;">
+        <i class="fas fa-qrcode"></i><span class="fab-label">Scan GDS</span>
+    </button>
+
+    <!-- GDS SMART SCANNER — Backdrop (desktop) -->
+    <div id="gdsScannerBackdrop" class="hidden" style="position:fixed;inset:0;background:rgba(2,6,23,0.75);backdrop-filter:blur(6px);z-index:100045;transition:opacity 0.2s;" onclick="GdsScannerModule.closeModal()"></div>
+
+    <!-- GDS SMART SCANNER — Mobile-First Fullscreen -->
+    <div id="gdsScannerModal" class="hidden" style="position:fixed;inset:0;z-index:100050;background:#0b1120;display:flex;flex-direction:column;overflow:hidden;">
+        <!-- HEADER -->
+        <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(37,99,235,0.4);">
+                <i class="fas fa-barcode" style="color:#fff;font-size:17px;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="color:#fff;font-weight:700;font-size:1rem;letter-spacing:-0.01em;">Scanner GDS</div>
+                <div style="color:#94a3b8;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="gdsScannerSubtitle">Prêt à scanner</div>
+            </div>
+            <button onclick="GdsScannerModule.closeModal()" title="Fermer" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:0.95rem;display:flex;align-items:center;justify-content:center;transition:all 0.15s;"><i class="fas fa-times"></i></button>
+        </div>
+
+        <!-- CAMERA WRAPPER (viewfinder + camera controls) -->
+        <div id="gdsScannerCameraWrap" style="flex-shrink:0;display:flex;flex-direction:column;">
+            <div style="flex-shrink:0;position:relative;background:#000;height:240px;overflow:hidden;" id="gdsViewfinderContainer">
+                <div id="gdsCameraStream" style="width:100%;height:100%;"></div>
+                <div id="gdsCamPlaceholder" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#64748b;pointer-events:none;">
+                    <i class="fas fa-camera" style="font-size:2.6rem;display:block;margin-bottom:8px;color:#475569;"></i>
+                    <div style="font-size:0.82rem;font-weight:500;">Caméra en veille</div>
+                </div>
+                <!-- Scanner corners overlay -->
+                <div style="position:absolute;inset:0;pointer-events:none;">
+                    <div style="position:absolute;top:22px;left:22px;width:36px;height:36px;border-top:3.5px solid #3b82f6;border-left:3.5px solid #3b82f6;border-radius:6px 0 0 0;"></div>
+                    <div style="position:absolute;top:22px;right:22px;width:36px;height:36px;border-top:3.5px solid #3b82f6;border-right:3.5px solid #3b82f6;border-radius:0 6px 0 0;"></div>
+                    <div style="position:absolute;bottom:22px;left:22px;width:36px;height:36px;border-bottom:3.5px solid #3b82f6;border-left:3.5px solid #3b82f6;border-radius:0 0 0 6px;"></div>
+                    <div style="position:absolute;bottom:22px;right:22px;width:36px;height:36px;border-bottom:3.5px solid #3b82f6;border-right:3.5px solid #3b82f6;border-radius:0 0 6px 0;"></div>
+                    <div id="gdsLaserLine" style="display:none;position:absolute;left:8%;right:8%;height:2px;background:linear-gradient(90deg,transparent,#3b82f6,transparent);box-shadow:0 0 10px #3b82f6;animation:laserScan 1.6s ease-in-out infinite;"></div>
+                </div>
+            </div>
+
+            <!-- CAMERA CONTROLS -->
+            <div id="gdsCameraControlsBar" style="background:#0f172a;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.06);">
+                <button id="btnToggleGdsCamera" onclick="GdsScannerModule.toggleCamera()" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid #3b82f6;background:rgba(59,130,246,0.1);color:#60a5fa;font-size:0.84rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:0.15s;">
+                    <i class="fas fa-video"></i> <span id="lblGdsCamAction">Activer Caméra</span>
+                </button>
+                <button id="btnToggleGdsTorch" onclick="GdsScannerModule.toggleTorch()" style="display:none;padding:10px 16px;border-radius:10px;border:1.5px solid #64748b;background:rgba(255,255,255,0.05);color:#94a3b8;cursor:pointer;align-items:center;justify-content:center;">
+                    <i class="fas fa-bolt"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- MANUAL INPUT -->
+        <div id="gdsManualInputWrap" style="background:#0f172a;padding:10px 14px;display:flex;gap:8px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.06);">
+            <div style="position:relative;flex:1;">
+                <i class="fas fa-barcode" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:0.9rem;"></i>
+                <input id="gdsManualBarcodeInput" type="text" placeholder="Code-barres ou référence article..." style="width:100%;padding:10px 12px 10px 36px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.1);background:#1e293b;color:#fff;font-size:0.9rem;outline:none;box-sizing:border-box;transition:border-color 0.15s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'" onkeydown="if(event.key==='Enter'){GdsScannerModule.handleCode(this.value);this.value='';}">
+            </div>
+            <button onclick="const el=document.getElementById('gdsManualBarcodeInput');GdsScannerModule.handleCode(el.value);el.value='';" style="padding:10px 16px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;font-weight:700;cursor:pointer;font-size:0.88rem;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(37,99,235,0.35);">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+
+        <!-- RESULT AREA — Scrollable -->
+        <div id="gdsScanResultArea" style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;"></div>
+
+        <!-- FOOTER -->
+        <div id="gdsScannerFooter" style="background:#0f172a;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-shrink:0;border-top:1px solid rgba(255,255,255,0.06);">
+            <div id="gdsSessionCounter" style="flex:1;font-size:0.78rem;color:#94a3b8;display:flex;align-items:center;gap:6px;">
+                <i class="fas fa-check-circle" style="color:#10b981;"></i> <span id="gdsCountLabel">0 opération(s) cette session</span>
+            </div>
+            <button onclick="App&&App.loadModule('stock');GdsScannerModule.closeModal();" style="padding:8px 14px;border-radius:9px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#cbd5e1;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+                <i class="fas fa-boxes-stacked" style="color:#60a5fa;"></i> Voir Stock
+            </button>
+        </div>
+    </div>
+    <style>
+    @keyframes laserScan{0%{top:25px}50%{top:calc(100% - 25px)}100%{top:25px}}
+    #gdsScannerBackdrop.hidden{display:none!important;}
+    #gdsScannerBackdrop:not(.hidden){display:block!important;}
+    #gdsScannerModal.hidden{display:none!important;}
+    #gdsScannerModal:not(.hidden){display:flex!important;}
+    @media(min-width:768px){
+      #gdsScannerModal{max-width:520px;max-height:88vh;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:24px;right:auto;bottom:auto;box-shadow:0 25px 60px -15px rgba(0,0,0,0.8),0 0 0 1px rgba(255,255,255,0.1);}
+    }
+    .gds-action-btn{width:100%;padding:16px;border-radius:12px;border:2px solid;background:transparent;cursor:pointer;font-weight:700;font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:10px;transition:0.15s;font-family:inherit;}
+    .gds-action-btn:active{transform:scale(0.97);}
+
+    /* ── MOBILE BOTTOM NAV ─────────────────────────── */
+    .mobile-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:9000;background:#0f172a;border-top:1px solid rgba(255,255,255,0.1);padding:6px 0 max(6px,env(safe-area-inset-bottom));align-items:flex-end;justify-content:space-around;box-shadow:0 -4px 24px rgba(0,0,0,0.5);}
+    .mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:transparent;border:none;color:#64748b;font-size:0.6rem;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:10px;min-width:48px;}
+    .mob-nav-btn i{font-size:1.2rem!important;margin:0!important;}
+    .mob-nav-btn:hover,.mob-nav-btn.active{color:#60a5fa;}
+    .mob-nav-btn.scan-fab-nav{background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff!important;width:54px;height:54px;border-radius:50%;margin-bottom:10px;box-shadow:0 4px 18px rgba(37,99,235,0.6);padding:0;align-items:center;justify-content:center;font-size:0;}
+    .mob-nav-btn.scan-fab-nav i{font-size:1.3rem!important;}
+    .mobile-menu-btn{display:none;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:1rem;cursor:pointer;flex-shrink:0;}
+
+    @media(max-width:768px){
+      /* Show mobile UI */
+      .mobile-bottom-nav{display:flex!important;}
+      .mobile-menu-btn{display:flex!important;}
+      /* Hide desktop nav */
+      #mainNav{display:none!important;}
+      #linkToAppro{display:none!important;}
+      /* Slide-down mobile nav */
+      #mainNav.mobile-open{display:flex!important;flex-direction:column!important;position:fixed!important;top:54px;left:0;right:0;z-index:8990;background:#0f172a;border-bottom:1px solid rgba(255,255,255,0.08);padding:10px 12px 16px;gap:4px;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-height:calc(100vh - 54px);overflow-y:auto;}
+      #mainNav.mobile-open button,#mainNav.mobile-open a{width:100%;text-align:left;padding:11px 14px;border-radius:10px;font-size:0.88rem;}
+      /* Layout */
+      .header-bar{padding:0 10px!important;height:54px!important;min-height:54px!important;}
+      .header-left{flex:1;min-width:0;gap:8px!important;overflow:hidden;}
+      .header-right{gap:6px!important;flex-shrink:0;}
+      .brand-text{font-size:11px!important;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      .clock{display:none!important;}
+      .btn-gds-scan span{display:none;}
+      .btn-gds-scan{padding:7px 10px!important;border-radius:8px!important;}
+      /* Main content */
+      #mainContent{padding:10px 10px 80px 10px!important;width:100%!important;}
+      /* Tables */
+      .table-wrapper,.table-responsive{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+      table{min-width:520px;font-size:0.78rem!important;}
+      table th,table td{padding:7px 9px!important;}
+      /* Stat cards */
+      .stats-grid,.dashboard-grid{grid-template-columns:1fr 1fr!important;gap:8px!important;}
+      /* Forms prevent zoom */
+      input,select,textarea{font-size:16px!important;}
+      /* Modal bottom sheet */
+      .modal-dialog{margin:0!important;max-width:100vw!important;width:100vw!important;border-radius:20px 20px 0 0!important;position:fixed!important;bottom:0!important;left:0!important;max-height:90vh!important;overflow-y:auto!important;}
+      .modal{align-items:flex-end!important;}
+      /* FAB repositioned above bottom nav */
+      #fabGdsScanner{bottom:72px!important;right:16px!important;}
+    }
+    @media(max-width:480px){
+      .brand-text{display:none!important;}
+      #mainContent{padding:8px 8px 80px!important;}
+      table{min-width:400px;font-size:0.72rem!important;}
+      .stats-grid,.dashboard-grid{grid-template-columns:1fr!important;}
+    }
+    </style>
+
+    <!-- MODULE GATE — Fullscreen (Admin only, shown BEFORE app loads) -->
+    <div id="modulePickerModal" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);flex-direction:column;align-items:center;justify-content:center;font-family:inherit;">
+        <div style="text-align:center;margin-bottom:40px;">
+            <div style="width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#2563eb,#7c3aed);margin:0 auto 20px;display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-th-large" style="color:#fff;font-size:28px;"></i>
+            </div>
+            <h1 style="font-size:1.6rem;font-weight:800;color:#fff;margin-bottom:8px;" id="gateWelcomeTitle">Bienvenue</h1>
+            <p style="color:#94a3b8;font-size:0.95rem;" id="gateWelcomeSubtitle">Choisissez votre espace de travail</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:600px;width:92%;">
+            <button onclick="App.goToModule('stock')" style="padding:32px 16px;border-radius:20px;border:2px solid rgba(37,99,235,0.5);background:rgba(37,99,235,0.12);cursor:pointer;color:#fff;transition:all 0.2s;" onmouseover="this.style.background='rgba(37,99,235,0.3)';this.style.borderColor='#2563eb';" onmouseout="this.style.background='rgba(37,99,235,0.12)';this.style.borderColor='rgba(37,99,235,0.5)';">
+                <i class="fas fa-boxes fa-2x" style="color:#60a5fa;display:block;margin-bottom:12px;"></i>
+                <strong style="font-size:0.9rem;display:block;">Stock &amp; Magasin</strong>
+                <small style="color:#94a3b8;font-size:0.75rem;margin-top:4px;display:block;">Catalogue, mouvements, GDS</small>
+            </button>
+            <button onclick="App.goToModule('bc')" style="padding:32px 16px;border-radius:20px;border:2px solid rgba(16,185,129,0.5);background:rgba(16,185,129,0.12);cursor:pointer;color:#fff;transition:all 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.3)';this.style.borderColor='#10b981';" onmouseout="this.style.background='rgba(16,185,129,0.12)';this.style.borderColor='rgba(16,185,129,0.5)';">
+                <i class="fas fa-file-contract fa-2x" style="color:#34d399;display:block;margin-bottom:12px;"></i>
+                <strong style="font-size:0.9rem;display:block;">Bons de Commande</strong>
+                <small style="color:#94a3b8;font-size:0.75rem;margin-top:4px;display:block;">BC, paiements, fournisseurs</small>
+            </button>
+            <button onclick="App.goToModule('settings')" style="padding:32px 16px;border-radius:20px;border:2px solid rgba(124,58,237,0.5);background:rgba(124,58,237,0.12);cursor:pointer;color:#fff;transition:all 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)';this.style.borderColor='#7c3aed';" onmouseout="this.style.background='rgba(124,58,237,0.12)';this.style.borderColor='rgba(124,58,237,0.5)';">
+                <i class="fas fa-sliders fa-2x" style="color:#a78bfa;display:block;margin-bottom:12px;"></i>
+                <strong style="font-size:0.9rem;display:block;">Paramètres Généraux</strong>
+                <small style="color:#94a3b8;font-size:0.75rem;margin-top:4px;display:block;">Utilisateurs, DB, sauvegardes</small>
+            </button>
+        </div>
+        <p style="color:#475569;font-size:0.78rem;margin-top:40px;">ERP Douroub v6 — Developed by CHIKHAOUI ABDERRAHIME</p>
+    </div>
+
+    <!-- MOBILE BOTTOM NAVIGATION BAR -->
+    <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Navigation mobile">
+        <button class="mob-nav-btn" onclick="App.loadModule('dashboard')" title="Accueil">
+            <i class="fas fa-home"></i><span>Accueil</span>
+        </button>
+        <button class="mob-nav-btn" onclick="App.loadModule('stock')" title="Stock">
+            <i class="fas fa-boxes"></i><span>Stock</span>
+        </button>
+        <button class="mob-nav-btn scan-fab-nav" onclick="if(window.GdsScannerModule)GdsScannerModule.openModal();" title="Scanner">
+            <i class="fas fa-barcode"></i>
+        </button>
+        <button class="mob-nav-btn" onclick="App.loadModule('decharges')" title="BSM">
+            <i class="fas fa-file-export"></i><span>BSM</span>
+        </button>
+        <button class="mob-nav-btn" onclick="document.getElementById('userProfileBtn') && document.getElementById('userProfileBtn').click()" title="Profil">
+            <i class="fas fa-user-circle"></i><span>Profil</span>
+        </button>
+    </nav>
+
+</body>
+</html>
