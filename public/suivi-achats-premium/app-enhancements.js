@@ -652,7 +652,7 @@ window.renderFollowupTable = function() {
         <td><strong>${escapeHtml(row.ref)}</strong><div>${impBadge}</div>${stockBadge ? `<div style="margin-top:4px;">${stockBadge}</div>` : ''}</td>
         <td>${daHtml}</td>
         <td>${escapeHtml(formatDate(row.date))}</td>
-        <td>${escapeHtml(row.supplierName || '—')}</td>
+        <td>${escapeHtml(row.supplierName || '—')}${row.requester ? `<div class="table-subline" style="font-size:0.75rem;color:var(--muted);">${escapeHtml(row.requester)}</div>` : ''}</td>
         <td>${deptHtml}</td>
         <td>${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</td>
         <td class="amount-ht">${escapeHtml(formatMoney(row.amountHT || 0, 'DZD'))}</td>
@@ -750,13 +750,12 @@ window.injectSortableHeaders = function() {
       1: ['daRef', 'DA'],
       2: ['date', 'Date'],
       3: ['supplier', 'Fournisseur'],
-      4: ['requester', 'Demandeur'],
-      5: ['department', 'Service'],
-      6: ['type', 'Type'],
-      7: ['amountHT', 'Montant HT'],
-      8: ['amount', 'Montant TTC'],
-      9: ['status', 'Statut BC'],
-      10: ['goodsReceivedDate', 'Réalisation']
+      4: ['department', 'Service / Département'],
+      5: ['type', 'Type'],
+      6: ['amountHT', 'Montant HT'],
+      7: ['amount', 'Montant TTC'],
+      8: ['status', 'Statut BC'],
+      9: ['goodsReceivedDate', 'Réalisation']
     };
     
     // Clear old sort buttons if any, then apply correct ones
@@ -764,9 +763,9 @@ window.injectSortableHeaders = function() {
       if (map[idx]) {
         th.innerHTML = `<button type="button" class="th-sort-btn" data-sort-group="followup" data-sort-field="${map[idx][0]}"><span>${escapeHtml(map[idx][1])}</span><span class="th-sort-indicator" aria-hidden="true">↕</span></button>`;
       } else {
-        if (idx === 11) {
+        if (idx === 10) {
           th.textContent = 'Remarques';
-        } else if (idx === 12) {
+        } else if (idx === 11) {
           th.textContent = 'Actions';
         }
       }

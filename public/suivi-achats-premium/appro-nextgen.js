@@ -1116,15 +1116,21 @@ const ApproNextGen = window.ApproNextGen = {
             <td>${escapeHtml(formatDate(row.paidDate))}</td>
             <td><strong>${escapeHtml(formatMoney(row.amount, 'DZD'))}</strong></td>
             <td><span class="badge bg-light text-dark">${escapeHtml(row.mode || 'Virement')}</span></td>
+            <td>${escapeHtml(row.transactionRef || row.reference || '—')}</td>
             <td><span class="delay-pill ${delayTone}" title="${escapeHtml(delayTip)}" style="cursor:help;">${totalCycle} j</span></td>
             <td>
-              <button class="btn btn-soft btn-xs" type="button" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Lier aux Bons de Commande">
-                🔗 Lier BC
-              </button>
+              <div class="table-actions icon-actions" style="display:flex;gap:4px;align-items:center;">
+                <button class="btn btn-soft btn-xs" type="button" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Lier aux Bons de Commande">
+                  🔗 Lier BC
+                </button>
+                ${typeof iconActionButton === 'function' ? `${iconActionButton('edit', 'edit-payment', row.id, 'Modifier paiement')}${iconActionButton('delete', 'delete-payment', row.id, 'Supprimer paiement')}` : ''}
+              </div>
             </td>
           </tr>
         `;
-      }).join('') : `<tr><td colspan="9" class="muted">Aucune demande de paiement.</td></tr>`;
+      }).join('') : `<tr><td colspan="10" class="muted">Aucune demande de paiement.</td></tr>`;
+      if (typeof bindTableActions === 'function') bindTableActions();
+      if (typeof setTableCount === 'function') setTableCount('paymentsCount', rows.length);
     };
   },
 

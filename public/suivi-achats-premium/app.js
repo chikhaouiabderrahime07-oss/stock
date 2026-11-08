@@ -3450,10 +3450,12 @@ function injectSortableHeaders() {
       1: ['daRef', 'DA'],
       2: ['date', 'Date'],
       3: ['supplier', 'Fournisseur'],
-      4: ['type', 'Type'],
-      5: ['amount', 'Montant TTC'],
-      6: ['status', 'Statut BC'],
-      8: ['promisedDate', 'Date promise'],
+      4: ['department', 'Service / Département'],
+      5: ['type', 'Type'],
+      6: ['amountHT', 'Montant HT'],
+      7: ['amount', 'Montant TTC'],
+      8: ['status', 'Statut BC'],
+      9: ['goodsReceivedDate', 'Réalisation'],
     };
     Object.entries(map).forEach(([index, tuple]) => {
       const th = followupHeaders[Number(index)];
@@ -4605,12 +4607,18 @@ function sortComparableBc(row, sortField) {
       return normalizeText(row.supplierName || '');
     case 'requester':
       return normalizeText(row.requester || '');
+    case 'department':
+      return normalizeText(row.department || row.service || '');
     case 'type':
       return normalizeText(row.type === 'service' ? 'Service' : 'Achat');
+    case 'amountHT':
+      return Number(row.amountHT || (row.amountTTC ? Math.round(row.amountTTC / 1.19) : 0)) || 0;
     case 'amount':
       return Number(row.amountTTC || row.amount || 0) || 0;
     case 'status':
       return normalizeText(statusLabel(row.status));
+    case 'goodsReceivedDate':
+      return String(row.goodsReceivedDate || row.serviceDoneDate || row.promisedDate || '');
     case 'promisedDate':
       return String(row.promisedDate || '');
     case 'date':
