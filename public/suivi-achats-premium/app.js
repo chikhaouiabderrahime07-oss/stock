@@ -636,8 +636,23 @@ function setupState() {
 function setTheme(theme) {
   const safe = (theme === 'dark') ? 'dark' : 'light';
   state.settings.theme = safe;
-  if (document.body && document.body.dataset) document.body.dataset.theme = safe;
-  if (document.documentElement && document.documentElement.dataset) document.documentElement.dataset.theme = safe;
+  if (document.body) {
+    if (document.body.dataset) document.body.dataset.theme = safe;
+    if (document.body.classList) document.body.classList.toggle('dark-mode', safe === 'dark');
+  }
+  if (document.documentElement) {
+    if (document.documentElement.dataset) document.documentElement.dataset.theme = safe;
+    if (document.documentElement.classList) document.documentElement.classList.toggle('dark-mode', safe === 'dark');
+  }
+  if (typeof document !== 'undefined' && document.head) {
+    let metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (!metaTheme && document.createElement) {
+      metaTheme = document.createElement('meta');
+      metaTheme.name = 'theme-color';
+      document.head.appendChild(metaTheme);
+    }
+    if (metaTheme) metaTheme.setAttribute('content', safe === 'dark' ? '#0f172a' : '#ffffff');
+  }
   if ($('themeSelect')) $('themeSelect').value = safe;
   const toggleBtn = document.getElementById('themeToggleBtn');
   if (toggleBtn) {
@@ -647,6 +662,7 @@ function setTheme(theme) {
   try {
     localStorage.setItem('sde_theme', safe);
     localStorage.setItem('sde_portal_theme', safe);
+    localStorage.setItem('douroub_theme', safe);
   } catch (e) {}
   if (typeof window.updateTabColors === 'function') {
     try { window.updateTabColors(); } catch (e) {}
@@ -1539,7 +1555,7 @@ function renderBcRow(row) {
   // Parse fleet data from remarques / comments / notes if truckPlate not explicit
   const rawRemarque = String(row.remarques || row.comments || row.notes || '').trim();
   const fleetInfo = (typeof parseFleetRemarque === 'function') ? parseFleetRemarque(rawRemarque) : null;
-  const truckPlate = row.truckPlate || row.truckVin || (fleetInfo && fleetInfo.truckId !== 'Inconnu' ? fleetInfo.truckId : null);
+  const truckPlate = row.truckPlate || row.truckVin || (fleetInfo && fleetInfo.identified ? fleetInfo.truckId : null);
   const serviceType = row.serviceType || (fleetInfo ? fleetInfo.serviceType : null);
   const kmReading = row.kmReading || (fleetInfo ? fleetInfo.kmReading : null);
 
@@ -1563,10 +1579,28 @@ function renderBcRow(row) {
     remarqueHtml = '<span class="text-muted">—</span>';
   }
 
-  const isPaidRow = !!(row.status === 'livre_paye' || row.status === 'paye' || row.paymentStatus === 'paye' || row.paymentRef || row.dpRef || row.paymentPaidDate || (row.remarques && /pay[eé]/i.test(row.remarques)));
+  const isPaidRow = (typeof isBcActuallyPaid === 'function')
+    ? isBcActuallyPaid(row)
+    : !!(row.status === 'livre_paye' || row.status === 'paye' || row.paymentStatus === 'paye' || row.paymentRef || row.dpRef || row.paymentPaidDate || (row.remarques && /pay[eé]/i.test(row.remarques)));
   const closedPaidBadge = ((row.status === 'clos' || row.status === 'cloture') && isPaidRow)
     ? `<span class="status-pill status-paye" style="font-size:10px;margin-left:4px;">✓ Payé</span>`
     : '';
+  const linkedDps = (typeof getLinkedDpsForBc === 'function') ? getLinkedDpsForBc(row) : [];
+  const primaryDpRef = (linkedDps[0] && linkedDps[0].paymentRef) || row.dpRef || row.paymentRef || '';
+  const hasUnpaidDp = linkedDps.length > 0 && !isPaidRow;
+  let dpChipHtml = '';
+  if (isPaidRow && primaryDpRef) {
+    const extraCnt = linkedDps.length > 1 ? ` +${linkedDps.length - 1}` : '';
+    dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-paid view-bc-btn" data-id="${row.id}" title="Règlement lié : DP ${escapeHtml(primaryDpRef)}">💳 DP ${escapeHtml(primaryDpRef)}${extraCnt}</span>`;
+  } else if (hasUnpaidDp) {
+    dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-pending view-bc-btn" data-id="${row.id}" title="DP liée en attente de règlement : ${escapeHtml(primaryDpRef)}">⏳ DP ${escapeHtml(primaryDpRef)} (En attente)</span>`;
+  } else if (!isPaidRow && !primaryDpRef && typeof window !== 'undefined' && window.LogicalMatchEngine && typeof window.LogicalMatchEngine.getLogicalDpCandidatesForBc === 'function') {
+    const cands = window.LogicalMatchEngine.getLogicalDpCandidatesForBc(row);
+    if (cands && cands.length > 0 && cands[0].score >= 45) {
+      const top = cands[0];
+      dpChipHtml = `<span class="bc-ai-suggest-chip view-bc-btn" data-id="${row.id}" title="DP logique détectée : ${escapeHtml(top.dp.paymentRef || '')}">🤖 DP suggérée (${top.score}%)</span>`;
+    }
+  }
   const isChecked = typeof window !== 'undefined' && window.selectedFollowupBcIds && window.selectedFollowupBcIds.has(row.id);
   return `<tr>
     <td style="text-align:center;vertical-align:middle;"><input type="checkbox" class="followup-row-cb" data-id="${row.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer;width:16px;height:16px;" /></td>
@@ -1579,7 +1613,7 @@ function renderBcRow(row) {
     <td><span class="badge bg-${row.type === 'service' ? 'info' : 'secondary'} text-white" style="font-size:11px;padding:3px 6px;">${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</span></td>
     <td>${escapeHtml(formatMoney(row.amountHT || (row.amountTTC ? Math.round(row.amountTTC / 1.19) : (row.amount ? Math.round(row.amount / 1.19) : 0)), 'DZD'))}</td>
     <td><strong>${escapeHtml(formatMoney(row.amountTTC || row.amount || 0, 'DZD'))}</strong></td>
-    <td><span class="status-pill ${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span>${closedPaidBadge}<div style="margin-top:3px;"><span class="status-pill ${validationClass(row)}" style="font-size:10px;">${escapeHtml(validationLabel(row))}</span></div></td>
+    <td><div class="bc-status-cell-stack"><div><span class="status-pill ${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span>${closedPaidBadge}</div><div><span class="status-pill ${validationClass(row)}" style="font-size:10px;">${escapeHtml(validationLabel(row))}</span></div>${dpChipHtml}</div></td>
     <td>${actual ? `<span class="badge bg-success text-white mb-1" style="font-size:10px;padding:2px 5px;"><i class="fas fa-check me-1"></i>${escapeHtml(formatDate(actual))}</span>` : (row.promisedDate ? `<span class="small text-muted d-block">Prévu: ${escapeHtml(formatDate(row.promisedDate))}</span>` : '<span class="text-muted small d-block">En attente</span>')}<div style="margin-top:2px;"><span class="delay-pill ${delay.cls}">${escapeHtml(delay.label)}</span></div></td>
     <td>${remarqueHtml}</td>
     <td>
@@ -9263,20 +9297,20 @@ window.renderFollowupTable = function() {
 
       let baseStatusPill = '';
       if (row.status === 'clos' || row.status === 'cloture') {
-        baseStatusPill = '<span class="status-pill status-cloture" style="background:#475569;color:#fff;font-weight:700;padding:3px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-check-circle" style="font-size:0.68rem;"></i> Clôturé</span>';
+        baseStatusPill = '<span class="status-pill status-cloture" style="background:#475569;color:#fff;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-check-circle" style="font-size:0.68rem;"></i> Clôturé</span>';
         if (isPaid) {
-          baseStatusPill += '<span class="status-pill status-paye" style="background:#059669;color:#fff;font-weight:700;font-size:10px;padding:2px 6px;border-radius:5px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;margin-top:2px;">✓ Payé</span>';
+          baseStatusPill += '<span class="status-pill status-paye" style="background:#059669;color:#fff;font-weight:700;font-size:10.5px;padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">✓ Payé</span>';
         }
       } else if (isDelivered && isPaid) {
-        baseStatusPill = '<span class="status-pill status-livre-paye" style="background:#059669;color:#fff;font-weight:700;padding:3px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-check-double" style="font-size:0.68rem;"></i> Livré &amp; Payé</span>';
+        baseStatusPill = '<span class="status-pill status-livre-paye" style="background:#059669;color:#fff;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-check-double" style="font-size:0.68rem;"></i> Livré &amp; Payé</span>';
       } else if (isDelivered) {
-        baseStatusPill = '<span class="status-pill status-livre" style="background:#0284c7;color:#fff;font-weight:700;padding:3px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-truck-ramp-box" style="font-size:0.68rem;"></i> Livré</span>';
+        baseStatusPill = '<span class="status-pill status-livre" style="background:#0284c7;color:#fff;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-truck-ramp-box" style="font-size:0.68rem;"></i> Livré</span>';
       } else if (isPaid) {
-        baseStatusPill = '<span class="status-pill status-paye" style="background:#10b981;color:#fff;font-weight:700;padding:3px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-money-bill-wave" style="font-size:0.68rem;"></i> Payé</span>';
+        baseStatusPill = '<span class="status-pill status-paye" style="background:#10b981;color:#fff;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-money-bill-wave" style="font-size:0.68rem;"></i> Payé</span>';
       } else {
-        baseStatusPill = '<span class="status-pill status-transmis" style="background:#f59e0b;color:#fff;font-weight:700;padding:3px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-paper-plane" style="font-size:0.68rem;"></i> Transmis</span>';
+        baseStatusPill = '<span class="status-pill status-transmis" style="background:#f59e0b;color:#fff;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:10.5px;"><i class="fas fa-paper-plane" style="font-size:0.68rem;"></i> Transmis</span>';
       }
-      const statusHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;">${baseStatusPill}${dpChipHtml}</div>`;
+      const statusHtml = `<div class="bc-status-cell-stack" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:max-content;">${baseStatusPill}${dpChipHtml}</div>`;
 
       const isChecked = typeof window !== 'undefined' && window.selectedFollowupBcIds && window.selectedFollowupBcIds.has(row.id);
       const remarquesDisplayHtml = `${remarquesTrunc ? `<div>${escapeHtml(remarquesTrunc)}</div>` : (!dpChipHtml ? '—' : '')}${!remarquesTrunc && dpChipHtml ? `<span style="font-size:10px;color:var(--muted);">${isPaid ? 'Réglé par DP' : (hasUnpaidDp ? 'DP en attente' : 'À rapprocher')}</span>` : ''}`;
@@ -10445,7 +10479,8 @@ document.head.appendChild(styleSheet);
 // === SETUP: Add "Nouveau BC" button and mark actions header sticky ===
 (function setupFollowupPage() {
   const filterPanel = document.querySelector('#page-followup .panel-muted');
-  if (filterPanel) {
+  // The unified sub-nav bar already provides Nouveau BC / Export Excel / Export CSV: do not inject a duplicate row.
+  if (filterPanel && !document.getElementById('btnOpenNewBcDrawer')) {
     const btnBar = document.createElement('div');
     btnBar.className = 'add-bc-trigger';
     btnBar.style.cssText = 'display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-bottom:0.5rem;';
@@ -10842,6 +10877,21 @@ if (state.session) {
           iconSvg.style.setProperty('color', iconColor, 'important');
           iconSvg.style.setProperty('stroke', iconColor, 'important');
         }
+      }
+
+      const navBadge = tab.querySelector('.sa-nav-badge');
+      if (navBadge) {
+        navBadge.style.setProperty('display', 'inline-flex', 'important');
+        navBadge.style.setProperty('align-items', 'center', 'important');
+        navBadge.style.setProperty('justify-content', 'center', 'important');
+        navBadge.style.setProperty('text-align', 'center', 'important');
+        navBadge.style.setProperty('vertical-align', 'middle', 'important');
+        navBadge.style.setProperty('line-height', '1', 'important');
+        navBadge.style.setProperty('height', '19px', 'important');
+        navBadge.style.setProperty('min-width', '22px', 'important');
+        navBadge.style.setProperty('padding', '0 7px', 'important');
+        navBadge.style.setProperty('font-size', '11px', 'important');
+        navBadge.style.setProperty('font-weight', '800', 'important');
       }
     });
   }
@@ -11714,54 +11764,88 @@ function setupBulkActionButtons() {
     }
 })();
 
-// Intelligent Fleet Parsing Function
+// Intelligent Fleet Parsing Function (plates, chassis numbers, brand, services, km)
+const FLEET_BRAND_RULES = [
+    { label: 'MAN TGS', re: /\b(?:MAN|TGS|TGX|TGA)\b/ },
+    { label: 'HOWO Sinotruk', re: /\b(?:HOWO|SINOTRUK)\b/ },
+    { label: 'FIAT Doblo', re: /\b(?:DOBLO|FIAT)\b/ },
+    { label: 'ISUZU NPR', re: /\b(?:ISUZU|NPR)\b/ },
+    { label: 'Hyundai HD', re: /\b(?:HYUNDAI|HD\d{0,3})\b/ },
+    { label: 'Renault Kerax', re: /\b(?:RENAULT|KERAX)\b/ },
+    { label: 'Mercedes Actros', re: /\b(?:ACTROS|MERCEDES)\b/ },
+    { label: 'Shacman', re: /\bSHACMAN\b/ }
+];
+
+// Ordered by priority: the first matching rule becomes the primary serviceType.
+const FLEET_SERVICE_RULES = [
+    { label: 'Vidange', re: /VIDANG|REVISION/ },
+    { label: 'Freinage & Plaquettes', re: /PLAQUETTE|FREIN|DISQUE|\bF\/P\b|\bPLAQ\b/ },
+    { label: 'Garnitures de frein', re: /GARNITURE/ },
+    { label: 'Filtres & Huile', re: /FILTRE|\bHUILE/ },
+    { label: 'Pneumatiques', re: /PNEU/ },
+    { label: 'Suspension', re: /AMORTISSEUR|SUSPENSION|RESSORT/ }
+];
+
+function normalizeFleetText(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+
+// Same plate written "112-525-07", "000112 525 07" or "000112/525/07" => one canonical "000112-525-07".
+function extractFleetPlates(upper) {
+    const plates = [];
+    const re = /\b(\d{5,6})[-\s./](\d{2,3})[-\s./](\d{2})\b/g;
+    let m;
+    while ((m = re.exec(upper)) !== null) {
+        const plate = m[1].padStart(6, '0') + '-' + m[2] + '-' + m[3];
+        if (plates.indexOf(plate) === -1) plates.push(plate);
+    }
+    return plates;
+}
+
+// Chassis / VIN: either introduced by a label (CHASSIS, VIN, N° SERIE) or a bare 17-char VIN.
+function extractFleetChassis(upper) {
+    const found = [];
+    const add = (raw) => {
+        const v = String(raw || '').replace(/[^A-Z0-9]/g, '');
+        if (v.length >= 6 && /\d/.test(v) && /[A-Z]/.test(v) && found.indexOf(v) === -1) found.push(v);
+    };
+    const labelled = /(?:CHASSIS|VIN|N\s*°?\s*SERIE|NUM(?:ERO)?\s*(?:DE\s*)?SERIE)\s*(?:N\s*°?\s*|NUM(?:ERO)?\s*)?[:#.\-]?\s*([A-Z0-9]{6,20})\b/g;
+    let m;
+    while ((m = labelled.exec(upper)) !== null) add(m[1]);
+    const bareVin = /\b[A-HJ-NPR-Z0-9]{17}\b/g;
+    while ((m = bareVin.exec(upper)) !== null) add(m[0]);
+    return found;
+}
+
 function parseFleetRemarque(remarques) {
     if (!remarques) return null;
-    const upperRem = String(remarques).toUpperCase();
+    const upperRem = normalizeFleetText(remarques);
 
-    // 1. Truck ID (Matricule / Immatriculation)
-    // Matches e.g. 000112-525-07, 000074-525-07, 12345 525 07
-    let truckIdMatch = upperRem.match(/(\d{5,6}[-\s]\d{2,3}[-\s]\d{1,2})/);
-    let truckId = truckIdMatch ? truckIdMatch[1].replace(/\s+/g, '-') : null;
+    // 1. Truck identity: plates first, then chassis numbers
+    const plates = extractFleetPlates(upperRem);
+    const chassisList = extractFleetChassis(upperRem);
 
-    if (!truckId) {
-        const altMatch = upperRem.match(/(?:TRACTEUR|CAMION|VEHICULE|FOURGON|MATRICULE|IMM|N°)\s*[:#]?\s*([0-9A-Z-]{4,15})/i);
-        if (altMatch) truckId = altMatch[1].trim();
+    // 2. Brand & Model Detection (whole words only: "DEMANDE" must never match "MAN")
+    let brand = 'Autre Véhicule';
+    for (const rule of FLEET_BRAND_RULES) {
+        if (rule.re.test(upperRem)) { brand = rule.label; break; }
     }
 
-    // If no truck ID found and text has no fleet indicators, return null
-    const hasFleetKeyword = upperRem.includes('TRACTEUR') || upperRem.includes('CAMION') || upperRem.includes('REMORQUE') ||
-                            upperRem.includes('VIDANGE') || upperRem.includes('MAN') || upperRem.includes('HOWO') ||
-                            upperRem.includes('DOBLO') || upperRem.includes('ISUZU') || upperRem.includes('SINOTRUK');
-    if (!truckId && !hasFleetKeyword) {
+    const hasFleetKeyword = /TRACTEUR|CAMION|REMORQUE|VEHICULE|FOURGON|BENNE|CITERNE|VIDANG|PLAQUETTE|FREIN/.test(upperRem);
+    if (!plates.length && !chassisList.length && brand === 'Autre Véhicule' && !hasFleetKeyword) {
         return null;
     }
 
-    // 2. Brand & Model Detection
-    let brand = 'Autre Véhicule';
-    if (upperRem.includes('MAN') || upperRem.includes('TGS')) brand = 'MAN TGS';
-    else if (upperRem.includes('HOWO') || upperRem.includes('SINOTRUK')) brand = 'HOWO Sinotruk';
-    else if (upperRem.includes('DOBLO') || upperRem.includes('FIAT')) brand = 'FIAT Doblo';
-    else if (upperRem.includes('ISUZU') || upperRem.includes('NPR')) brand = 'ISUZU NPR';
-    else if (upperRem.includes('HYUNDAI') || upperRem.includes('HD')) brand = 'Hyundai HD';
-    else if (upperRem.includes('RENAULT') || upperRem.includes('KERAX')) brand = 'Renault Kerax';
-    else if (upperRem.includes('ACTROS') || upperRem.includes('MERCEDES')) brand = 'Mercedes Actros';
-    else if (upperRem.includes('SHACMAN')) brand = 'Shacman';
+    // 3. Service types (a BC can mention several: vidange + plaquettes)
+    const services = FLEET_SERVICE_RULES.filter(rule => rule.re.test(upperRem)).map(rule => rule.label);
+    const serviceType = services.length ? services[0] : 'Entretien Général';
 
-    // 3. Service Type Detection
-    let serviceType = 'Entretien Général';
-    if (upperRem.includes('VIDANGE')) serviceType = 'Vidange';
-    else if (upperRem.includes('PLAQUETTE') || upperRem.includes('FREIN') || upperRem.includes('DISQUE') || upperRem.includes('F/P')) serviceType = 'Freinage & Plaquettes';
-    else if (upperRem.includes('GARNITURE')) serviceType = 'Garnitures de frein';
-    else if (upperRem.includes('FILTRE')) serviceType = 'Filtres & Huile';
-    else if (upperRem.includes('PNEU') || upperRem.includes('PNEUMATIQUE')) serviceType = 'Pneumatiques';
-    else if (upperRem.includes('AMORTISSEUR') || upperRem.includes('SUSPENSION')) serviceType = 'Suspension';
-
-    // 4. KM Reading
+    // 4. KM Reading (plates removed first so "...-07 125 000 KM" is not read as 07125000)
     let kmReading = null;
-    const kmMatch = upperRem.match(/(\d{1,3}(?:\.\d{3})?|\d{4,6})\s*KM/i);
+    const kmText = plates.length ? upperRem.replace(/\b\d{5,6}[-\s./]\d{2,3}[-\s./]\d{2}\b/g, ' ') : upperRem;
+    const kmMatch = kmText.match(/(\d{1,3}(?:[.\s]\d{3})+|\d{3,6})\s*KMS?\b/);
     if (kmMatch) {
-        kmReading = parseInt(kmMatch[1].replace(/\./g, ''), 10);
+        kmReading = parseInt(kmMatch[1].replace(/[.\s]/g, ''), 10);
     }
 
     // 5. Mileage Tier
@@ -11793,13 +11877,20 @@ function parseFleetRemarque(remarques) {
         devisRef = devisMatch[1];
     }
 
+    const identified = plates.length > 0 || chassisList.length > 0;
     return {
+        identified,
         serviceType,
+        services: services.length ? services : [serviceType],
         brand,
         kmReading,
         mileageTier,
         tierBadgeClass,
-        truckId: truckId || (brand !== 'Autre Véhicule' ? brand : 'Véhicule Flotte'),
+        plates,
+        chassisList,
+        plate: plates[0] || '',
+        chassis: chassisList[0] || '',
+        truckId: plates[0] || chassisList[0] || (brand !== 'Autre Véhicule' ? 'Non identifié · ' + brand : 'Non identifié'),
         devisRef: devisRef || 'N/A'
     };
 }
@@ -11826,10 +11917,16 @@ const _formatDate = window.formatDate || ((d) => {
 window.FleetAnalyzer = {
     currentTier: 'all',
     currentBrand: 'all',
+    currentService: 'all',
     searchTerm: '',
     currentPage: 1,
     pageSize: 10,
     activeTab: 'summary', // 'summary' or 'logs'
+
+    setServiceFilter: function(service) {
+        this.currentService = service;
+        this.renderModalContent();
+    },
 
     openModal: function() {
         this.ensureModalContainer();
@@ -11883,65 +11980,95 @@ window.FleetAnalyzer = {
         }
     },
 
+    fleetSourceText: function(r) {
+        const parts = [r.remarques, r.comments, r.notes, r.description, r.truckPlate, r.truckVin];
+        const items = Array.isArray(r.lineItems) ? r.lineItems : (Array.isArray(r.items) ? r.items : []);
+        items.forEach(it => { if (it) parts.push(it.description || it.designation || it.name || it.label); });
+        return parts.filter(Boolean).join(' | ');
+    },
+
     getRecords: function() {
         const records = (window.state && Array.isArray(window.state.bcRecords)) ? window.state.bcRecords : [];
         const parsed = [];
         records.forEach(r => {
-            const raw = r.remarques || r.comments || r.notes || '';
-            const p = parseFleetRemarque(raw);
-            if (p) {
+            const p = parseFleetRemarque(this.fleetSourceText(r));
+            if (!p) return;
+            // One entry per vehicle named in the BC, so every truck gets its own history
+            const targets = p.plates.length ? p.plates : (p.chassisList.length ? p.chassisList : [null]);
+            targets.forEach((target, idx) => {
+                const plate = p.plates.length ? target : '';
+                let chassis = '';
+                if (p.plates.length) {
+                    chassis = p.chassisList.length === p.plates.length
+                        ? p.chassisList[idx]
+                        : (p.plates.length === 1 ? (p.chassisList[0] || '') : '');
+                } else if (target) {
+                    chassis = target;
+                }
                 parsed.push({
                     ...r,
-                    fleetData: p
+                    fleetData: { ...p, plate, chassis, truckId: plate || chassis || p.truckId, shareCount: targets.length }
                 });
-            }
+            });
         });
         return parsed;
     },
 
     getTruckSummary: function(records) {
+        // A chassis written next to a plate once is the same truck everywhere it appears alone
+        const chassisToPlate = {};
+        records.forEach(r => {
+            const fd = r.fleetData;
+            if (fd.plate && fd.chassis) chassisToPlate[fd.chassis] = fd.plate;
+        });
         const trucks = {};
         records.forEach(r => {
-            const tId = r.fleetData.truckId;
+            const fd = r.fleetData;
+            const tId = fd.plate || chassisToPlate[fd.chassis] || fd.chassis || fd.truckId;
+            const share = Math.max(1, fd.shareCount || 1);
+            const amount = Number(r.amountTTC || r.amount || 0) / share;
+            const services = Array.isArray(fd.services) && fd.services.length ? fd.services : [fd.serviceType];
+            const isVidange = services.includes('Vidange');
+            const isBrake = services.includes('Freinage & Plaquettes') || services.includes('Garnitures de frein');
+            const date = r.date || '';
             if (!trucks[tId]) {
                 trucks[tId] = {
-                    truckId: tId,
-                    brand: r.fleetData.brand,
-                    lastServiceDate: r.date || '',
-                    lastVidangeDate: r.fleetData.serviceType.toLowerCase().includes('vidange') ? (r.date || '') : '',
-                    maxKm: r.fleetData.kmReading || 0,
-                    tier: r.fleetData.mileageTier,
-                    tierBadgeClass: r.fleetData.tierBadgeClass,
-                    lastBcRef: r.ref || '',
-                    lastBcId: r.id || '',
-                    supplier: r.supplierName || 'Non spécifié',
-                    totalSpend: 0,
-                    serviceCount: 0,
-                    vidangeCount: 0,
-                    history: []
+                    truckId: tId, chassis: '', brand: 'Autre Véhicule',
+                    lastServiceDate: '', lastVidangeDate: '', lastBrakeDate: '',
+                    maxKm: 0, tier: 'Non renseigné', tierBadgeClass: 'bg-secondary',
+                    lastBcRef: '', lastBcId: '', supplier: 'Non spécifié',
+                    totalSpend: 0, serviceCount: 0, vidangeCount: 0, brakeCount: 0,
+                    serviceCounts: {}, serviceLastDate: {}, history: []
                 };
             }
             const t = trucks[tId];
-            t.totalSpend += Number(r.amountTTC || r.amount || 0);
+            if (!t.chassis && fd.chassis) t.chassis = fd.chassis;
+            t.totalSpend += amount;
             t.serviceCount++;
-            if (r.fleetData.serviceType.toLowerCase().includes('vidange')) {
+            services.forEach(label => {
+                t.serviceCounts[label] = (t.serviceCounts[label] || 0) + 1;
+                if (!t.serviceLastDate[label] || date > t.serviceLastDate[label]) t.serviceLastDate[label] = date;
+            });
+            if (isVidange) {
                 t.vidangeCount++;
-                if (!t.lastVidangeDate || r.date > t.lastVidangeDate) {
-                    t.lastVidangeDate = r.date;
-                }
+                if (!t.lastVidangeDate || date > t.lastVidangeDate) t.lastVidangeDate = date;
             }
-            if (r.fleetData.kmReading && r.fleetData.kmReading > t.maxKm) {
-                t.maxKm = r.fleetData.kmReading;
-                t.tier = r.fleetData.mileageTier;
-                t.tierBadgeClass = r.fleetData.tierBadgeClass;
+            if (isBrake) {
+                t.brakeCount++;
+                if (!t.lastBrakeDate || date > t.lastBrakeDate) t.lastBrakeDate = date;
             }
-            if (!t.lastServiceDate || r.date > t.lastServiceDate) {
-                t.lastServiceDate = r.date;
+            if (fd.kmReading && fd.kmReading > t.maxKm) {
+                t.maxKm = fd.kmReading;
+                t.tier = fd.mileageTier;
+                t.tierBadgeClass = fd.tierBadgeClass;
+            }
+            if (!t.lastServiceDate || date >= t.lastServiceDate) {
+                t.lastServiceDate = date;
                 t.lastBcRef = r.ref || '';
                 t.lastBcId = r.id || '';
                 t.supplier = r.supplierName || t.supplier;
-                if (r.fleetData.brand !== 'Autre Véhicule') t.brand = r.fleetData.brand;
             }
+            if (fd.brand !== 'Autre Véhicule') t.brand = fd.brand;
             t.history.push(r);
         });
         return Object.values(trucks).sort((a, b) => b.totalSpend - a.totalSpend);
@@ -11986,15 +12113,18 @@ window.FleetAnalyzer = {
                 if (this.currentTier === '60k_80k' && (t.maxKm < 60000 || t.maxKm > 80000)) return false;
                 if (this.currentTier === 'over_80k' && t.maxKm < 80000) return false;
             }
+            if (this.currentService !== 'all' && !(t.serviceCounts[this.currentService] > 0)) return false;
             if (this.searchTerm) {
-                const hay = (t.truckId + ' ' + t.brand + ' ' + t.supplier + ' ' + t.lastBcRef).toLowerCase();
+                const hay = (t.truckId + ' ' + t.chassis + ' ' + t.brand + ' ' + t.supplier + ' ' + t.lastBcRef).toLowerCase();
                 if (!hay.includes(this.searchTerm)) return false;
             }
             return true;
         });
 
-        const totalCost = allRecords.reduce((sum, r) => sum + (Number(r.amountTTC || r.amount) || 0), 0);
-        const totalVidanges = allRecords.filter(r => r.fleetData.serviceType.toLowerCase().includes('vidange')).length;
+        const uniqueBcs = new Map();
+        allRecords.forEach(r => { if (!uniqueBcs.has(r.id || r.ref)) uniqueBcs.set(r.id || r.ref, r); });
+        const totalCost = Array.from(uniqueBcs.values()).reduce((sum, r) => sum + (Number(r.amountTTC || r.amount) || 0), 0);
+        const totalVidanges = Array.from(uniqueBcs.values()).filter(r => (r.fleetData.services || []).includes('Vidange')).length;
         const heavyCount = trucks.filter(t => t.maxKm >= 80000).length;
 
         container.innerHTML = `
@@ -12037,6 +12167,10 @@ window.FleetAnalyzer = {
                         <option value="isuzu" ${this.currentBrand === 'isuzu' ? 'selected' : ''}>ISUZU NPR</option>
                         <option value="hyundai" ${this.currentBrand === 'hyundai' ? 'selected' : ''}>Hyundai HD</option>
                     </select>
+                    <select onchange="FleetAnalyzer.setServiceFilter(this.value)" style="height:38px;padding:0 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;background:#ffffff;">
+                        <option value="all" ${this.currentService === 'all' ? 'selected' : ''}>Toutes interventions</option>
+                        ${FLEET_SERVICE_RULES.map(rule => `<option value="${_escapeHtml(rule.label)}" ${this.currentService === rule.label ? 'selected' : ''}>${_escapeHtml(rule.label)}</option>`).join('')}
+                    </select>
                     <select onchange="FleetAnalyzer.setTierFilter(this.value)" style="height:38px;padding:0 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;background:#ffffff;">
                         <option value="all" ${this.currentTier === 'all' ? 'selected' : ''}>Tous les paliers km</option>
                         <option value="5k_10k" ${this.currentTier === '5k_10k' ? 'selected' : ''}>&lt; 10 000 km (Rodage / Vidange initiale)</option>
@@ -12077,6 +12211,7 @@ window.FleetAnalyzer = {
                                         <span class="badge bg-primary me-1" style="font-family:monospace;font-size:11.5px;padding:4px 8px;background:#2563eb;color:#ffffff;border-radius:4px;">
                                             <i class="fas fa-truck me-1"></i>${_escapeHtml(t.truckId)}
                                         </span>
+                                        ${t.chassis && t.chassis !== t.truckId ? `<div style="font-family:monospace;font-size:10.5px;color:#64748b;margin-top:3px;">Châssis : ${_escapeHtml(t.chassis)}</div>` : ''}
                                     </td>
                                     <td style="padding:10px 12px;font-weight:600;color:#0f172a;">${_escapeHtml(t.brand)}</td>
                                     <td style="padding:10px 12px;font-weight:700;color:#1e293b;">
@@ -12087,6 +12222,7 @@ window.FleetAnalyzer = {
                                     </td>
                                     <td style="padding:10px 12px;">
                                         ${t.lastVidangeDate ? `<span class="badge bg-light text-dark border" style="font-size:11px;"><i class="fas fa-calendar-day text-success me-1"></i>${_formatDate(t.lastVidangeDate)}</span>` : '<span class="text-muted small">Aucune vidange</span>'}
+                                        ${t.lastBrakeDate ? `<div style="margin-top:3px;"><span class="badge bg-light text-dark border" style="font-size:10.5px;" title="Dernier freinage / plaquettes"><i class="fas fa-compact-disc text-warning me-1"></i>${_formatDate(t.lastBrakeDate)}</span></div>` : ''}
                                     </td>
                                     <td style="padding:10px 12px;">
                                         ${t.lastBcRef ? `<a href="javascript:void(0)" onclick="FleetAnalyzer.openBc('${t.lastBcId}')" class="badge bg-info text-dark" style="font-family:monospace;font-size:11px;padding:3px 7px;text-decoration:none;"><i class="fas fa-file-contract me-1"></i>${_escapeHtml(t.lastBcRef)}</a>` : '<span class="text-muted">—</span>'}
@@ -12126,34 +12262,96 @@ window.FleetAnalyzer = {
         }
     },
 
+    daysSince: function(dateStr) {
+        if (!dateStr) return '';
+        const t = new Date(dateStr).getTime();
+        if (isNaN(t)) return '';
+        return Math.max(0, Math.floor((Date.now() - t) / 86400000));
+    },
+
     exportExcel: function() {
         const records = this.getRecords();
         const trucks = this.getTruckSummary(records);
-        const rows = trucks.map(t => [
-            t.truckId,
-            t.brand,
-            t.maxKm,
-            t.tier,
-            t.lastVidangeDate,
-            t.lastBcRef,
-            t.supplier,
-            t.totalSpend,
-            t.serviceCount
-        ]);
-        const headers = ['Camion / Matricule', 'Modèle', 'Dernier KM', 'Palier KM', 'Dernière Vidange', 'Dernier BC', 'Fournisseur', 'Total TTC', 'Nbr Interventions'];
+        const VIDANGE_ALERT_DAYS = 180;
+
+        // Sheet 1: one line per truck (plate + chassis merged), with maintenance ages for planning
+        const truckHeaders = [
+            'Matricule', 'N° Châssis', 'Modèle', 'Dernier KM', 'Palier KM',
+            'Nb Vidanges', 'Dernière Vidange', 'Jours depuis vidange', 'Statut vidange',
+            'Nb Freinage / Plaquettes', 'Dernier Freinage', 'Jours depuis freinage',
+            'Nb Interventions', 'Dernier BC', 'Fournisseur', 'Total TTC (DZD)'
+        ];
+        const truckRows = trucks.map(t => {
+            const vDays = this.daysSince(t.lastVidangeDate);
+            const vStatus = !t.lastVidangeDate ? 'Aucune vidange enregistrée'
+                : (vDays > VIDANGE_ALERT_DAYS ? 'À planifier (> ' + VIDANGE_ALERT_DAYS + ' j)' : 'OK');
+            return [
+                t.truckId, t.chassis, t.brand, t.maxKm || '', t.maxKm ? t.tier : '',
+                t.vidangeCount, t.lastVidangeDate, vDays, vStatus,
+                t.brakeCount, t.lastBrakeDate, this.daysSince(t.lastBrakeDate),
+                t.serviceCount, t.lastBcRef, t.supplier, Math.round(t.totalSpend * 100) / 100
+            ];
+        });
+
+        // Sheet 2: every intervention (one line per BC and truck), grouped by truck then newest first
+        const detailHeaders = [
+            'Matricule', 'N° Châssis', 'Modèle', 'Intervention(s)', 'Date BC', 'Réf BC',
+            'Fournisseur', 'KM relevé', 'Montant TTC (part du camion)', 'Statut BC', 'Statut paiement', 'Remarque'
+        ];
+        const detailRows = [];
+        trucks.forEach(t => {
+            t.history.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).forEach(r => {
+                const fd = r.fleetData;
+                detailRows.push([
+                    t.truckId, t.chassis, t.brand, (fd.services || [fd.serviceType]).join(' + '),
+                    r.date || '', r.ref || '', r.supplierName || '', fd.kmReading || '',
+                    Math.round((Number(r.amountTTC || r.amount || 0) / Math.max(1, fd.shareCount || 1)) * 100) / 100,
+                    r.status || '', r.paymentStatus || '', r.remarques || ''
+                ]);
+            });
+        });
+
+        // Sheet 3: grouped by type of intervention (vidange, plaquettes, pneus...) to plan each campaign
+        const typeHeaders = ['Type d\'intervention', 'Matricule', 'N° Châssis', 'Modèle', 'Nb fois', 'Dernière date', 'Jours depuis', 'Dernier KM'];
+        const typeRows = [];
+        FLEET_SERVICE_RULES.map(rule => rule.label).concat(['Entretien Général']).forEach(label => {
+            trucks.filter(t => t.serviceCounts[label] > 0)
+                .sort((a, b) => String(a.serviceLastDate[label] || '').localeCompare(String(b.serviceLastDate[label] || '')))
+                .forEach(t => typeRows.push([
+                    label, t.truckId, t.chassis, t.brand, t.serviceCounts[label],
+                    t.serviceLastDate[label], this.daysSince(t.serviceLastDate[label]), t.maxKm || ''
+                ]));
+        });
+
+        // Sheet 4: BCs that talk about a vehicle but give no plate / chassis (to complete by hand)
+        const unknownHeaders = ['Réf BC', 'Date BC', 'Fournisseur', 'Intervention(s)', 'Montant TTC', 'Remarque'];
+        const unknownRows = records
+            .filter(r => !r.fleetData.plate && !r.fleetData.chassis)
+            .map(r => [r.ref || '', r.date || '', r.supplierName || '', (r.fleetData.services || []).join(' + '),
+                Number(r.amountTTC || r.amount || 0), r.remarques || r.description || '']);
+
+        const sheets = [
+            { name: 'Flotte par camion', headers: truckHeaders, rows: truckRows },
+            { name: 'Interventions détail', headers: detailHeaders, rows: detailRows },
+            { name: 'Par type intervention', headers: typeHeaders, rows: typeRows }
+        ];
+        if (unknownRows.length) sheets.push({ name: 'Camion à identifier', headers: unknownHeaders, rows: unknownRows });
+
+        const filename = `suivi_flotte_${new Date().toISOString().split('T')[0]}.xlsx`;
         if (typeof exportWorkbook === 'function') {
-            exportWorkbook(`suivi_entretien_flotte_${new Date().toISOString().split('T')[0]}.xlsx`, [
-                { name: 'Flotte_Vidanges', headers, rows }
-            ]);
-            if (typeof showToast === 'function') showToast('Suivi entretien exporté en Excel.');
+            exportWorkbook(filename, sheets);
+            if (typeof showToast === 'function') {
+                showToast(`Export flotte : ${trucks.length} camion(s), ${detailRows.length} intervention(s)` +
+                    (unknownRows.length ? `, ${unknownRows.length} BC sans matricule/châssis.` : '.'));
+            }
         } else {
-            // CSV fallback
-            let csv = headers.join(';') + '\r\n';
-            rows.forEach(r => { csv += r.map(c => `"${String(c || '').replace(/"/g, '""')}"`).join(';') + '\r\n'; });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            // CSV fallback (truck summary only)
+            let csv = truckHeaders.join(';') + '\r\n';
+            truckRows.forEach(r => { csv += r.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(';') + '\r\n'; });
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = `suivi_flotte_${new Date().toISOString().split('T')[0]}.csv`;
+            link.download = filename.replace(/\.xlsx$/, '.csv');
             link.click();
         }
     }
@@ -15660,8 +15858,10 @@ const ApproNextGen = window.ApproNextGen = {
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('message', (event) => {
         if (event.data && event.data.action === 'setTheme') {
-          const theme = event.data.theme;
-          if (typeof document !== 'undefined') {
+          const theme = event.data.theme === 'dark' ? 'dark' : 'light';
+          if (typeof setTheme === 'function') {
+            setTheme(theme);
+          } else if (typeof document !== 'undefined') {
             if (document.body && document.body.setAttribute) document.body.setAttribute('data-theme', theme);
             if (document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute('data-theme', theme);
             const sel = document.getElementById('themeSelect');
@@ -15674,12 +15874,19 @@ const ApproNextGen = window.ApproNextGen = {
       });
 
       try {
-        const parentTheme = window.parent && window.parent.localStorage && window.parent.localStorage.getItem('sde_portal_theme');
-        if (parentTheme && typeof document !== 'undefined') {
-          if (document.body && document.body.setAttribute) document.body.setAttribute('data-theme', parentTheme);
-          if (document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute('data-theme', parentTheme);
-          const sel = document.getElementById('themeSelect');
-          if (sel) sel.value = parentTheme;
+        const savedTheme = (window.parent && window.parent.localStorage && window.parent.localStorage.getItem('sde_portal_theme')) ||
+          (window.localStorage && (window.localStorage.getItem('sde_theme') || window.localStorage.getItem('sde_portal_theme') || window.localStorage.getItem('douroub_theme')));
+        const osDark = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const resolvedTheme = savedTheme || (osDark ? 'dark' : '');
+        if (resolvedTheme && typeof setTheme === 'function') {
+          setTheme(resolvedTheme);
+        }
+        if (typeof window.matchMedia === 'function') {
+          const mq = window.matchMedia('(prefers-color-scheme: dark)');
+          const onMqChange = (e) => {
+            if (typeof setTheme === 'function') setTheme(e.matches ? 'dark' : 'light');
+          };
+          if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMqChange);
         }
       } catch(e) {}
     }

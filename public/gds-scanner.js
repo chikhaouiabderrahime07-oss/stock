@@ -30,6 +30,13 @@
     const GdsScannerModule = {
         html5QrCode: null,
         barcodeDetector: null,
+        _nativeStream: null,
+        _nativeVideo: null,
+        _detectTimer: null,
+        _detectBusy: false,
+        _audioCtx: null,
+        facingMode: 'environment',
+        scanMode: 'ask',
         isScanning: false,
         torchOn: false,
         currentArticle: null,
@@ -62,36 +69,40 @@
             try {
                 const AC = window.AudioContext || window.webkitAudioContext;
                 if (!AC) return;
-                const ctx = new AC();
+                if (!this._audioCtx || this._audioCtx.state === 'closed') {
+                    this._audioCtx = new AC();
+                }
+                const ctx = this._audioCtx;
+                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.connect(gain); gain.connect(ctx.destination);
                 if (type === 'error') {
                     osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(440, ctx.currentTime);
-                    osc.frequency.linearRampToValueAtTime(220, ctx.currentTime + 0.25);
-                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-                    osc.start(); osc.stop(ctx.currentTime + 0.25);
+                    osc.frequency.setValueAtTime(420, ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(210, ctx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.16, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+                    osc.start(); osc.stop(ctx.currentTime + 0.2);
                 } else if (type === 'entry') {
                     osc.type = 'sine';
-                    osc.frequency.setValueAtTime(660, ctx.currentTime);
-                    osc.frequency.linearRampToValueAtTime(880, ctx.currentTime + 0.15);
-                    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-                    osc.start(); osc.stop(ctx.currentTime + 0.15);
-                } else {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime);
-                    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+                    osc.frequency.setValueAtTime(680, ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(920, ctx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
                     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
                     osc.start(); osc.stop(ctx.currentTime + 0.12);
+                } else {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(900, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+                    osc.start(); osc.stop(ctx.currentTime + 0.09);
                 }
             } catch(e) {}
         },
 
         haptic(pattern) {
-            try { navigator.vibrate && navigator.vibrate(pattern || [60]); } catch(e) {}
+            try { navigator.vibrate && navigator.vibrate(pattern || 35); } catch(e) {}
         },
 
         subtitle(txt) {
@@ -104,17 +115,62 @@
             if (el) el.textContent = this.sessionCount + ' opération(s) cette session';
         },
 
-        // ─── OPEN / CLOSE ──────────────────────────────────────────────────
+        // ─── OPEN / CLOSE & MODE PILLS ─────────────────────────────────────
         init() {
-            if ('BarcodeDetector' in window) {
-                try { this.barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code','ean_13','ean_8','code_128','code_39','upc_a','upc_e'] }); } catch(e) {}
+            if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+                try {
+                    this.barcodeDetector = new window.BarcodeDetector({
+                        formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e']
+                    });
+                } catch(e) {}
             }
         },
 
-        openModal() {
+        setScanMode(mode) {
+            this.scanMode = mode || 'ask';
+            if (typeof document === 'undefined') return;
+            const pills = document.querySelectorAll('.gds-mode-pill');
+            pills.forEach(btn => {
+                if (btn.getAttribute('data-gds-mode') === this.scanMode) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            const modeNames = {
+                ask: 'Mode Consultation & Choix',
+                entree: 'Mode Entrée Rapide (+Stock)',
+                sortie: 'Mode Sortie Rapide (BSM)',
+                labels: 'Mode Étiquettes QR & Code-Barres'
+            };
+            if (!this.currentArticle) {
+                this.subtitle(modeNames[this.scanMode] || 'Prêt à scanner');
+            } else if (this.scanMode === 'entree') {
+                this.startEntree();
+            } else if (this.scanMode === 'sortie') {
+                this.startSortie();
+            } else if (this.scanMode === 'labels') {
+                this.renderLabelPreview(this.currentArticle);
+            } else {
+                this.renderActionPicker(this.currentArticle);
+            }
+        },
+
+        open(defaultMode) {
+            return this.openModal(defaultMode);
+        },
+
+        close() {
+            return this.closeModal();
+        },
+
+        openModal(defaultMode) {
             if (this._autoTimer) { clearInterval(this._autoTimer); this._autoTimer = null; }
             this.scanCooldown = false;
             this.lastScannedCode = null;
+            if (defaultMode && typeof defaultMode === 'string') {
+                this.scanMode = defaultMode;
+            }
             const modal = document.getElementById('gdsScannerModal');
             if (!modal) return;
             modal.classList.remove('hidden');
@@ -122,10 +178,11 @@
             if (backdrop) backdrop.classList.remove('hidden');
             this.clearResult();
             this.showCameraView();
+            this.setScanMode(this.scanMode || 'ask');
             this.subtitle('Prêt à scanner');
             const input = document.getElementById('gdsManualBarcodeInput');
             if (input) input.value = '';
-            setTimeout(() => this.startCamera(), 250);
+            setTimeout(() => this.startCamera(), 60);
         },
 
         closeModal() {
@@ -179,21 +236,107 @@
             return this.startCamera();
         },
 
-        // ─── CAMERA ────────────────────────────────────────────────────────
+        // ─── CAMERA (HARDWARE-ACCELERATED BARCODEDETECTOR + FAST FALLBACK) ──
         toggleCamera() {
             if (this.isScanning) { return this.stopCamera(); } else { return this.startCamera(); }
+        },
+
+        _setCameraUiState(active) {
+            this.isScanning = !!active;
+            const btn = document.getElementById('btnToggleGdsCamera');
+            const lbl = document.getElementById('lblGdsCamAction');
+            const laser = document.getElementById('gdsLaserLine');
+            const torchBtn = document.getElementById('btnToggleGdsTorch');
+            const switchBtn = document.getElementById('btnSwitchGdsCam');
+            const ph = document.getElementById('gdsCamPlaceholder');
+            if (active) {
+                if (ph) ph.style.display = 'none';
+                if (btn) {
+                    btn.classList.add('cam-active');
+                    btn.style.borderColor = '#10b981';
+                    btn.style.color = '#10b981';
+                    btn.style.background = 'rgba(16,185,129,0.14)';
+                }
+                if (lbl) lbl.textContent = 'Arrêter';
+                if (laser) laser.style.display = 'block';
+                if (torchBtn) torchBtn.style.display = 'flex';
+                if (switchBtn) switchBtn.style.display = 'flex';
+                this.subtitle('Caméra active — visez le QR ou code-barres');
+            } else {
+                if (ph) ph.style.display = 'flex';
+                if (btn) {
+                    btn.classList.remove('cam-active');
+                    btn.style.borderColor = '#3b82f6';
+                    btn.style.color = '#3b82f6';
+                    btn.style.background = 'rgba(59,130,246,0.1)';
+                }
+                if (lbl) lbl.textContent = 'Activer Caméra';
+                if (laser) laser.style.display = 'none';
+                if (torchBtn) torchBtn.style.display = 'none';
+                if (switchBtn) switchBtn.style.display = 'none';
+            }
         },
 
         async startCamera() {
             const container = document.getElementById('gdsCameraStream');
             if (!container) return;
             this.showCameraView();
+            if (this.isScanning || this.html5QrCode || this._nativeStream) {
+                try { await this.stopCamera(); } catch(e) {}
+            }
+            if (!this.barcodeDetector && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+                this.init();
+            }
+
+            // 1) Hardware-Accelerated Native BarcodeDetector Pipeline (<10ms decode)
+            if (this.barcodeDetector && typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: { ideal: this.facingMode || 'environment' },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: false
+                    });
+                    this._nativeStream = stream;
+                    container.innerHTML = '';
+                    const video = document.createElement('video');
+                    video.id = 'gdsNativeVideo';
+                    video.setAttribute('autoplay', '');
+                    video.setAttribute('playsinline', '');
+                    video.setAttribute('muted', '');
+                    video.muted = true;
+                    video.srcObject = stream;
+                    video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+                    container.appendChild(video);
+                    this._nativeVideo = video;
+                    await video.play().catch(() => {});
+                    this._setCameraUiState(true);
+                    this._detectBusy = false;
+                    this._detectTimer = setInterval(async () => {
+                        if (!this.isScanning || this._detectBusy || !this._nativeVideo || this._nativeVideo.readyState < 2) return;
+                        this._detectBusy = true;
+                        try {
+                            const codes = await this.barcodeDetector.detect(this._nativeVideo);
+                            if (codes && codes.length > 0 && codes[0].rawValue) {
+                                this.handleCode(codes[0].rawValue);
+                            }
+                        } catch(err) {}
+                        this._detectBusy = false;
+                    }, 100);
+                    return;
+                } catch(nativeErr) {
+                    if (this._nativeStream) {
+                        try { this._nativeStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+                        this._nativeStream = null;
+                    }
+                }
+            }
+            // 2) Fast Lightweight Html5Qrcode Fallback (10 FPS, disableFlip: true)
             if (typeof Html5Qrcode === 'undefined' && typeof window.Html5Qrcode === 'undefined') {
                 this.subtitle('Librairie caméra non disponible');
                 return;
-            }
-            if (this.html5QrCode) {
-                try { await this.stopCamera(); } catch(e) {}
             }
             const H5 = window.Html5Qrcode || Html5Qrcode;
             try {
@@ -201,65 +344,128 @@
                 if (placeholder) placeholder.style.display = 'none';
                 const scanner = new H5('gdsCameraStream');
                 this.html5QrCode = scanner;
+                const isMob = (typeof window !== 'undefined' && window.innerWidth <= 768);
                 await scanner.start(
-                    { facingMode: 'environment' },
-                    { fps: 12, qrbox: { width: 220, height: 220 }, aspectRatio: 1.5 },
+                    { facingMode: this.facingMode || 'environment' },
+                    {
+                        fps: 10,
+                        qrbox: isMob ? { width: 245, height: 170 } : { width: 275, height: 195 },
+                        aspectRatio: 1.333,
+                        disableFlip: true,
+                        videoConstraints: {
+                            facingMode: { ideal: this.facingMode || 'environment' },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    },
                     (decodedText) => { this.handleCode(decodedText); },
                     () => {}
                 );
                 if (this.html5QrCode === scanner) {
-                    this.isScanning = true;
-                    const btn = document.getElementById('btnToggleGdsCamera');
-                    const lbl = document.getElementById('lblGdsCamAction');
-                    const laser = document.getElementById('gdsLaserLine');
-                    if (btn) { btn.style.borderColor = '#10b981'; btn.style.color = '#34d399'; btn.style.background = 'rgba(16,185,129,0.15)'; }
-                    if (lbl) lbl.textContent = 'Arrêter Caméra';
-                    if (laser) laser.style.display = 'block';
-                    const torchBtn = document.getElementById('btnToggleGdsTorch');
-                    if (torchBtn) torchBtn.style.display = 'flex';
-                    this.subtitle('Caméra active — pointez vers le code');
+                    this._setCameraUiState(true);
                 }
             } catch(e) {
-                this.isScanning = false;
-                this.subtitle('Accès caméra refusé');
-                const ph = document.getElementById('gdsCamPlaceholder');
-                if (ph) ph.style.display = 'flex';
+                this._setCameraUiState(false);
+                this.subtitle('Accès caméra refusé ou indisponible');
             }
         },
 
         async stopCamera() {
-            this.isScanning = false;
+            if (this._detectTimer) {
+                clearInterval(this._detectTimer);
+                this._detectTimer = null;
+            }
+            this._detectBusy = false;
             this.torchOn = false;
-            const btn = document.getElementById('btnToggleGdsCamera');
-            const lbl = document.getElementById('lblGdsCamAction');
-            const laser = document.getElementById('gdsLaserLine');
-            const torchBtn = document.getElementById('btnToggleGdsTorch');
-            if (btn) { btn.style.borderColor = '#3b82f6'; btn.style.color = '#60a5fa'; btn.style.background = 'rgba(59,130,246,0.1)'; }
-            if (lbl) lbl.textContent = 'Activer Caméra';
-            if (laser) laser.style.display = 'none';
-            if (torchBtn) torchBtn.style.display = 'none';
-            const ph = document.getElementById('gdsCamPlaceholder');
-            if (ph) ph.style.display = 'flex';
+            this._setCameraUiState(false);
 
+            if (this._nativeStream) {
+                try { this._nativeStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+                this._nativeStream = null;
+            }
+            if (this._nativeVideo) {
+                try {
+                    this._nativeVideo.pause();
+                    this._nativeVideo.srcObject = null;
+                    this._nativeVideo.remove();
+                } catch(e) {}
+                this._nativeVideo = null;
+            }
             if (this.html5QrCode) {
                 const scanner = this.html5QrCode;
                 this.html5QrCode = null;
                 try {
-                    await scanner.stop().catch(()=>{});
-                    if (typeof scanner.clear === 'function') scanner.clear().catch(()=>{});
+                    await scanner.stop().catch(() => {});
+                    if (typeof scanner.clear === 'function') scanner.clear().catch(() => {});
                 } catch(e) {}
+            }
+        },
+
+        async switchCamera() {
+            this.facingMode = (this.facingMode === 'environment') ? 'user' : 'environment';
+            this.haptic(25);
+            if (this.isScanning) {
+                await this.stopCamera();
+                await this.startCamera();
             }
         },
 
         toggleTorch() {
             try {
-                if (this.html5QrCode && this.isScanning) {
-                    this.torchOn = !this.torchOn;
+                if (!this.isScanning) return;
+                this.torchOn = !this.torchOn;
+                if (this._nativeStream) {
+                    const track = this._nativeStream.getVideoTracks()[0];
+                    if (track && typeof track.applyConstraints === 'function') {
+                        track.applyConstraints({ advanced: [{ torch: this.torchOn }] }).catch(() => {});
+                    }
+                } else if (this.html5QrCode && typeof this.html5QrCode.applyVideoConstraints === 'function') {
                     this.html5QrCode.applyVideoConstraints({ advanced: [{ torch: this.torchOn }] });
-                    const btn = document.getElementById('btnToggleGdsTorch');
-                    if (btn) btn.style.color = this.torchOn ? '#fbbf24' : '#94a3b8';
+                }
+                const btn = document.getElementById('btnToggleGdsTorch');
+                if (btn) {
+                    btn.style.color = this.torchOn ? '#f59e0b' : '';
+                    btn.style.borderColor = this.torchOn ? '#f59e0b' : '';
+                    btn.style.background = this.torchOn ? 'rgba(245,158,11,0.18)' : '';
                 }
             } catch(e) {}
+        },
+
+        triggerImageScan() {
+            const inp = document.getElementById('gdsImageScanInput');
+            if (inp) {
+                inp.value = '';
+                inp.click();
+            }
+        },
+
+        async scanImageFile(inputOrFile) {
+            const file = (inputOrFile && inputOrFile.files) ? inputOrFile.files[0] : inputOrFile;
+            if (!file) return;
+            this.subtitle('Analyse de l\'image...');
+            try {
+                if (this.barcodeDetector && typeof createImageBitmap === 'function') {
+                    const bmp = await createImageBitmap(file);
+                    const codes = await this.barcodeDetector.detect(bmp);
+                    if (bmp.close) bmp.close();
+                    if (codes && codes.length > 0 && codes[0].rawValue) {
+                        return this.handleCode(codes[0].rawValue);
+                    }
+                }
+                const H5 = window.Html5Qrcode || (typeof Html5Qrcode !== 'undefined' ? Html5Qrcode : null);
+                if (H5) {
+                    if (this.isScanning) await this.stopCamera();
+                    const tmp = new H5('gdsCameraStream');
+                    const decoded = await tmp.scanFile(file, false);
+                    try { tmp.clear(); } catch(e) {}
+                    if (decoded) return this.handleCode(decoded);
+                }
+                this.playBeep('error');
+                this.subtitle('Aucun code détecté sur l\'image');
+            } catch(e) {
+                this.playBeep('error');
+                this.subtitle('Aucun code détecté sur l\'image');
+            }
         },
 
         // ─── MASTER STOCK SYNC ─────────────────────────────────────────────
@@ -398,18 +604,18 @@
             const text = String(rawText).trim();
             if (!text) return;
             if (this.scanCooldown) return;
-            if (this.lastScannedCode === text && (Date.now() - this.lastScanTime) < 1800) return;
+            if (this.lastScannedCode === text && (Date.now() - this.lastScanTime) < 1200) return;
             this.scanCooldown = true;
             this.lastScannedCode = text;
             this.lastScanTime = Date.now();
-            setTimeout(() => { this.scanCooldown = false; }, 1800);
+            setTimeout(() => { this.scanCooldown = false; }, 1200);
 
             // Check preOrders / requisition QR first
             const preOrders = (typeof DB !== 'undefined' && DB.data && Array.isArray(DB.data.preOrders)) ? DB.data.preOrders : [];
             const tl = text.toLowerCase();
             const order = preOrders.find(p => (p.ref && p.ref.toLowerCase() === tl) || p.id === text);
             if (order) {
-                this.playBeep('success'); this.haptic([60]);
+                this.playBeep('success'); this.haptic(35);
                 this.closeModal();
                 if (typeof BarcodeScanner !== 'undefined' && BarcodeScanner.openOrderFulfillment) {
                     if (typeof App !== 'undefined' && App.loadModule) App.loadModule('barcodeScanner');
@@ -424,14 +630,13 @@
 
             let article = this.findArticle(text);
             if (!article) {
-                // If local sync isn't complete yet or newly added, query server directly
                 const area = document.getElementById('gdsScanResultArea');
                 if (area) {
                     area.innerHTML = `
-                        <div style="background:#1e293b;border:1px solid rgba(59,130,246,0.3);border-radius:14px;padding:20px;text-align:center;color:#93c5fd;">
-                            <i class="fas fa-spinner fa-spin fa-2x mb-2" style="color:#3b82f6;"></i>
-                            <div style="font-weight:700;font-size:0.95rem;">Vérification serveur en cours...</div>
-                            <div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">Recherche de "${this.esc(text)}" dans MongoDB</div>
+                        <div class="gds-surface-card" style="padding:20px;text-align:center;">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2" style="color:var(--primary,#2563eb);"></i>
+                            <div style="font-weight:700;font-size:0.95rem;color:var(--gds-text,var(--text,#0f172a));">Vérification serveur en cours...</div>
+                            <div style="font-size:0.75rem;color:var(--gds-muted,var(--text-muted,#64748b));margin-top:4px;">Recherche de "${this.esc(text)}" dans MongoDB</div>
                         </div>
                     `;
                 }
@@ -453,11 +658,18 @@
             }
 
             if (article) {
-                this.playBeep('success'); this.haptic([60, 30, 60]);
+                this.playBeep('success'); this.haptic(35);
                 this.currentArticle = article;
                 this.renderActionPicker(article);
+                if (this.scanMode === 'entree') {
+                    this.startEntree();
+                } else if (this.scanMode === 'sortie') {
+                    this.startSortie();
+                } else if (this.scanMode === 'labels') {
+                    this.renderLabelPreview(article);
+                }
             } else {
-                this.playBeep('error'); this.haptic([200]);
+                this.playBeep('error'); this.haptic([120, 40, 120]);
                 this.renderUnknownResult(text);
             }
         },
@@ -476,59 +688,158 @@
             const stock = Number(article.quantity) || 0;
             const isZero = stock <= 0;
             const isLow = !isZero && stock <= (Number(article.minThreshold) || 5);
-            const stockColor = isZero ? '#f87171' : (isLow ? '#fbbf24' : '#34d399');
+            const stockColor = isZero ? '#ef4444' : (isLow ? '#f59e0b' : '#10b981');
             const stockBg = isZero ? 'rgba(239,68,68,0.12)' : (isLow ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)');
             const stockBorder = isZero ? 'rgba(239,68,68,0.3)' : (isLow ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)');
             const statusLabel = isZero ? 'Rupture de Stock' : (isLow ? 'Stock Bas' : 'En Stock');
+            const priceVal = Number(article.unitPrice || article.price || 0);
 
             this.subtitle(article.designation || 'Article trouvé');
             area.innerHTML = `
                 <div style="display:flex;flex-direction:column;gap:12px;">
                     <!-- ARTICLE HERO CARD -->
-                    <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:16px;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <span style="font-family:monospace;font-size:0.75rem;font-weight:700;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);padding:3px 10px;border-radius:6px;">${this.esc(article.code||'ART')}</span>
-                            <span style="font-size:0.72rem;color:#94a3b8;background:rgba(255,255,255,0.05);padding:3px 8px;border-radius:6px;">${this.esc(article.category||'Général')}</span>
+                    <div class="gds-surface-card" style="padding:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                            <span style="font-family:monospace;font-size:0.75rem;font-weight:700;background:rgba(37,99,235,0.12);color:var(--primary,#2563eb);border:1px solid rgba(37,99,235,0.28);padding:3px 10px;border-radius:6px;">${this.esc(article.code||'ART')}</span>
+                            <span class="gds-chip">${this.esc(article.category||'Général')}</span>
                         </div>
-                        <div style="font-size:1.15rem;font-weight:800;color:#f8fafc;line-height:1.35;margin-bottom:12px;">${this.esc(article.designation)}</div>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-                            ${article.zone ? `<span style="font-size:0.7rem;color:#cbd5e1;background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:6px;"><i class="fas fa-map-marker-alt" style="color:#60a5fa;margin-right:4px;"></i>${this.esc(article.zone)}</span>` : ''}
-                            ${article.barcode ? `<span style="font-size:0.7rem;color:#94a3b8;background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:6px;"><i class="fas fa-barcode" style="margin-right:4px;"></i>${this.esc(article.barcode)}</span>` : ''}
+                        <div style="font-size:1.12rem;font-weight:800;color:var(--gds-text,var(--text,#0f172a));line-height:1.35;margin-bottom:10px;">${this.esc(article.designation)}</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+                            ${article.zone ? `<span class="gds-chip"><i class="fas fa-map-marker-alt" style="color:var(--primary,#2563eb);margin-right:4px;"></i>${this.esc(article.zone)}</span>` : ''}
+                            ${article.barcode ? `<span class="gds-chip"><i class="fas fa-barcode" style="margin-right:4px;"></i>${this.esc(article.barcode)}</span>` : ''}
+                            ${priceVal > 0 ? `<span class="gds-chip"><i class="fas fa-tag" style="color:#10b981;margin-right:4px;"></i>${priceVal.toLocaleString('fr-FR')} DA</span>` : ''}
                         </div>
-                        <!-- STOCK BADGE -->
-                        <div style="background:${stockBg};border:1.5px solid ${stockBorder};border-radius:14px;padding:14px;display:flex;align-items:center;justify-content:space-between;">
+                        <!-- STOCK BADGE & QUICK +1 / -1 TOUCH BAR -->
+                        <div style="background:${stockBg};border:1.5px solid ${stockBorder};border-radius:14px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
                             <div>
                                 <div style="font-size:0.7rem;font-weight:700;color:${stockColor};text-transform:uppercase;letter-spacing:0.05em;display:flex;align-items:center;gap:5px;">
                                     <span style="width:7px;height:7px;border-radius:50%;background:${stockColor};display:inline-block;"></span> ${statusLabel}
                                 </div>
-                                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">Disponible au dépôt</div>
+                                <div style="font-size:0.72rem;color:var(--gds-muted,var(--text-muted,#64748b));margin-top:2px;">Stock disponible</div>
                             </div>
-                            <div style="text-align:right;">
-                                <div style="font-size:2rem;font-weight:900;color:${stockColor};line-height:1;">${stock}</div>
-                                <div style="font-size:0.68rem;font-weight:600;color:#94a3b8;margin-top:2px;">${this.esc(article.unit||'U')}</div>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <button type="button" onclick="GdsScannerModule.quickAdjustStock(-1)" title="Sortie rapide -1" class="gds-quick-step-btn gds-step-minus">−1</button>
+                                <div style="text-align:center;min-width:52px;">
+                                    <div id="gdsLiveStockVal" style="font-size:1.85rem;font-weight:900;color:${stockColor};line-height:1;">${stock}</div>
+                                    <div style="font-size:0.68rem;font-weight:600;color:var(--gds-muted,var(--text-muted,#64748b));margin-top:2px;">${this.esc(article.unit||'U')}</div>
+                                </div>
+                                <button type="button" onclick="GdsScannerModule.quickAdjustStock(1)" title="Entrée rapide +1" class="gds-quick-step-btn gds-step-plus">+1</button>
                             </div>
                         </div>
                     </div>
 
                     <!-- ACTION BUTTONS -->
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                        <button onclick="GdsScannerModule.startEntree()" style="background:linear-gradient(135deg,#059669,#10b981);border:none;border-radius:16px;color:#fff;padding:18px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;font-weight:800;box-shadow:0 4px 18px rgba(16,185,129,0.35);transition:all 0.15s;" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">
-                            <i class="fas fa-plus-circle" style="font-size:1.5rem;"></i>
-                            <span style="font-size:0.95rem;">Entrée Stock</span>
-                            <span style="font-size:0.68rem;opacity:0.85;font-weight:500;">Ajouter des unités</span>
+                        <button onclick="GdsScannerModule.startEntree()" style="background:linear-gradient(135deg,#059669,#10b981);border:none;border-radius:16px;color:#fff;padding:16px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:800;box-shadow:0 4px 16px rgba(16,185,129,0.3);transition:all 0.15s;">
+                            <i class="fas fa-plus-circle" style="font-size:1.45rem;"></i>
+                            <span style="font-size:0.92rem;">Entrée Stock</span>
+                            <span style="font-size:0.68rem;opacity:0.88;font-weight:500;">Ajouter des unités</span>
                         </button>
-                        <button onclick="GdsScannerModule.startSortie()" style="background:linear-gradient(135deg,#e11d48,#f43f5e);border:none;border-radius:16px;color:#fff;padding:18px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;font-weight:800;box-shadow:0 4px 18px rgba(225,29,72,0.35);transition:all 0.15s;" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">
-                            <i class="fas fa-file-invoice" style="font-size:1.5rem;"></i>
-                            <span style="font-size:0.95rem;">Bon de Sortie</span>
-                            <span style="font-size:0.68rem;opacity:0.85;font-weight:500;">Déduire + Bon BSM</span>
+                        <button onclick="GdsScannerModule.startSortie()" style="background:linear-gradient(135deg,#e11d48,#f43f5e);border:none;border-radius:16px;color:#fff;padding:16px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:800;box-shadow:0 4px 16px rgba(225,29,72,0.3);transition:all 0.15s;">
+                            <i class="fas fa-file-invoice" style="font-size:1.45rem;"></i>
+                            <span style="font-size:0.92rem;">Bon de Sortie</span>
+                            <span style="font-size:0.68rem;opacity:0.88;font-weight:500;">Déduire + Bon BSM</span>
                         </button>
                     </div>
 
-                    <!-- SCAN NEXT -->
-                    <button onclick="GdsScannerModule.resetToScan()" style="width:100%;padding:13px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-size:0.88rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;transition:0.15s;">
-                        <i class="fas fa-camera" style="color:#60a5fa;"></i> Scanner un autre article
-                    </button>
+                    <!-- SECONDARY ACTIONS: LABEL & SCAN NEXT -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <button onclick="GdsScannerModule.renderLabelPreview(GdsScannerModule.currentArticle)" class="gds-secondary-btn">
+                            <i class="fas fa-qrcode" style="color:#8b5cf6;"></i> Étiquette QR/Code
+                        </button>
+                        <button onclick="GdsScannerModule.resetToScan()" class="gds-secondary-btn">
+                            <i class="fas fa-camera" style="color:var(--primary,#2563eb);"></i> Autre scan
+                        </button>
+                    </div>
                 </div>`;
+        },
+
+        async quickAdjustStock(delta) {
+            const article = this.currentArticle;
+            if (!article || !delta) return;
+            const currentQty = Number(article.quantity) || 0;
+            if (delta < 0 && currentQty <= 0) {
+                this.playBeep('error');
+                this.haptic([100, 40, 100]);
+                return;
+            }
+            const newQty = Math.max(0, currentQty + Number(delta));
+            const type = delta > 0 ? 'Entrée' : 'Sortie';
+            const user = this.getUser();
+            const authorName = user ? (user.name || user.username || 'GDS') : 'GDS';
+            let artId = String(article._id || '');
+            if (!artId || !/^[a-f0-9]{24}$/i.test(artId)) {
+                artId = article.barcode || article.code || article.id || '';
+            }
+            try {
+                if (artId) {
+                    const r = await fetch('/api/articles/' + encodeURIComponent(artId) + '/stock', {
+                        method: 'POST',
+                        headers: this.hdrs(),
+                        body: JSON.stringify({ type, quantity: Math.abs(delta), reason: 'Ajustement rapide GDS (' + (delta > 0 ? '+' : '') + delta + ')', user: authorName })
+                    });
+                    if (r.ok) {
+                        const d = await r.json().catch(() => ({}));
+                        if (d && d.article && typeof d.article.quantity !== 'undefined') {
+                            this._applyStockUpdate(article, Number(d.article.quantity));
+                        } else {
+                            this._applyStockUpdate(article, newQty);
+                        }
+                    } else {
+                        this._applyStockUpdate(article, newQty);
+                    }
+                } else {
+                    this._applyStockUpdate(article, newQty);
+                }
+            } catch(e) {
+                this._applyStockUpdate(article, newQty);
+            }
+            this.playBeep(delta > 0 ? 'entry' : 'success');
+            this.haptic(35);
+            this.sessionCount++;
+            this.updateCounter();
+            this.renderActionPicker(this.currentArticle);
+        },
+
+        renderLabelPreview(article) {
+            const target = article || this.currentArticle;
+            if (!target) return;
+            const area = document.getElementById('gdsScanResultArea');
+            if (!area) return;
+            const codeVal = String(target.barcode || target.code || target.id || 'ART-001').trim();
+            this.subtitle('Étiquette QR & Code-Barres');
+            area.innerHTML = `
+                <div class="gds-surface-card" style="padding:16px;text-align:center;">
+                    <div style="font-size:0.75rem;font-weight:700;color:var(--primary,#2563eb);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Étiquette Article</div>
+                    <div style="font-size:1rem;font-weight:800;color:var(--gds-text,var(--text,#0f172a));margin-bottom:12px;">${this.esc(target.designation)}</div>
+                    <div id="gdsLabelPrintBox" style="background:#ffffff;color:#0f172a;border:1.5px dashed #cbd5e1;border-radius:14px;padding:16px;margin-bottom:14px;display:flex;flex-direction:column;align-items:center;gap:10px;">
+                        <div style="font-weight:800;font-size:0.88rem;color:#0f172a;">${this.esc(target.designation)}</div>
+                        <div id="gdsLabelQrHolder" style="display:flex;justify-content:center;padding:6px;background:#fff;border-radius:8px;"></div>
+                        <svg id="gdsLabelBarcodeSvg" style="max-width:100%;height:56px;"></svg>
+                        <div style="font-family:monospace;font-size:0.82rem;font-weight:700;color:#334155;">${this.esc(codeVal)} ${target.zone ? ' · ' + this.esc(target.zone) : ''}</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <button type="button" onclick="window.print()" style="padding:12px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border:none;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+                            <i class="fas fa-print"></i> Imprimer
+                        </button>
+                        <button type="button" onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)" class="gds-secondary-btn">
+                            ← Retour
+                        </button>
+                    </div>
+                </div>`;
+            setTimeout(() => {
+                try {
+                    const qrBox = document.getElementById('gdsLabelQrHolder');
+                    if (qrBox && typeof QRCode !== 'undefined') {
+                        qrBox.innerHTML = '';
+                        new QRCode(qrBox, { text: codeVal, width: 104, height: 104, correctLevel: QRCode.CorrectLevel.M });
+                    }
+                    const svgEl = document.getElementById('gdsLabelBarcodeSvg');
+                    if (svgEl && typeof JsBarcode !== 'undefined') {
+                        JsBarcode(svgEl, codeVal, { format: 'CODE128', width: 1.8, height: 42, displayValue: false, margin: 2 });
+                    }
+                } catch(e) {}
+            }, 30);
         },
 
         // ─── SORTIE FLOW ───────────────────────────────────────────────────
@@ -542,56 +853,53 @@
             const stock = Number(article.quantity) || 0;
             this.subtitle('Sortie Stock (BSM)');
             area.innerHTML = `
-                <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
-                    <div style="background:linear-gradient(135deg,rgba(225,29,72,0.2),rgba(244,63,94,0.08));padding:14px 16px;border-bottom:1px solid rgba(225,29,72,0.25);display:flex;align-items:center;gap:12px;">
+                <div class="gds-surface-card" style="overflow:hidden;">
+                    <div style="background:linear-gradient(135deg,rgba(225,29,72,0.16),rgba(244,63,94,0.06));padding:14px 16px;border-bottom:1px solid rgba(225,29,72,0.22);display:flex;align-items:center;gap:12px;">
                         <div style="width:38px;height:38px;border-radius:10px;background:#e11d48;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <i class="fas fa-file-invoice" style="color:#fff;font-size:1.1rem;"></i>
                         </div>
                         <div style="flex:1;min-width:0;">
-                            <div style="color:#fecdd3;font-weight:800;font-size:0.95rem;">Bon de Sortie (BSM)</div>
-                            <div style="color:#94a3b8;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.esc(article.designation)} · Stock: <strong style="color:#f87171;">${stock} ${this.esc(article.unit||'U')}</strong></div>
+                            <div style="color:#e11d48;font-weight:800;font-size:0.95rem;">Bon de Sortie (BSM)</div>
+                            <div style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.esc(article.designation)} · Stock: <strong style="color:#ef4444;">${stock} ${this.esc(article.unit||'U')}</strong></div>
                         </div>
                     </div>
                     <div style="padding:16px;">
                         <!-- STEPPER -->
-                        <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Quantité à déduire</div>
+                        <div style="font-size:0.72rem;font-weight:700;color:var(--gds-muted,var(--text-muted,#64748b));text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Quantité à déduire</div>
                         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-                            <button onclick="GdsScannerModule._adjQty(-1)" style="width:48px;height:48px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:1.5rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
-                            <input id="gdsSortieQty" type="number" min="1" value="1" style="flex:1;padding:12px;border-radius:12px;border:2px solid #e11d48;background:#0f172a;color:#fff;font-size:1.5rem;font-weight:900;text-align:center;outline:none;">
-                            <button onclick="GdsScannerModule._adjQty(1)" style="width:48px;height:48px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:1.5rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>
+                            <button onclick="GdsScannerModule._adjQty(-1)" class="gds-step-btn">−</button>
+                            <input id="gdsSortieQty" type="number" min="1" value="1" class="gds-input" style="flex:1;padding:12px;border:2px solid #e11d48;font-size:1.45rem;font-weight:900;text-align:center;">
+                            <button onclick="GdsScannerModule._adjQty(1)" class="gds-step-btn">+</button>
                         </div>
                         <!-- QUICK STEPPER CHIPS -->
                         <div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px;">
-                            ${[1, 2, 5, 10].map(n => `<button type="button" onclick="document.getElementById('gdsSortieQty').value='${n}';" style="padding:4px 12px;border-radius:16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#cbd5e1;font-size:0.75rem;cursor:pointer;">${n}</button>`).join('')}
+                            ${[1, 2, 5, 10].map(n => `<button type="button" onclick="document.getElementById('gdsSortieQty').value='${n}';" class="gds-chip-btn">${n}</button>`).join('')}
                         </div>
-                        <label style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:block;">✦ Destinataire / Bénéficiaire *</label>
-                        <select id="gdsBenefSelect" onchange="GdsScannerModule._onBenefSelect(this)"
-                            style="width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:0.92rem;outline:none;box-sizing:border-box;margin-bottom:8px;">
+                        <label style="font-size:0.72rem;font-weight:700;color:var(--gds-muted,var(--text-muted,#64748b));text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:block;">✦ Destinataire / Bénéficiaire *</label>
+                        <select id="gdsBenefSelect" onchange="GdsScannerModule._onBenefSelect(this)" class="gds-input" style="width:100%;padding:11px 14px;margin-bottom:8px;">
                             <option value="">-- Choisir une personne dans la liste (${bens.length}) --</option>
                             ${bens.map(b => `<option value="${this.esc(b)}">${this.esc(b)}</option>`).join('')}
                             <option value="__other__">✏️ Autre (saisie libre / nouveau)</option>
                         </select>
                         <input id="gdsBeneficiary" type="text" placeholder="✦ Ou taper nom du destinataire *" list="gdsBenefList"
-                            style="width:100%;padding:11px 14px;border-radius:10px;border:2px solid #e11d48;background:#0f172a;color:#fff;font-size:0.92rem;outline:none;box-sizing:border-box;margin-bottom:10px;"
+                            class="gds-input" style="width:100%;padding:11px 14px;border:2px solid #e11d48;margin-bottom:10px;"
                             oninput="this.style.borderColor='#3b82f6'">
                         <datalist id="gdsBenefList">${bens.map(d=>`<option value="${this.esc(d)}">`).join('')}</datalist>
                         <input id="gdsServiceField" type="text" placeholder="Service / Département (optionnel)" list="gdsServiceList"
-                            style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.1);background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:10px;">
+                            class="gds-input" style="width:100%;padding:11px 14px;margin-bottom:10px;">
                         <datalist id="gdsServiceList">${depts.map(d=>`<option value="${this.esc(d)}">`).join('')}</datalist>
                         <input id="gdsSortieMotif" type="text" placeholder="Motif / Observation (optionnel)"
-                            style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.1);background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:14px;">
-                        <div id="gdsSortieErrBox" style="display:none;background:#7f1d1d;border:1px solid #ef4444;border-radius:10px;padding:12px;color:#fca5a5;font-size:0.85rem;margin-bottom:12px;"></div>
+                            class="gds-input" style="width:100%;padding:11px 14px;margin-bottom:14px;">
+                        <div id="gdsSortieErrBox" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:10px;padding:12px;color:#ef4444;font-size:0.85rem;font-weight:600;margin-bottom:12px;"></div>
                         <button id="gdsSortieValBtn" onclick="GdsScannerModule.confirmSortie()"
-                            style="width:100%;padding:16px;border-radius:14px;background:linear-gradient(135deg,#e11d48,#f43f5e);color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(225,29,72,0.35);margin-bottom:8px;">
+                            style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#e11d48,#f43f5e);color:#fff;border:none;font-weight:800;font-size:0.98rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(225,29,72,0.3);margin-bottom:8px;">
                             <i class="fas fa-check-circle"></i> Valider le Bon de Sortie
                         </button>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                            <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)"
-                                style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#94a3b8;cursor:pointer;font-size:0.82rem;">
+                            <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)" class="gds-secondary-btn">
                                 ← Retour
                             </button>
-                            <button onclick="GdsScannerModule.resetToScan()"
-                                style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#60a5fa;cursor:pointer;font-size:0.82rem;">
+                            <button onclick="GdsScannerModule.resetToScan()" class="gds-secondary-btn" style="color:var(--primary,#2563eb);">
                                 <i class="fas fa-camera"></i> Re-scanner
                             </button>
                         </div>
@@ -794,7 +1102,7 @@
             if (!area) return;
             this.subtitle('Sortie enregistrée ✓');
             area.innerHTML = `
-                <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
+                <div class="gds-surface-card" style="overflow:hidden;">
                     <div style="background:linear-gradient(135deg,#064e3b,#047857);padding:16px;display:flex;align-items:center;gap:12px;">
                         <div style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <i class="fas fa-check" style="color:#fff;font-size:1.2rem;"></i>
@@ -805,17 +1113,17 @@
                         </div>
                     </div>
                     <div style="padding:16px;">
-                        <div style="background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px;margin-bottom:14px;">
-                            <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:2px;">Article</div>
-                            <div style="font-weight:700;color:#f8fafc;font-size:0.95rem;margin-bottom:10px;">${this.esc(article.designation)}</div>
-                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);"><span style="color:#94a3b8;font-size:0.82rem;">Quantité sortie</span><span style="font-weight:800;color:#f87171;font-size:0.95rem;">-${qty} ${this.esc(article.unit||'U')}</span></div>
-                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);"><span style="color:#94a3b8;font-size:0.82rem;">Nouveau stock</span><span style="font-weight:900;color:#34d399;font-size:1.15rem;">${article.quantity} ${this.esc(article.unit||'U')}</span></div>
-                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);"><span style="color:#94a3b8;font-size:0.82rem;">Destinataire</span><span style="font-weight:600;color:#f8fafc;font-size:0.85rem;">${this.esc(beneficiary)}</span></div>
+                        <div class="gds-subcard" style="padding:14px;margin-bottom:14px;">
+                            <div style="font-size:0.72rem;color:var(--gds-muted,var(--text-muted,#64748b));margin-bottom:2px;">Article</div>
+                            <div style="font-weight:700;color:var(--gds-text,var(--text,#0f172a));font-size:0.95rem;margin-bottom:10px;">${this.esc(article.designation)}</div>
+                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--gds-border,var(--border,#e2e8f0));"><span style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.82rem;">Quantité sortie</span><span style="font-weight:800;color:#ef4444;font-size:0.95rem;">-${qty} ${this.esc(article.unit||'U')}</span></div>
+                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--gds-border,var(--border,#e2e8f0));"><span style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.82rem;">Nouveau stock</span><span style="font-weight:900;color:#10b981;font-size:1.15rem;">${article.quantity} ${this.esc(article.unit||'U')}</span></div>
+                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--gds-border,var(--border,#e2e8f0));"><span style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.82rem;">Destinataire</span><span style="font-weight:600;color:var(--gds-text,var(--text,#0f172a));font-size:0.85rem;">${this.esc(beneficiary)}</span></div>
                         </div>
-                        <button onclick="GdsScannerModule.resetToScan()" style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,0.35);margin-bottom:8px;">
+                        <button onclick="GdsScannerModule.resetToScan()" style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,0.3);margin-bottom:8px;">
                             <i class="fas fa-camera"></i> <span>Scanner un autre article</span>
                         </button>
-                        <button onclick="GdsScannerModule.closeModal()" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#94a3b8;cursor:pointer;font-size:0.82rem;">
+                        <button onclick="GdsScannerModule.closeModal()" class="gds-secondary-btn" style="width:100%;">
                             Fermer
                         </button>
                     </div>
@@ -831,43 +1139,40 @@
             const stock = Number(article.quantity)||0;
             this.subtitle('Entrée en Stock');
             area.innerHTML = `
-                <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
-                    <div style="background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(5,150,105,0.08));padding:14px 16px;border-bottom:1px solid rgba(16,185,129,0.25);display:flex;align-items:center;gap:12px;">
+                <div class="gds-surface-card" style="overflow:hidden;">
+                    <div style="background:linear-gradient(135deg,rgba(16,185,129,0.16),rgba(5,150,105,0.06));padding:14px 16px;border-bottom:1px solid rgba(16,185,129,0.22);display:flex;align-items:center;gap:12px;">
                         <div style="width:38px;height:38px;border-radius:10px;background:#059669;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <i class="fas fa-plus-circle" style="color:#fff;font-size:1.1rem;"></i>
                         </div>
                         <div style="flex:1;min-width:0;">
-                            <div style="color:#a7f3d0;font-weight:800;font-size:0.95rem;">Entrée en Stock</div>
-                            <div style="color:#94a3b8;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.esc(article.designation)} · Stock actuel: <strong style="color:#34d399;">${stock} ${this.esc(article.unit||'U')}</strong></div>
+                            <div style="color:#059669;font-weight:800;font-size:0.95rem;">Entrée en Stock</div>
+                            <div style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.esc(article.designation)} · Stock actuel: <strong style="color:#10b981;">${stock} ${this.esc(article.unit||'U')}</strong></div>
                         </div>
                     </div>
                     <div style="padding:16px;">
                         <!-- STEPPER -->
-                        <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Quantité à ajouter</div>
+                        <div style="font-size:0.72rem;font-weight:700;color:var(--gds-muted,var(--text-muted,#64748b));text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Quantité à ajouter</div>
                         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-                            <button onclick="GdsScannerModule._adjQty(-1)" style="width:48px;height:48px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:1.5rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
-                            <input id="gdsEntreeQty" type="number" min="1" value="1" style="flex:1;padding:12px;border-radius:12px;border:2px solid #10b981;background:#0f172a;color:#fff;font-size:1.5rem;font-weight:900;text-align:center;outline:none;">
-                            <button onclick="GdsScannerModule._adjQty(1)" style="width:48px;height:48px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:1.5rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>
+                            <button onclick="GdsScannerModule._adjQty(-1)" class="gds-step-btn">−</button>
+                            <input id="gdsEntreeQty" type="number" min="1" value="1" class="gds-input" style="flex:1;padding:12px;border:2px solid #10b981;font-size:1.45rem;font-weight:900;text-align:center;">
+                            <button onclick="GdsScannerModule._adjQty(1)" class="gds-step-btn">+</button>
                         </div>
                         <!-- QUICK STEPPER CHIPS -->
                         <div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px;">
-                            ${[1, 5, 10, 25, 50].map(n => `<button type="button" onclick="document.getElementById('gdsEntreeQty').value='${n}';" style="padding:4px 12px;border-radius:16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#cbd5e1;font-size:0.75rem;cursor:pointer;">+${n}</button>`).join('')}
+                            ${[1, 5, 10, 25, 50].map(n => `<button type="button" onclick="document.getElementById('gdsEntreeQty').value='${n}';" class="gds-chip-btn">+${n}</button>`).join('')}
                         </div>
                         <input id="gdsEntreeRef" type="text" placeholder="Fournisseur / N° BL / Référence (optionnel)"
-                            style="width:100%;padding:13px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.1);background:#0f172a;color:#fff;font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:12px;"
-                            onfocus="this.style.borderColor='#10b981'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
-                        <div id="gdsEntreeErrBox" style="display:none;background:#7f1d1d;border:1px solid #ef4444;border-radius:10px;padding:12px;color:#fca5a5;font-size:0.85rem;margin-bottom:12px;"></div>
+                            class="gds-input" style="width:100%;padding:12px 14px;margin-bottom:12px;">
+                        <div id="gdsEntreeErrBox" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:10px;padding:12px;color:#ef4444;font-size:0.85rem;font-weight:600;margin-bottom:12px;"></div>
                         <button id="gdsEntreeValBtn" onclick="GdsScannerModule.confirmEntree()"
-                            style="width:100%;padding:16px;border-radius:14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;font-weight:800;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(16,185,129,0.35);margin-bottom:8px;">
+                            style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;font-weight:800;font-size:0.98rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(16,185,129,0.3);margin-bottom:8px;">
                             <i class="fas fa-check-circle"></i> Valider l'Entrée Stock
                         </button>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                            <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)"
-                                style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#94a3b8;cursor:pointer;font-size:0.82rem;">
+                            <button onclick="GdsScannerModule.renderActionPicker(GdsScannerModule.currentArticle)" class="gds-secondary-btn">
                                 ← Retour
                             </button>
-                            <button onclick="GdsScannerModule.resetToScan()"
-                                style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#60a5fa;cursor:pointer;font-size:0.82rem;">
+                            <button onclick="GdsScannerModule.resetToScan()" class="gds-secondary-btn" style="color:var(--primary,#2563eb);">
                                 <i class="fas fa-camera"></i> Re-scanner
                             </button>
                         </div>
@@ -939,7 +1244,7 @@
             if (!area) return;
             this.subtitle('Entrée enregistrée ✓');
             area.innerHTML = `
-                <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
+                <div class="gds-surface-card" style="overflow:hidden;">
                     <div style="background:linear-gradient(135deg,#064e3b,#047857);padding:16px;display:flex;align-items:center;gap:12px;">
                         <div style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <i class="fas fa-check" style="color:#fff;font-size:1.2rem;"></i>
@@ -950,17 +1255,17 @@
                         </div>
                     </div>
                     <div style="padding:16px;">
-                        <div style="background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px;margin-bottom:14px;">
-                            <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:2px;">Article</div>
-                            <div style="font-weight:700;color:#f8fafc;font-size:0.95rem;margin-bottom:10px;">${this.esc(article.designation)}</div>
-                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);"><span style="color:#94a3b8;font-size:0.82rem;">Quantité ajoutée</span><span style="font-weight:800;color:#34d399;font-size:0.95rem;">+${qty} ${this.esc(article.unit||'U')}</span></div>
-                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);"><span style="color:#94a3b8;font-size:0.82rem;">Nouveau stock</span><span style="font-weight:900;color:#34d399;font-size:1.15rem;">${article.quantity} ${this.esc(article.unit||'U')}</span></div>
-                            ${ref ? `<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);"><span style="color:#94a3b8;font-size:0.82rem;">Référence / BL</span><span style="font-weight:600;color:#f8fafc;font-size:0.85rem;">${this.esc(ref)}</span></div>` : ''}
+                        <div class="gds-subcard" style="padding:14px;margin-bottom:14px;">
+                            <div style="font-size:0.72rem;color:var(--gds-muted,var(--text-muted,#64748b));margin-bottom:2px;">Article</div>
+                            <div style="font-weight:700;color:var(--gds-text,var(--text,#0f172a));font-size:0.95rem;margin-bottom:10px;">${this.esc(article.designation)}</div>
+                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--gds-border,var(--border,#e2e8f0));"><span style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.82rem;">Quantité ajoutée</span><span style="font-weight:800;color:#10b981;font-size:0.95rem;">+${qty} ${this.esc(article.unit||'U')}</span></div>
+                            <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--gds-border,var(--border,#e2e8f0));"><span style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.82rem;">Nouveau stock</span><span style="font-weight:900;color:#10b981;font-size:1.15rem;">${article.quantity} ${this.esc(article.unit||'U')}</span></div>
+                            ${ref ? `<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--gds-border,var(--border,#e2e8f0));"><span style="color:var(--gds-muted,var(--text-muted,#64748b));font-size:0.82rem;">Référence / BL</span><span style="font-weight:600;color:var(--gds-text,var(--text,#0f172a));font-size:0.85rem;">${this.esc(ref)}</span></div>` : ''}
                         </div>
-                        <button onclick="GdsScannerModule.resetToScan()" style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,0.35);margin-bottom:8px;">
+                        <button onclick="GdsScannerModule.resetToScan()" style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,0.3);margin-bottom:8px;">
                             <i class="fas fa-camera"></i> <span>Scanner un autre article</span>
                         </button>
-                        <button onclick="GdsScannerModule.closeModal()" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#94a3b8;cursor:pointer;font-size:0.82rem;">
+                        <button onclick="GdsScannerModule.closeModal()" class="gds-secondary-btn" style="width:100%;">
                             Fermer
                         </button>
                     </div>
@@ -975,32 +1280,32 @@
             const safe = this.esc(scannedCode);
             this.subtitle('Code non reconnu');
             area.innerHTML = `
-                <div style="background:#1e293b;border:1px solid rgba(245,158,11,0.3);border-radius:18px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
-                    <div style="background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(180,83,9,0.08));padding:16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(245,158,11,0.2);">
-                        <div style="width:42px;height:42px;border-radius:12px;background:#b45309;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <i class="fas fa-question" style="color:#fef3c7;font-size:1.2rem;"></i>
+                <div class="gds-surface-card" style="overflow:hidden;border-color:rgba(245,158,11,0.35);">
+                    <div style="background:linear-gradient(135deg,rgba(245,158,11,0.18),rgba(180,83,9,0.06));padding:16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(245,158,11,0.22);">
+                        <div style="width:42px;height:42px;border-radius:12px;background:#d97706;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <i class="fas fa-question" style="color:#fff;font-size:1.2rem;"></i>
                         </div>
                         <div style="flex:1;min-width:0;">
-                            <div style="color:#fef3c7;font-weight:800;font-size:1rem;">Article non Répertorié</div>
-                            <div style="font-family:monospace;font-size:0.75rem;color:#fde68a;background:rgba(0,0,0,0.3);padding:2px 8px;border-radius:6px;margin-top:3px;display:inline-block;">${safe}</div>
+                            <div style="color:var(--gds-text,var(--text,#0f172a));font-weight:800;font-size:1rem;">Article non Répertorié</div>
+                            <div style="font-family:monospace;font-size:0.75rem;color:#d97706;background:rgba(245,158,11,0.15);padding:2px 8px;border-radius:6px;margin-top:3px;display:inline-block;">${safe}</div>
                         </div>
                     </div>
                     <div style="padding:16px;">
-                        <div style="font-size:0.84rem;color:#94a3b8;margin-bottom:16px;line-height:1.4;">Ce code-barres n'est pas encore lié à un article du catalogue. Choisissez une action :</div>
+                        <div style="font-size:0.84rem;color:var(--gds-muted,var(--text-muted,#64748b));margin-bottom:16px;line-height:1.4;">Ce code-barres n'est pas encore lié à un article du catalogue. Choisissez une action :</div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-                            <button onclick="GdsScannerModule.showLinkArticleModal(GdsScannerModule.pendingCode)" style="padding:16px 10px;border-radius:14px;border:1.5px solid rgba(59,130,246,0.3);background:rgba(59,130,246,0.08);color:#60a5fa;cursor:pointer;font-weight:700;font-size:0.85rem;display:flex;flex-direction:column;align-items:center;gap:6px;transition:0.15s;">
+                            <button onclick="GdsScannerModule.showLinkArticleModal(GdsScannerModule.pendingCode)" style="padding:16px 10px;border-radius:14px;border:1.5px solid rgba(37,99,235,0.35);background:rgba(37,99,235,0.08);color:var(--primary,#2563eb);cursor:pointer;font-weight:700;font-size:0.85rem;display:flex;flex-direction:column;align-items:center;gap:6px;transition:0.15s;">
                                 <i class="fas fa-link" style="font-size:1.3rem;"></i>
                                 <span>Associer existant</span>
-                                <span style="font-size:0.65rem;opacity:0.75;font-weight:400;">Lier au catalogue</span>
+                                <span style="font-size:0.65rem;opacity:0.8;font-weight:500;">Lier au catalogue</span>
                             </button>
-                            <button onclick="GdsScannerModule.showCreateArticleModal(GdsScannerModule.pendingCode)" style="padding:16px 10px;border-radius:14px;border:1.5px solid rgba(16,185,129,0.3);background:rgba(16,185,129,0.08);color:#34d399;cursor:pointer;font-weight:700;font-size:0.85rem;display:flex;flex-direction:column;align-items:center;gap:6px;transition:0.15s;">
+                            <button onclick="GdsScannerModule.showCreateArticleModal(GdsScannerModule.pendingCode)" style="padding:16px 10px;border-radius:14px;border:1.5px solid rgba(16,185,129,0.35);background:rgba(16,185,129,0.08);color:#10b981;cursor:pointer;font-weight:700;font-size:0.85rem;display:flex;flex-direction:column;align-items:center;gap:6px;transition:0.15s;">
                                 <i class="fas fa-plus-circle" style="font-size:1.3rem;"></i>
                                 <span>Créer en Stock</span>
-                                <span style="font-size:0.65rem;opacity:0.75;font-weight:400;">Fiche Complète Stock</span>
+                                <span style="font-size:0.65rem;opacity:0.8;font-weight:500;">Fiche Complète Stock</span>
                             </button>
                         </div>
-                        <button onclick="GdsScannerModule.resetToScan()" style="width:100%;padding:13px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-size:0.88rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
-                            <i class="fas fa-camera" style="color:#60a5fa;"></i> Scanner un autre code
+                        <button onclick="GdsScannerModule.resetToScan()" class="gds-secondary-btn" style="width:100%;">
+                            <i class="fas fa-camera" style="color:var(--primary,#2563eb);"></i> Scanner un autre code
                         </button>
                     </div>
                 </div>`;
@@ -1020,31 +1325,29 @@
             }).join('');
             this.subtitle('Associer au catalogue');
             area.innerHTML = `
-                <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
-                    <div style="background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(37,99,235,0.08));padding:14px 16px;border-bottom:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;gap:12px;">
+                <div class="gds-surface-card" style="overflow:hidden;">
+                    <div style="background:linear-gradient(135deg,rgba(37,99,235,0.16),rgba(37,99,235,0.06));padding:14px 16px;border-bottom:1px solid rgba(37,99,235,0.22);display:flex;align-items:center;gap:12px;">
                         <div style="width:38px;height:38px;border-radius:10px;background:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <i class="fas fa-link" style="color:#fff;font-size:1.1rem;"></i>
                         </div>
                         <div style="flex:1;min-width:0;">
-                            <div style="color:#fff;font-weight:800;font-size:0.95rem;">Associer Code-Barres</div>
-                            <div style="font-family:monospace;font-size:0.75rem;color:#93c5fd;">${safe}</div>
+                            <div style="color:var(--gds-text,var(--text,#0f172a));font-weight:800;font-size:0.95rem;">Associer Code-Barres</div>
+                            <div style="font-family:monospace;font-size:0.75rem;color:var(--primary,#2563eb);">${safe}</div>
                         </div>
                     </div>
                     <div style="padding:16px;">
                         <div style="margin-bottom:14px;">
-                            <label style="display:block;font-size:0.72rem;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Sélectionner l'article correspondant</label>
-                            <select id="gdsSelectLinkArticle"
-                                style="width:100%;padding:12px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:#0f172a;color:#fff;font-size:0.9rem;outline:none;box-sizing:border-box;">
+                            <label style="display:block;font-size:0.72rem;font-weight:700;color:var(--gds-muted,var(--text-muted,#64748b));margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Sélectionner l'article correspondant</label>
+                            <select id="gdsSelectLinkArticle" class="gds-input" style="width:100%;padding:12px;">
                                 <option value="">— Choisir un article —</option>
                                 ${opts}
                             </select>
                         </div>
                         <button onclick="GdsScannerModule.commitLinkArticle(GdsScannerModule.pendingCode)"
-                            style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,0.35);margin-bottom:8px;">
+                            style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;font-weight:800;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,0.3);margin-bottom:8px;">
                             <i class="fas fa-link"></i> Enregistrer l'association
                         </button>
-                        <button onclick="GdsScannerModule.renderUnknownResult(GdsScannerModule.pendingCode)"
-                            style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#94a3b8;cursor:pointer;font-size:0.82rem;">
+                        <button onclick="GdsScannerModule.renderUnknownResult(GdsScannerModule.pendingCode)" class="gds-secondary-btn" style="width:100%;">
                             ← Retour
                         </button>
                     </div>

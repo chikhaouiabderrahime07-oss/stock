@@ -3939,27 +3939,28 @@ body:not([data-theme='dark']):not([data-theme='black']) .modal-body span:not(.ba
     touch-action: manipulation !important;
   }
 
-  /* Header Bar: Compact, clean, touch-ready */
+  /* Header Bar: Compact, clean, single-row touch-ready */
   .header-bar {
-    height: auto !important;
-    min-height: 52px !important;
-    padding: 6px 10px !important;
-    flex-wrap: wrap !important;
+    height: 54px !important;
+    min-height: 54px !important;
+    padding: 0 10px !important;
+    flex-wrap: nowrap !important;
     gap: 6px !important;
   }
   .header-left {
-    flex: 1 1 100% !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
     display: flex !important;
     align-items: center !important;
     overflow: hidden !important;
     gap: 8px !important;
   }
   .header-right {
-    flex: 1 1 100% !important;
+    flex: 0 0 auto !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-end !important;
-    gap: 8px !important;
+    gap: 6px !important;
   }
   .header-brand {
     display: flex !important;
