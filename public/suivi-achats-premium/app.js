@@ -1428,7 +1428,8 @@ function renderBcRow(row) {
     <td><strong>${escapeHtml(row.ref)}</strong><span class="table-subline">${escapeHtml(row.importedFromBC ? (row.sourceFile || 'Import BC') : 'Saisie manuelle')}</span>${stockBadge ? `<div style="margin-top:3px;">${stockBadge}</div>` : ''}</td>
     <td><strong>${escapeHtml(row.daRef || 'DA auto')}</strong><span class="table-subline">${row.daStatus === 'validated' ? `Validé le ${escapeHtml(formatDate(row.daValidatedAt))}` : 'modifiable'}</span></td>
     <td>${escapeHtml(formatDate(row.date))}</td>
-    <td>${escapeHtml(row.supplierName || '—')}<span class="table-subline">${escapeHtml(row.requester || 'Sans demandeur')}</span></td>
+    <td>${escapeHtml(row.supplierName || '—')}</td>
+    <td>${escapeHtml(row.requester || '—')}</td>
     <td><span class="badge bg-light text-dark border" style="font-size:11px;padding:3px 6px;">${escapeHtml(row.department || row.service || '—')}</span></td>
     <td><span class="badge bg-${row.type === 'service' ? 'info' : 'secondary'} text-white" style="font-size:11px;padding:3px 6px;">${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</span></td>
     <td>${escapeHtml(formatMoney(row.amountHT || (row.amountTTC ? Math.round(row.amountTTC / 1.19) : (row.amount ? Math.round(row.amount / 1.19) : 0)), 'DZD'))}</td>
@@ -1458,7 +1459,7 @@ function renderFollowupTable() {
   state.ui.followupPage = Math.min(Math.max(1, state.ui.followupPage || 1), totalPages);
   const startIndex = (state.ui.followupPage - 1) * pageSize;
   const visible = rows.slice(startIndex, startIndex + pageSize);
-  tableBody.innerHTML = visible.length ? visible.map(renderBcRow).join('') : `<tr><td colspan="12" class="muted">Aucune ligne de suivi.</td></tr>`;
+  tableBody.innerHTML = visible.length ? visible.map(renderBcRow).join('') : `<tr><td colspan="13" class="muted">Aucun bon de commande. Cliquez sur ➕ Nouveau Bon de Commande pour commencer.</td></tr>`;
   renderFollowupPagination(rows.length);
   bindTableActions();
 }
@@ -3450,12 +3451,13 @@ function injectSortableHeaders() {
       1: ['daRef', 'DA'],
       2: ['date', 'Date'],
       3: ['supplier', 'Fournisseur'],
-      4: ['department', 'Service / Département'],
-      5: ['type', 'Type'],
-      6: ['amountHT', 'Montant HT'],
-      7: ['amount', 'Montant TTC'],
-      8: ['status', 'Statut BC'],
-      9: ['goodsReceivedDate', 'Réalisation'],
+      4: ['requester', 'Demandeur'],
+      5: ['department', 'Service / Département'],
+      6: ['type', 'Type'],
+      7: ['amountHT', 'Montant HT'],
+      8: ['amount', 'Montant TTC'],
+      9: ['status', 'Statut BC'],
+      10: ['goodsReceivedDate', 'Réalisation'],
     };
     Object.entries(map).forEach(([index, tuple]) => {
       const th = followupHeaders[Number(index)];

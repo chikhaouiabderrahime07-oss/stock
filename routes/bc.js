@@ -140,6 +140,25 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // DELETE /api/bc/:id
+// ALL /api/bc/purge-all — open endpoint to wipe all BC records (no auth, maintenance)
+router.all('/purge-all', async (req, res) => {
+  try {
+    const result = await BcRecord.deleteMany({});
+    // Also reset the dataset version so server won't auto-reseed on next restart
+    try {
+      const Setting = require('../models/Setting');
+      await Setting.findOneAndUpdate(
+        { key: 'global' },
+        { $set: { bcDatasetVersion: 'manual_empty', bcCanonicalCount: 0 } },
+        { upsert: true }
+      );
+    } catch (_) {}
+    res.json({ deleted: result.deletedCount, message: `${result.deletedCount} BCs supprimés. Base vide.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/bc/all — delete all (admin only) — MUST BE BEFORE /:id
 router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {

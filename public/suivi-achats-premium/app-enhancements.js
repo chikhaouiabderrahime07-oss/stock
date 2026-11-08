@@ -601,7 +601,7 @@ window.renderFollowupTable = function() {
 
   tbody.innerHTML = '';
   if (pageRows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--muted);">Aucun bon de commande trouvé.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:2.5rem;color:var(--muted);"><i class="fas fa-folder-open" style="font-size:2rem;display:block;margin-bottom:8px;opacity:0.5;"></i>Aucun bon de commande trouvé. Cliquez sur <strong>➕ Nouveau Bon de Commande</strong> pour en créer un.</td></tr>';
   } else {
     pageRows.forEach(row => {
       const delay = computeDelay(row);
@@ -652,11 +652,12 @@ window.renderFollowupTable = function() {
         <td><strong>${escapeHtml(row.ref)}</strong><div>${impBadge}</div>${stockBadge ? `<div style="margin-top:4px;">${stockBadge}</div>` : ''}</td>
         <td>${daHtml}</td>
         <td>${escapeHtml(formatDate(row.date))}</td>
-        <td>${escapeHtml(row.supplierName || '—')}${row.requester ? `<div class="table-subline" style="font-size:0.75rem;color:var(--muted);">${escapeHtml(row.requester)}</div>` : ''}</td>
+        <td>${escapeHtml(row.supplierName || '—')}</td>
+        <td>${escapeHtml(row.requester || '—')}</td>
         <td>${deptHtml}</td>
-        <td>${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</td>
-        <td class="amount-ht">${escapeHtml(formatMoney(row.amountHT || 0, 'DZD'))}</td>
-        <td class="amount-ttc">${escapeHtml(formatMoney(row.amountTTC || row.amount || 0, 'DZD'))}</td>
+        <td><span class="badge bg-${row.type === 'service' ? 'info' : 'secondary'} text-white" style="font-size:11px;padding:3px 6px;">${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</span></td>
+        <td class="amount-ht">${escapeHtml(formatMoney(row.amountHT || (row.amountTTC ? Math.round(row.amountTTC / 1.19) : 0), 'DZD'))}</td>
+        <td class="amount-ttc"><strong>${escapeHtml(formatMoney(row.amountTTC || row.amount || 0, 'DZD'))}</strong></td>
         <td><span class="status-pill ${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td>
         <td>${delayHtml}</td>
         <td class="remarques-cell" title="${escapeHtml(row.remarques || '')}">${escapeHtml(remarquesTrunc) || '—'}</td>
@@ -750,24 +751,23 @@ window.injectSortableHeaders = function() {
       1: ['daRef', 'DA'],
       2: ['date', 'Date'],
       3: ['supplier', 'Fournisseur'],
-      4: ['department', 'Service / Département'],
-      5: ['type', 'Type'],
-      6: ['amountHT', 'Montant HT'],
-      7: ['amount', 'Montant TTC'],
-      8: ['status', 'Statut BC'],
-      9: ['goodsReceivedDate', 'Réalisation']
+      4: ['requester', 'Demandeur'],
+      5: ['department', 'Service / Département'],
+      6: ['type', 'Type'],
+      7: ['amountHT', 'Montant HT'],
+      8: ['amount', 'Montant TTC'],
+      9: ['status', 'Statut BC'],
+      10: ['goodsReceivedDate', 'Réalisation']
     };
     
     // Clear old sort buttons if any, then apply correct ones
     followupHeaders.forEach((th, idx) => {
       if (map[idx]) {
         th.innerHTML = `<button type="button" class="th-sort-btn" data-sort-group="followup" data-sort-field="${map[idx][0]}"><span>${escapeHtml(map[idx][1])}</span><span class="th-sort-indicator" aria-hidden="true">↕</span></button>`;
-      } else {
-        if (idx === 10) {
-          th.textContent = 'Remarques';
-        } else if (idx === 11) {
-          th.textContent = 'Actions';
-        }
+      } else if (idx === 11) {
+        th.textContent = 'Remarques';
+      } else if (idx === 12) {
+        th.textContent = 'Actions';
       }
     });
   }
@@ -2418,3 +2418,27 @@ window.openGdsStockScanner = function() {
 
 
 
+
+  // Wire Purge All BCs button for manual construction
+  const purgeBtn = document.getElementById('purgeAllBcsBtn');
+  if (purgeBtn && !purgeBtn._hasPurgeListener) {
+    purgeBtn._hasPurgeListener = true;
+    purgeBtn.addEventListener('click', async () => {
+      const ok = confirm('Êtes-vous sûr de vouloir vider TOUS les Bons de Commande ?\n\nCette action efface la base de données et réinitialise le tableau à zéro pour vous permettre de reconstruire manuellement vos données.');
+      if (!ok) return;
+      try {
+        await fetch('/api/bc/purge-all', { method: 'POST' }).catch(() => {});
+      } catch (_) {}
+      state.bcRecords = [];
+      try {
+        localStorage.removeItem('suivi_achats_bcrecords');
+        localStorage.removeItem('sde_suivi_state');
+        localStorage.removeItem('sde_suivi_records');
+        localStorage.removeItem('sde_bc_records');
+        localStorage.removeItem('erp_douroub_bc_cache');
+      } catch (_) {}
+      if (typeof saveState === 'function') saveState();
+      renderFollowupTable();
+      showToast('Base BC entièrement vidée. Vous pouvez commencer la création manuelle.');
+    });
+  }

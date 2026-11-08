@@ -265,14 +265,13 @@ async function startServer() {
     });
 
     const isDatasetDirty = (
-      bcCount === 0 ||
-      bcCount < 361 ||
-      bcCount === 386 ||
-      copyClones > 0 ||
-      schmitzClones > 2 ||
-      hasTestBcs > 0 ||
-      !globalSetting ||
-      globalSetting.bcDatasetVersion !== 'v6_clean_361'
+      globalSetting?.bcDatasetVersion !== 'manual_empty' && (
+        (bcCount < 361 && bcCount > 0) ||
+        bcCount === 386 ||
+        copyClones > 0 ||
+        schmitzClones > 2 ||
+        hasTestBcs > 0
+      )
     );
 
     if (isDatasetDirty) {
