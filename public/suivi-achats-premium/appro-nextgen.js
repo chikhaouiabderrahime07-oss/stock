@@ -869,7 +869,10 @@ const ApproNextGen = window.ApproNextGen = {
 
     this.updateScanLog('Connexion au serveur Node / MongoDB et lancement du scan récursif...', 'info');
 
-    fetch('/api/scan/bc', { method: 'POST' })
+    fetch('/api/scan/bc', {
+      method: 'POST',
+      headers: (typeof localStorage !== 'undefined' && localStorage.getItem('erp_jwt_token')) ? { 'Authorization': 'Bearer ' + localStorage.getItem('erp_jwt_token') } : {}
+    })
       .then(r => r.json())
       .then(res => {
         if (res.success && res.records) {
@@ -884,7 +887,7 @@ const ApproNextGen = window.ApproNextGen = {
           });
         } else {
           // Fallback to preload dataset or local data file
-          if (window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.bcRecords)) {
+          if (window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.bcRecords) && window.PRELOAD_DATA.bcRecords.length > 0) {
             state.bcRecords = window.PRELOAD_DATA.bcRecords;
             this.updateScanProgress(100, 100);
             this.updateScanLog(`Chargé depuis le dataset embarqué : ${state.bcRecords.length} BCs !`, 'success');
@@ -896,6 +899,27 @@ const ApproNextGen = window.ApproNextGen = {
             });
             return;
           }
+          // Direct fetch from MongoDB Atlas
+          return fetch('/api/bc?limit=1000', {
+            headers: (typeof localStorage !== 'undefined' && localStorage.getItem('erp_jwt_token')) ? { 'Authorization': 'Bearer ' + localStorage.getItem('erp_jwt_token') } : {}
+          })
+          .then(r => r.json())
+          .then(atlasData => {
+            const atlasBcs = atlasData.bcRecords || [];
+            if (atlasBcs.length > 0) {
+              state.bcRecords = atlasBcs;
+              this.updateScanProgress(100, 100);
+              this.updateScanLog(`Récupéré directement depuis MongoDB Atlas : ${atlasBcs.length} BCs !`, 'success');
+              this.finishScanButton(() => {
+                this.autoLinkBcsAndDps();
+                saveState();
+                renderApp();
+                showToast(`${atlasBcs.length} BCs synchronisés depuis MongoDB !`);
+              });
+              return;
+            }
+          })
+          .catch(() => {});
           if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') return;
           return fetch('../data/extracted_bcs_linked.json')
             .then(r => r.json())
@@ -949,7 +973,10 @@ const ApproNextGen = window.ApproNextGen = {
 
     this.updateScanLog('Lancement du scan récursif des Demandes de Paiement...', 'info');
 
-    fetch('/api/scan/dp', { method: 'POST' })
+    fetch('/api/scan/dp', {
+      method: 'POST',
+      headers: (typeof localStorage !== 'undefined' && localStorage.getItem('erp_jwt_token')) ? { 'Authorization': 'Bearer ' + localStorage.getItem('erp_jwt_token') } : {}
+    })
       .then(r => r.json())
       .then(res => {
         if (res.success && res.records) {

@@ -2994,3 +2994,53 @@ body[data-theme="dark"] .sa-tab-row#tabbar {
 }
 
 
+
+/* Rich Status Badges for Bons de Commande */
+.status-pill.status-livre-paye {
+  background: #059669 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25) !important;
+}
+.status-pill.status-livre {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25) !important;
+}
+.status-pill.status-paye {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.25) !important;
+}
+.status-pill.status-transmis {
+  background: #f59e0b !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.25) !important;
+}

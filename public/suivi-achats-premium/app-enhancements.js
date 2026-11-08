@@ -110,7 +110,7 @@ window.normalizeBcRecord = function(row = {}) {
     state.requesters = state.requesters.map(r => typeof r === "string" ? { id: "req_" + Math.random().toString(36).substr(2, 6), name: r } : r);
   }
   // Clean up legacy reset flags and ensure clean 361 records preload
-  const SUIVI_DATA_VERSION = 'v2026_04_canonical_364';
+  const SUIVI_DATA_VERSION = 'v2026_08_recombined_305_live';
   try {
     localStorage.removeItem('suivi_reset_v15');
     if (localStorage.getItem('suivi_data_version') !== SUIVI_DATA_VERSION) {
@@ -388,7 +388,19 @@ function computeFreshFilteredBcRecords() {
     .filter((row) => {
       if (validation === 'validated' && row.daStatus !== 'validated') return false;
       if (validation === 'draft' && row.daStatus === 'validated') return false;
-      if (status !== 'all' && row.status !== status) return false;
+      if (status !== 'all') {
+        const isPaid = !!(row.status === 'livre_paye' || row.status === 'paye' || row.paymentStatus === 'paye' || row.paymentRef || row.paymentPaidDate || (row.remarques && row.remarques.includes('✓ Payé')));
+        const isDelivered = !!(row.status === 'livre_paye' || row.status === 'livre' || row.status === 'receptionne' || row.goodsReceivedDate || row.serviceDoneDate || (row.status === 'clos' && !row.goodsReceivedDate && !row.serviceDoneDate));
+        
+        if (status === 'livre_paye' && !(isDelivered && isPaid)) return false;
+        if (status === 'livre' && !isDelivered) return false;
+        if (status === 'paye' && !isPaid) return false;
+        if (status === 'non_paye' && isPaid) return false;
+        if (status === 'non_livre' && isDelivered) return false;
+        if (status === 'transmis' && (isDelivered || isPaid)) return false;
+        if (status === 'clos' && row.status !== 'clos') return false;
+        if (!['livre_paye', 'livre', 'paye', 'non_paye', 'non_livre', 'transmis', 'clos'].includes(status) && row.status !== status) return false;
+      }
       if (type !== 'all' && row.type !== type) return false;
       if (hasSupplierFilter && !selList.includes(row.supplierName)) return false;
       if (requester !== 'all' && row.requester !== requester) return false;
@@ -509,6 +521,10 @@ window.refreshFollowupFilterOptions = function() {
 window.renderFollowupTable = function() {
   const tbody = $('followupTableBody');
   if (!tbody) return;
+  if ((!Array.isArray(state.bcRecords) || state.bcRecords.length === 0) && typeof window !== 'undefined' && window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.bcRecords) && window.PRELOAD_DATA.bcRecords.length > 0) {
+    state.bcRecords = window.PRELOAD_DATA.bcRecords.map(normalizeBcRecord);
+    if (typeof saveState === 'function') saveState();
+  }
   
   let rows = filteredBcRecords();
   const totalRows = rows.length;
@@ -524,10 +540,11 @@ window.renderFollowupTable = function() {
   }
   const totalTTC = rows.reduce((s, r) => s + (Number(r.amountTTC) || 0), 0);
   const totalHT = rows.reduce((s, r) => s + (Number(r.amountHT) || 0), 0);
-  const totalCreance = rows.filter(r => r.status !== 'paye' && !r.paymentPaidDate).reduce((s, r) => s + (Number(r.amountTTC || r.amount) || 0), 0);
+  const totalCreance = rows.filter(r => r.status !== 'paye' && r.status !== 'livre_paye' && !r.paymentPaidDate && !r.paymentRef).reduce((s, r) => s + (Number(r.amountTTC || r.amount) || 0), 0);
   const achatCount = rows.filter(r => r.type === 'achat').length;
   const serviceCount = rows.filter(r => r.type === 'service').length;
-  const deliveredCount = rows.filter(r => r.goodsReceivedDate || r.serviceDoneDate).length;
+  const deliveredCount = rows.filter(r => r.goodsReceivedDate || r.serviceDoneDate || r.status === 'livre' || r.status === 'livre_paye').length;
+  const paidCount = rows.filter(r => r.status === 'livre_paye' || r.status === 'paye' || r.paymentPaidDate || r.paymentRef || (r.remarques && r.remarques.includes('✓ Payé'))).length;
   const supplierCount = new Set(rows.map(r => r.supplierName).filter(Boolean)).size;
   summaryBar.innerHTML = `
     <div class="summary-card"><div class="summary-value">${totalRows}</div><div class="summary-label">BC filtrés</div></div>
@@ -535,6 +552,7 @@ window.renderFollowupTable = function() {
     <div class="summary-card" style="border-left:3px solid #ef4444;"><div class="summary-value" style="color:#ef4444;">${formatMoney(totalCreance, 'DZD')}</div><div class="summary-label">Créances Dues</div></div>
     <div class="summary-card"><div class="summary-value">${achatCount} / ${serviceCount}</div><div class="summary-label">Achats / Services</div></div>
     <div class="summary-card"><div class="summary-value">${deliveredCount}</div><div class="summary-label">Livrés</div></div>
+    <div class="summary-card" style="border-left:3px solid #059669;"><div class="summary-value" style="color:#059669;">${paidCount}</div><div class="summary-label">Payés</div></div>
     <div class="summary-card"><div class="summary-value">${supplierCount}</div><div class="summary-label">Fournisseurs</div></div>
   `;
 
@@ -647,6 +665,19 @@ window.renderFollowupTable = function() {
       const impBadge = `<span class="badge-importance ${impClass}" style="margin-top:3px;display:inline-block;">${impLabel}</span>`;
       const stockBadge = (typeof getBcStockBadge === 'function') ? getBcStockBadge(row) : ((typeof window !== 'undefined' && typeof window.getBcStockBadge === 'function') ? window.getBcStockBadge(row) : '');
 
+      const isPaid = !!(row.status === 'livre_paye' || row.status === 'paye' || row.paymentStatus === 'paye' || row.paymentRef || row.paymentPaidDate || (row.remarques && row.remarques.includes('✓ Payé')));
+      const isDelivered = !!(row.status === 'livre_paye' || row.status === 'livre' || row.status === 'receptionne' || row.goodsReceivedDate || row.serviceDoneDate || (row.status === 'clos' && !row.goodsReceivedDate && !row.serviceDoneDate));
+      let statusHtml = '';
+      if (isDelivered && isPaid) {
+        statusHtml = '<span class="status-pill status-livre-paye" style="background:#059669;color:#fff;font-weight:700;padding:4px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><i class="fas fa-check-double" style="font-size:0.72rem;"></i> Livré &amp; Payé</span>';
+      } else if (isDelivered) {
+        statusHtml = '<span class="status-pill status-livre" style="background:#0284c7;color:#fff;font-weight:700;padding:4px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><i class="fas fa-truck-ramp-box" style="font-size:0.72rem;"></i> Livré</span>';
+      } else if (isPaid) {
+        statusHtml = '<span class="status-pill status-paye" style="background:#10b981;color:#fff;font-weight:700;padding:4px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><i class="fas fa-money-bill-wave" style="font-size:0.72rem;"></i> Payé</span>';
+      } else {
+        statusHtml = '<span class="status-pill status-transmis" style="background:#f59e0b;color:#fff;font-weight:700;padding:4px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><i class="fas fa-paper-plane" style="font-size:0.72rem;"></i> Transmis</span>';
+      }
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>${escapeHtml(row.ref)}</strong><div>${impBadge}</div>${stockBadge ? `<div style="margin-top:4px;">${stockBadge}</div>` : ''}</td>
@@ -658,7 +689,7 @@ window.renderFollowupTable = function() {
         <td><span class="badge bg-${row.type === 'service' ? 'info' : 'secondary'} text-white" style="font-size:11px;padding:3px 6px;">${escapeHtml(row.type === 'service' ? 'Service' : 'Achat')}</span></td>
         <td class="amount-ht">${escapeHtml(formatMoney(row.amountHT || (row.amountTTC ? Math.round(row.amountTTC / 1.19) : 0), 'DZD'))}</td>
         <td class="amount-ttc"><strong>${escapeHtml(formatMoney(row.amountTTC || row.amount || 0, 'DZD'))}</strong></td>
-        <td><span class="status-pill ${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td>
+        <td>${statusHtml}</td>
         <td>${delayHtml}</td>
         <td class="remarques-cell" title="${escapeHtml(row.remarques || '')}">${escapeHtml(remarquesTrunc) || '—'}</td>
         <td class="actions-cell">
@@ -860,6 +891,17 @@ window.submitBcEditForm = function(e) {
   row.description = $('editBcDescription') ? $('editBcDescription').value.trim() : row.description;
   row.comments = $('editBcComments') ? $('editBcComments').value.trim() : row.comments;
   row.notes = $('editBcNotes') ? $('editBcNotes').value.trim() : row.notes;
+  if (row.status === 'livre_paye') {
+    if (!row.goodsReceivedDate && !row.serviceDoneDate) {
+      if (row.type === 'service') row.serviceDoneDate = row.date || new Date().toISOString().split('T')[0];
+      else row.goodsReceivedDate = row.date || new Date().toISOString().split('T')[0];
+    }
+    row.paymentStatus = 'paye';
+    if (!row.paymentPaidDate) row.paymentPaidDate = row.date || new Date().toISOString().split('T')[0];
+    if (!String(row.remarques || '').includes('✓ Payé')) {
+      row.remarques = row.remarques ? (row.remarques + ' · ✓ Payé') : '✓ Payé';
+    }
+  }
   row.updatedAt = new Date().toISOString();
   
   saveState();
@@ -1800,7 +1842,8 @@ document.head.appendChild(styleSheet);
         }
       }
       $('deliverDateInput').value = defDate;
-      $('deliverBcStatusInput').value = 'clos';
+      const isPaidRow = !!(row.status === 'livre_paye' || row.status === 'paye' || row.paymentStatus === 'paye' || row.paymentRef || (row.remarques && row.remarques.includes('✓ Payé')));
+      $('deliverBcStatusInput').value = isPaidRow ? 'livre_paye' : 'livre';
       $('deliverBlInput').value = '';
       modal.classList.remove('hidden');
     }
@@ -1832,6 +1875,13 @@ document.head.appendChild(styleSheet);
         row.goodsReceivedDate = realDate;
       }
       row.status = newStatus;
+      if (newStatus === 'livre_paye') {
+        row.paymentStatus = 'paye';
+        if (!row.paymentPaidDate) row.paymentPaidDate = realDate;
+        if (!String(row.remarques || '').includes('✓ Payé')) {
+          row.remarques = row.remarques ? (row.remarques + ' · ✓ Payé') : '✓ Payé';
+        }
+      }
       if (bl) {
         row.remarques = row.remarques ? (row.remarques + ' | BL: ' + bl) : ('BL: ' + bl);
       }

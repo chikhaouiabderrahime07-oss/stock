@@ -1,4 +1,4 @@
-const SUIVI_DATA_VERSION = 'v2026_04_canonical_364';
+const SUIVI_DATA_VERSION = 'v2026_08_recombined_305_live';
 const STORAGE_KEYS = ['suivi_linked_v30', 'suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
 const SESSION_KEYS = ['suivi_linked_session_v30', 'suivi_compact_session_v20', 'suivi_local_session_v12', 'suivi_local_session_v11'];
 const PANEL_PREFS_KEY = 'suivi_compact_panel_prefs_v1';
@@ -752,27 +752,29 @@ function computeDelay(row) {
 }
 function statusLabel(value) {
   return {
-    brouillon: 'Brouillon',
-    transmis: 'Transmis',
-    partiel: 'Partiel',
+    livre_paye: '✓ Livré & Payé',
+    paye: 'Payé',
+    livre: 'Livré',
     receptionne: 'Réceptionné',
+    service_fait: 'Service fait',
     cloture: 'Clôturé',
-    importe: 'Brouillon',
-    en_attente: 'Transmis',
-    en_cours: 'Partiel',
-    livre: 'Réceptionné',
-    service_fait: 'Réceptionné',
-    paye: 'Clôturé',
     clos: 'Clôturé',
+    transmis: 'Transmis',
+    en_attente: 'En attente',
+    en_cours: 'En cours',
+    brouillon: 'Brouillon',
+    importe: 'Transmis',
     programme: 'Programmé',
   }[value] || value || '—';
 }
 function statusClass(value) {
-  if (['receptionne', 'livre', 'service_fait'].includes(value)) return 'status-receptionne ok';
-  if (['cloture', 'paye', 'clos'].includes(value)) return 'status-cloture status-valide ok';
+  if (value === 'livre_paye') return 'status-livre-paye ok';
+  if (['receptionne', 'livre', 'service_fait'].includes(value)) return 'status-receptionne info';
+  if (value === 'paye') return 'status-paye ok';
+  if (['cloture', 'clos'].includes(value)) return 'status-cloture ok';
   if (['partiel', 'en_cours', 'programme'].includes(value)) return 'status-partiel warn';
-  if (['brouillon', 'importe'].includes(value)) return 'status-brouillon info';
-  if (['transmis', 'en_attente'].includes(value)) return 'status-transmis late';
+  if (['transmis', 'en_attente', 'importe'].includes(value)) return 'status-transmis warn';
+  if (value === 'brouillon') return 'status-brouillon info';
   return 'neutral';
 }
 function validationClass(row) {
@@ -1186,6 +1188,17 @@ function buildBcPayloadFromMain(mode = 'save', existing = null) {
     createdAt: existing?.createdAt || nowIso(),
     updatedAt: nowIso(),
   });
+  if (payload.status === 'livre_paye') {
+    if (!payload.goodsReceivedDate && !payload.serviceDoneDate) {
+      if (payload.type === 'service') payload.serviceDoneDate = payload.date || todayYmd();
+      else payload.goodsReceivedDate = payload.date || todayYmd();
+    }
+    payload.paymentStatus = 'paye';
+    if (!payload.paymentPaidDate) payload.paymentPaidDate = payload.date || todayYmd();
+    if (!String(payload.remarques || '').includes('✓ Payé')) {
+      payload.remarques = payload.remarques ? (payload.remarques + ' · ✓ Payé') : '✓ Payé';
+    }
+  }
   return payload;
 }
 function submitFollowupForm(e) {
@@ -1209,6 +1222,9 @@ function submitFollowupForm(e) {
   showToast(mode === 'validate' ? 'BC et DA validés.' : 'Ligne BC enregistrée.');
 }
 function filteredBcRecords() {
+  if ((!Array.isArray(state.bcRecords) || state.bcRecords.length === 0) && typeof window !== 'undefined' && window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.bcRecords) && window.PRELOAD_DATA.bcRecords.length > 0) {
+    state.bcRecords = window.PRELOAD_DATA.bcRecords.map(normalizeBcRecord);
+  }
   const q = normalizeText($('followupSearch').value || '');
   const validation = $('followupValidationFilter').value;
   const status = $('followupStatusFilter').value;
@@ -1227,7 +1243,19 @@ function filteredBcRecords() {
     .filter((row) => {
       if (validation === 'validated' && row.daStatus !== 'validated') return false;
       if (validation === 'draft' && row.daStatus === 'validated') return false;
-      if (status !== 'all' && row.status !== status) return false;
+      if (status !== 'all') {
+        const isPaid = !!(row.status === 'livre_paye' || row.status === 'paye' || row.paymentStatus === 'paye' || row.paymentRef || row.paymentPaidDate || (row.remarques && row.remarques.includes('✓ Payé')));
+        const isDelivered = !!(row.status === 'livre_paye' || row.status === 'livre' || row.status === 'receptionne' || row.goodsReceivedDate || row.serviceDoneDate || (row.status === 'clos' && !row.goodsReceivedDate && !row.serviceDoneDate));
+        
+        if (status === 'livre_paye' && !(isDelivered && isPaid)) return false;
+        if (status === 'livre' && !isDelivered) return false;
+        if (status === 'paye' && !isPaid) return false;
+        if (status === 'non_paye' && isPaid) return false;
+        if (status === 'non_livre' && isDelivered) return false;
+        if (status === 'transmis' && (isDelivered || isPaid)) return false;
+        if (status === 'clos' && row.status !== 'clos') return false;
+        if (!['livre_paye', 'livre', 'paye', 'non_paye', 'non_livre', 'transmis', 'clos'].includes(status) && row.status !== status) return false;
+      }
       if (type !== 'all' && row.type !== type) return false;
       if (importance !== 'all' && typeof window.ApproNextGen !== 'undefined' && window.ApproNextGen.classifyBcImportance) {
         if (window.ApproNextGen.classifyBcImportance(row) !== importance) return false;
@@ -1453,6 +1481,10 @@ if (typeof window !== 'undefined') window.renderBcRow = renderBcRow;
 function renderFollowupTable() {
   const tableBody = $('followupTableBody');
   if (!tableBody) return;
+  if ((!Array.isArray(state.bcRecords) || state.bcRecords.length === 0) && typeof window !== 'undefined' && window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.bcRecords) && window.PRELOAD_DATA.bcRecords.length > 0) {
+    state.bcRecords = window.PRELOAD_DATA.bcRecords.map(normalizeBcRecord);
+    if (typeof saveState === 'function') saveState();
+  }
   const rows = filteredBcRecords();
   const pageSize = Number(state.ui.followupPageSize || 10) || 10;
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -1558,6 +1590,17 @@ function submitBcEditForm(e) {
     notes: $('editBcNotes').value.trim(),
     updatedAt: nowIso(),
   });
+  if (payload.status === 'livre_paye') {
+    if (!payload.goodsReceivedDate && !payload.serviceDoneDate) {
+      if (payload.type === 'service') payload.serviceDoneDate = payload.date || todayYmd();
+      else payload.goodsReceivedDate = payload.date || todayYmd();
+    }
+    payload.paymentStatus = 'paye';
+    if (!payload.paymentPaidDate) payload.paymentPaidDate = payload.date || todayYmd();
+    if (!String(payload.remarques || '').includes('✓ Payé')) {
+      payload.remarques = payload.remarques ? (payload.remarques + ' · ✓ Payé') : '✓ Payé';
+    }
+  }
   const index = state.bcRecords.findIndex((row) => row.id === payload.id);
   if (index >= 0) state.bcRecords.splice(index, 1, payload);
   bumpBcSequenceFromRef(payload.ref);
@@ -5444,6 +5487,17 @@ function buildBcPayloadFromMain(mode = 'save', existing = null) {
     createdAt: existing?.createdAt || nowIso(),
     updatedAt: nowIso(),
   });
+  if (payload.status === 'livre_paye') {
+    if (!payload.goodsReceivedDate && !payload.serviceDoneDate) {
+      if (payload.type === 'service') payload.serviceDoneDate = payload.date || todayYmd();
+      else payload.goodsReceivedDate = payload.date || todayYmd();
+    }
+    payload.paymentStatus = 'paye';
+    if (!payload.paymentPaidDate) payload.paymentPaidDate = payload.date || todayYmd();
+    if (!String(payload.remarques || '').includes('✓ Payé')) {
+      payload.remarques = payload.remarques ? (payload.remarques + ' · ✓ Payé') : '✓ Payé';
+    }
+  }
   return payload;
 }
 

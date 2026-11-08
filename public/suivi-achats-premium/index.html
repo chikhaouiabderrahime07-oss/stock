@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/all.min.css" />
   <link rel="stylesheet" href="styles.css?v=4" />
-  <link rel="stylesheet" href="enhancements.css?v=24" />
+  <link rel="stylesheet" href="enhancements.css?v=20261108_aligned13_live" />
   <link rel="stylesheet" href="appro-nextgen.css?v=2" />
 </head>
 <body data-theme="light">
@@ -286,18 +286,14 @@
                 <label class="field">
                   <span>Statut</span>
                   <select id="bcStatus">
-                    <option value="brouillon">Brouillon</option>
                     <option value="transmis">Transmis</option>
+                    <option value="livre">Livré</option>
+                    <option value="paye">Payé</option>
+                    <option value="livre_paye">✓ Livré &amp; Payé</option>
+                    <option value="brouillon">Brouillon</option>
                     <option value="partiel">Partiel</option>
                     <option value="receptionne">Réceptionné</option>
-                    <option value="cloture">Clôturé</option>
-                    <option value="importe">Importé</option>
-                    <option value="en_attente">En attente</option>
-                    <option value="en_cours">En cours</option>
-                    <option value="livre">Marchandise reçue</option>
-                    <option value="service_fait">Service fait</option>
-                    <option value="paye">Payé</option>
-                    <option value="clos">Clos</option>
+                    <option value="clos">Clôturé</option>
                   </select>
                 </label>
                 <label class="field wide">
@@ -359,13 +355,12 @@
             </select>
             <select id="followupStatusFilter">
               <option value="all">Tous statuts</option>
-              <option value="importe">Importé</option>
-              <option value="en_attente">En attente</option>
-              <option value="en_cours">En cours</option>
-              <option value="livre">Marchandise reçue</option>
-              <option value="service_fait">Service fait</option>
-              <option value="paye">Payé</option>
-              <option value="clos">Clos</option>
+              <option value="livre_paye">✓ Livré &amp; Payé</option>
+              <option value="livre">Livré / Réceptionné</option>
+              <option value="paye">Payé (Tous)</option>
+              <option value="non_paye">Non payé (Créances dues)</option>
+              <option value="transmis">Transmis / En cours</option>
+              <option value="clos">Clôturé</option>
             </select>
             <select id="followupTypeFilter">
               <option value="all">Tous types</option>
@@ -927,7 +922,16 @@
           <label class="field"><span>TVA</span><input id="editBcTVA" type="text" inputmode="decimal" placeholder="0,00" /></label>
           <label class="field"><span>Devise</span><input id="editBcCurrency" type="text" value="DZD" readonly /></label>
           <label class="field"><span>Type</span><select id="editBcType"><option value="achat">Achat</option><option value="service">Service</option></select></label>
-          <label class="field"><span>Statut BC</span><select id="editBcStatus"><option value="importe">Importé</option><option value="en_attente">En attente</option><option value="en_cours">En cours</option><option value="livre">Marchandise reçue</option><option value="service_fait">Service fait</option><option value="paye">Payé</option><option value="clos">Clos</option></select></label>
+          <label class="field"><span>Statut BC</span><select id="editBcStatus">
+              <option value="livre_paye">✓ Livré &amp; Payé</option>
+              <option value="livre">Livré / Réceptionné</option>
+              <option value="paye">Payé</option>
+              <option value="transmis">Transmis / En cours</option>
+              <option value="clos">Clôturé</option>
+              <option value="en_attente">En attente</option>
+              <option value="en_cours">En cours</option>
+              <option value="brouillon">Brouillon</option>
+            </select></label>
           <label class="field"><span>Statut DA</span><select id="editBcDaStatus"><option value="draft">À vérifier</option><option value="validated">Validé</option></select></label>
           <label class="field"><span>Date promise</span><input id="editBcPromisedDate" type="date" /></label>
           <label class="field"><span>Date réception marchandise</span><input id="editBcGoodsDate" type="date" /></label>
@@ -1043,8 +1047,9 @@
           <label class="field">
             <span>Statut du BC</span>
             <select id="deliverBcStatusInput">
-              <option value="clos">Clôturé (Soldé)</option>
+              <option value="livre_paye">✓ Livré &amp; Payé (Soldé &amp; Réglé)</option>
               <option value="livre">Livré (En cours de paiement)</option>
+              <option value="clos">Clôturé (Soldé)</option>
             </select>
           </label>
           <label class="field">
@@ -1108,10 +1113,10 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="data-preload.js?v=361clean"></script>
-  <script src="app.js?v=361clean"></script>
-  <script src="app-enhancements.js?v=361clean"></script>
-  <script src="fleet-analyzer.js?v=5"></script>
-  <script src="appro-nextgen.js?v=1"></script>
+  <script src="data-preload.js"></script>
+  <script src="app.js"></script>
+  <script src="app-enhancements.js"></script>
+  <script src="fleet-analyzer.js"></script>
+  <script src="appro-nextgen.js"></script>
 </body>
 </html>

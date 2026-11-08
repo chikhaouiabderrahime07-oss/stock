@@ -92,8 +92,16 @@ const paymentRoutes = require('./routes/payments');
 const { authenticate } = require('./middleware/auth');
 app.use('/api/bc', bcRoutes);
 app.use('/api/payments', paymentRoutes);
-app.post('/api/scan/bc', authenticate, bcRoutes.scanBcHandler);
-app.post('/api/scan/dp', authenticate, paymentRoutes.scanDpHandler);
+const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    req.user = null;
+    return next();
+  }
+  return authenticate(req, res, next);
+};
+app.post('/api/scan/bc', optionalAuth, bcRoutes.scanBcHandler);
+app.post('/api/scan/dp', optionalAuth, paymentRoutes.scanDpHandler);
 
 // ─── Serve Static Frontend ──────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
@@ -264,29 +272,19 @@ async function startServer() {
       $or: [{ ref: /^TEST/i }, { ref: /^SYNC/i }]
     });
 
-    const isDatasetDirty = (
-      globalSetting?.bcDatasetVersion !== 'manual_empty' && (
-        (bcCount < 361 && bcCount > 0) ||
-        bcCount === 386 ||
-        copyClones > 0 ||
-        schmitzClones > 2 ||
-        hasTestBcs > 0
-      )
-    );
-
-    if (isDatasetDirty) {
-      console.log(`[STARTUP-AUTOFIX] Reseeding canonical 364 BC dataset in Atlas (count: ${bcCount}, copyClones: ${copyClones}, version: ${globalSetting ? globalSetting.bcDatasetVersion : 'none'})...`);
-      await BcRecord.deleteMany({});
-
+    if (bcCount === 0) {
+      console.log(`[SEED] Seeding 305 BC dataset into empty Atlas database...`);
       const bcCandidates = [
+        path.join(__dirname, 'sauvegarde_suivi_2026-11-08.json'),
         path.join(__dirname, 'data', 'extracted_bcs_linked.json'),
         path.join(__dirname, '..', 'data', 'extracted_bcs_linked.json')
       ];
       for (const bcSourceFile of bcCandidates) {
         if (fs.existsSync(bcSourceFile)) {
           const raw = JSON.parse(fs.readFileSync(bcSourceFile, 'utf8'));
-          if (Array.isArray(raw) && raw.length > 0) {
-            const clean = raw
+          const list = Array.isArray(raw) ? raw : (raw.bcRecords || []);
+          if (Array.isArray(list) && list.length > 0) {
+            const clean = list
               .filter(r => r.ref && !/TEST/i.test(String(r.ref)) && !/SYNC/i.test(String(r.ref)))
               .map(r => {
                 const d = { ...r };
@@ -301,7 +299,7 @@ async function startServer() {
               { key: 'global' },
               {
                 $set: {
-                  bcDatasetVersion: 'v2026_04_canonical_364',
+                  bcDatasetVersion: 'v2026_07_smart_matched_all_305_live',
                   bcCanonicalCount: clean.length,
                   bcLastReseededAt: new Date()
                 }
@@ -313,7 +311,7 @@ async function startServer() {
         }
       }
     } else {
-      console.log(`[SEED] BC records verified: ${bcCount} clean records in Atlas (version: ${globalSetting.bcDatasetVersion})`);
+      console.log(`[SEED] BC records verified: ${bcCount} clean records in Atlas (version: ${globalSetting ? globalSetting.bcDatasetVersion : 'active'})`);
     }
 
     const payCount = await Payment.countDocuments();

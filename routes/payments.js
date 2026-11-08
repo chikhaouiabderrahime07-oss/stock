@@ -29,6 +29,7 @@ async function scanAndUpsertDps(recordsToUpsert) {
   let records = recordsToUpsert;
   if (!records || !Array.isArray(records) || records.length === 0) {
     const candidates = [
+      path.join(__dirname, '..', 'sauvegarde_suivi_2026-11-08.json'),
       path.join(__dirname, '..', 'data', 'extracted_dps_linked.json'),
       path.join(__dirname, '..', '..', 'data', 'extracted_dps_linked.json'),
       path.join(__dirname, '..', 'data', 'extracted_dps.json'),
@@ -38,8 +39,9 @@ async function scanAndUpsertDps(recordsToUpsert) {
       if (fs.existsSync(p)) {
         try {
           const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
-          if (Array.isArray(raw) && raw.length > 0) {
-            records = raw;
+          const list = Array.isArray(raw) ? raw : (raw.payments || []);
+          if (Array.isArray(list) && list.length > 0) {
+            records = list;
             break;
           }
         } catch (e) {
