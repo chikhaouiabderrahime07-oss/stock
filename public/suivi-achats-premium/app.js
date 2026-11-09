@@ -9313,7 +9313,7 @@ window.renderFollowupTable = function() {
       const statusHtml = `<div class="bc-status-cell-stack" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:max-content;">${baseStatusPill}${dpChipHtml}</div>`;
 
       const isChecked = typeof window !== 'undefined' && window.selectedFollowupBcIds && window.selectedFollowupBcIds.has(row.id);
-      const remarquesDisplayHtml = `${remarquesTrunc ? `<div>${escapeHtml(remarquesTrunc)}</div>` : (!dpChipHtml ? '—' : '')}${!remarquesTrunc && dpChipHtml ? `<span style="font-size:10px;color:var(--muted);">${isPaid ? 'Réglé par DP' : (hasUnpaidDp ? 'DP en attente' : 'À rapprocher')}</span>` : ''}`;
+      const remarquesDisplayHtml = `${remarquesTrunc ? `<div>${escapeHtml(remarquesTrunc)}</div>` : (!dpChipHtml ? '—' : '')}${!remarquesTrunc && dpChipHtml ? `<span style="font-size:11px;color:var(--muted);">${isPaid ? '✓ Payé' : (hasUnpaidDp ? 'DP en attente' : 'À rapprocher')}</span>` : ''}`;
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="text-align:center;vertical-align:middle;"><input type="checkbox" class="followup-row-cb" data-id="${row.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer;width:15px;height:15px;" /></td>
