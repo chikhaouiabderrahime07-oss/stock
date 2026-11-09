@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
   <meta charset="UTF-8" />
@@ -76,22 +76,27 @@
             <option value="dark">Sombre</option>
           </select>
           <div class="sa-user-wrap">
-            <button class="sa-user-btn" id="userChipWrap" type="button" title="Mon profil">
-              <span class="sa-initials" id="currentUserLabel">AD</span>
+            <button class="user-avatar-btn sa-user-btn" id="userChipWrap" type="button" title="Mon profil" aria-label="Mon profil">
+              <span class="user-initials-badge sa-initials" id="currentUserLabel">AD</span>
             </button>
-            <div class="sa-user-card" id="userProfileCard" style="display:none;">
-              <div class="sa-ucard-head">
-                <div class="sa-ucard-avatar" id="ucardInitials">AD</div>
-                <div>
+            <div class="user-dropdown user-dropdown-rich sa-user-card" id="userProfileCard">
+              <div class="udrop-header sa-ucard-head">
+                <div class="udrop-avatar-lg sa-ucard-avatar" id="ucardInitials">AD</div>
+                <div class="udrop-info">
                   <strong id="ucardName">Administrateur</strong>
-                  <span id="ucardRole">Rôle</span>
+                  <span id="ucardRole">R&#244;le</span>
+                  <span class="udrop-service">Suivi Achats &amp; BC</span>
                 </div>
               </div>
-              <div class="sa-ucard-divider"></div>
-              <div class="sa-ucard-credits"><div class="credit-firm"><i class="fas fa-shield-halved me-1"></i> ABDO INTELLIGENT SYSTEMS</div><div class="credit-dev">Developed by <strong>CHIKHAOUI ABDERRAHIME</strong></div></div>
-              <button class="sa-ucard-link" id="logoutBtn" type="button"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
+              <div class="dropdown-divider"></div>
+              <a href="/" class="udrop-achats-link"><i class="fas fa-gauge-high" style="color:#2563eb;"></i> GDS Stock ERP</a>
+              <div class="dropdown-divider"></div>
+              <div style="padding:7px 14px;font-size:11px;color:var(--muted);line-height:1.6;"><div><i class="fas fa-shield-halved me-1" style="color:#2563eb;"></i> ABDO INTELLIGENT SYSTEMS</div><div>Dev: <strong>CHIKHAOUIABDERRAHIME</strong></div></div>
+              <div class="dropdown-divider"></div>
+              <a href="#" id="logoutBtn" class="logout-link" onclick="if(typeof saLogout==='function')saLogout();return false;"><i class="fas fa-sign-out-alt"></i> D&#233;connexion</a>
             </div>
           </div>
+
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-const SUIVI_DATA_VERSION = 'v2026_09_manual_clean';
+const SUIVI_DATA_VERSION = 'v2026_11_dp_fix';
 const STORAGE_KEYS = ['suivi_linked_v30', 'suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
 const LEGACY_STORAGE_KEYS = ['suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
 const SESSION_KEYS = ['suivi_linked_session_v30', 'suivi_compact_session_v20', 'suivi_local_session_v12', 'suivi_local_session_v11'];
@@ -622,10 +622,37 @@ function setupState() {
       if (Array.isArray(window.PRELOAD_DATA.payments) && window.PRELOAD_DATA.payments.length > 0) {
         state.payments = window.PRELOAD_DATA.payments.map(normalizePayment);
       }
+    } else if (Array.isArray(window.PRELOAD_DATA.payments) && window.PRELOAD_DATA.payments.length > 0) {
+      // Merge server payments into state without duplicating — server wins by paymentRef
+      const dpMap = new Map();
+      for (const dp of state.payments) {
+        const key = String(dp.paymentRef || dp.id || '').replace(/\s+/g,'').toLowerCase();
+        if (key) dpMap.set(key, dp);
+      }
+      for (const dp of window.PRELOAD_DATA.payments.map(normalizePayment)) {
+        const key = String(dp.paymentRef || dp.id || '').replace(/\s+/g,'').toLowerCase();
+        if (key) dpMap.set(key, dp); // server always overwrites stale local
+        else if (!dpMap.has(dp.id || '')) dpMap.set(dp.id || Math.random(), dp);
+      }
+      state.payments = Array.from(dpMap.values());
     }
   }
   if (state.activeTab === 'stock' || !state.activeTab) {
     state.activeTab = 'followup';
+  }
+  // Final dedup safety net — deduplicate payments by paymentRef
+  if (Array.isArray(state.payments) && state.payments.length > 0) {
+    const dpMap = new Map();
+    for (const dp of state.payments) {
+      const key = String(dp.paymentRef || '').replace(/\s+/g,'').toLowerCase() || dp.id || '';
+      if (key && !dpMap.has(key)) dpMap.set(key, dp);
+      else if (key && dpMap.has(key)) {
+        // Keep the one with more data (paid status wins)
+        const existing = dpMap.get(key);
+        if (dp.status === 'paye' || dp.status === 'paid') dpMap.set(key, { ...existing, ...dp });
+      }
+    }
+    state.payments = Array.from(dpMap.values());
   }
   state.session = loadSession();
   state.settings.bcSequence = Math.max(Number(state.settings.bcSequence || 1), highestBcSequence() + 1);
@@ -3257,18 +3284,26 @@ function bindEvents() {
     });
   }
 
-  // User card toggle (tv2 topbar)
+  // User card toggle — GDS-style with .open class
   const userChip = document.getElementById('userChipWrap');
   if (userChip) {
     userChip.addEventListener('click', (e) => {
       e.stopPropagation();
       const card = document.getElementById('userProfileCard');
-      if (card) card.style.display = card.style.display === 'none' ? 'block' : 'none';
+      if (card) {
+        card.classList.toggle('open');
+        // Also handle legacy display style
+        if (card.classList.contains('open')) {
+          card.style.removeProperty('display');
+        } else {
+          card.style.display = 'none';
+        }
+      }
     });
   }
   document.addEventListener('click', () => {
     const card = document.getElementById('userProfileCard');
-    if (card && card.style.display !== 'none') card.style.display = 'none';
+    if (card) { card.classList.remove('open'); card.style.display = 'none'; }
   });
 
   // Smart match run button
@@ -8722,7 +8757,7 @@ window.normalizeBcRecord = function(row = {}) {
   if (state.requesters) {
     state.requesters = state.requesters.map(r => typeof r === "string" ? { id: "req_" + Math.random().toString(36).substr(2, 6), name: r } : r);
   }
-  const SUIVI_DATA_VERSION = 'v2026_09_manual_clean';
+  const SUIVI_DATA_VERSION = 'v2026_11_dp_fix';
   try {
     localStorage.removeItem('suivi_reset_v15');
     localStorage.removeItem('suivi_compact_v20');
@@ -8898,11 +8933,15 @@ function refreshSupplierMultiSelectOptions() {
     cb.addEventListener('change', () => {
       const sel = getSelectedSuppliers();
       if (cb.checked) {
-        if (!sel.includes(s)) sel.push(s);
+        if (!sel.includes(s)) {
+          sel.push(s);
+          state.ui.selectedSuppliers = sel;
+        }
       } else {
         state.ui.selectedSuppliers = sel.filter(x => x !== s);
       }
       updateSupplierTriggerLabel();
+      renderFollowupTable();
     });
     
     const span = document.createElement('span');

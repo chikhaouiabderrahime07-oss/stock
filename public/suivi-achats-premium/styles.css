@@ -3921,7 +3921,7 @@ body[data-theme="dark"] .followup-table tbody tr:hover td.actions-cell { backgro
 }
 
 .followup-table .icon-btn,
-.followup-table .view-bc-btn {
+.followup-table .view-bc-btn:not(.bc-dp-chip):not(.bc-ai-suggest-chip) {
   border-radius: 6px !important;
   width: 26px !important;
   height: 26px !important;
@@ -3941,27 +3941,27 @@ body[data-theme="dark"] .followup-table tbody tr:hover td.actions-cell { backgro
   height: 13px !important;
 }
 
-/* Details: Indigo */
-.followup-table .view-bc-btn,
+/* Details: Indigo — exclude bc-dp-chip and bc-ai-suggest-chip which also carry view-bc-btn */
+.followup-table .view-bc-btn:not(.bc-dp-chip):not(.bc-ai-suggest-chip),
 .followup-table .icon-btn[data-action="view-bc"] {
   color: #4f46e5 !important;
   background: #eef2ff !important;
   border-color: #c7d2fe !important;
 }
-.followup-table .view-bc-btn:hover,
+.followup-table .view-bc-btn:not(.bc-dp-chip):not(.bc-ai-suggest-chip):hover,
 .followup-table .icon-btn[data-action="view-bc"]:hover {
   background: #4f46e5 !important;
   color: #ffffff !important;
   border-color: #4f46e5 !important;
   transform: scale(1.08);
 }
-body[data-theme="dark"] .followup-table .view-bc-btn,
+body[data-theme="dark"] .followup-table .view-bc-btn:not(.bc-dp-chip):not(.bc-ai-suggest-chip),
 body[data-theme="dark"] .followup-table .icon-btn[data-action="view-bc"] {
   color: #a5b4fc !important;
   background: rgba(99, 102, 241, 0.18) !important;
   border-color: rgba(99, 102, 241, 0.35) !important;
 }
-body[data-theme="dark"] .followup-table .view-bc-btn:hover,
+body[data-theme="dark"] .followup-table .view-bc-btn:not(.bc-dp-chip):not(.bc-ai-suggest-chip):hover,
 body[data-theme="dark"] .followup-table .icon-btn[data-action="view-bc"]:hover {
   background: #6366f1 !important;
   color: #ffffff !important;
