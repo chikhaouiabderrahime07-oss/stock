@@ -146,18 +146,60 @@ function mergeIntraBatchPayments(prevItem, nextItem) {
   return { raw: rawWithOid, doc: merged };
 }
 
+let _payCache = null;
+let _payCacheTime = 0;
+let _payCacheVersion = 1;
+function invalidatePaymentsCache() {
+  _payCache = null;
+  _payCacheTime = 0;
+  _payCacheVersion++;
+}
+router.invalidatePaymentsCache = invalidatePaymentsCache;
+router.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    invalidatePaymentsCache();
+    try {
+      const bcRouter = require('./bc');
+      if (bcRouter && typeof bcRouter.invalidateBcCache === 'function') bcRouter.invalidateBcCache();
+    } catch (_) {}
+  }
+  next();
+});
+
+function indexPaymentItemInLookup(entry, idx, lookup) {
+  const d = { ...entry.doc, _id: entry.raw && entry.raw._id, _batchIdx: idx };
+  if (d._id) lookup.byMongoId.set(String(d._id), d);
+  if (d.id && String(d.id).trim()) lookup.byClientId.set(String(d.id).trim(), d);
+  const idKey = getDpIdentityKey(d);
+  if (idKey) lookup.byIdentityKey.set(idKey, d);
+  const canon = canonicalDpRef(d.paymentRef || d.canonicalRef, d.requestDate || d.paidDate);
+  if (canon) lookup.byCanonicalRef.set(canon, d);
+  if (d.paymentRef) {
+    const nr = normalizePaymentRef(d.paymentRef);
+    if (nr) lookup.byNormRef.set(nr, d);
+  }
+  if (d.sourceFile && String(d.sourceFile).trim()) {
+    lookup.bySourceFile.set(String(d.sourceFile).trim().toLowerCase(), d);
+  }
+}
+
 function deduplicatePaymentBatch(rawRecords) {
   const items = [];
+  const lookup = buildPaymentLookup([]);
   for (const raw of rawRecords) {
     if (!raw || typeof raw !== 'object') continue;
     const doc = sanitizePaymentPayload(raw);
-    const lookup = buildPaymentLookup(items.map((it, i) => ({ ...it.doc, _id: it.raw && it.raw._id, _batchIdx: i })));
     const matched = findMatchingPayment(doc, raw, lookup);
     if (matched && typeof matched._batchIdx === 'number') {
-      items[matched._batchIdx] = mergeIntraBatchPayments(items[matched._batchIdx], { raw, doc });
+      const idx = matched._batchIdx;
+      items[idx] = mergeIntraBatchPayments(items[idx], { raw, doc });
+      indexPaymentItemInLookup(items[idx], idx, lookup);
       continue;
     }
-    items.push({ raw, doc });
+    const newIdx = items.length;
+    const entry = { raw, doc };
+    items.push(entry);
+    indexPaymentItemInLookup(entry, newIdx, lookup);
   }
   return items;
 }
@@ -347,11 +389,23 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/payments
+// GET /api/payments — with in-memory RAM cache & instant ETag 304
 router.get('/', authenticate, async (req, res) => {
   try {
+    if (_payCache && (Date.now() - _payCacheTime < 60000)) {
+      if (req.headers['if-none-match'] && req.headers['if-none-match'] === _payCache.etag) {
+        return res.status(304).end();
+      }
+      res.setHeader('ETag', _payCache.etag);
+      return res.json(_payCache.payload);
+    }
     const records = await Payment.find().sort({ requestDate: -1 }).limit(5000).lean();
-    res.json({ payments: records, total: records.length });
+    const payload = { payments: records, total: records.length };
+    const etag = `W/"pay-${_payCacheVersion}-${records.length}"`;
+    _payCache = { payload, etag };
+    _payCacheTime = Date.now();
+    res.setHeader('ETag', etag);
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

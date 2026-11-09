@@ -146,18 +146,52 @@ function mergeIntraBatchPair(prevItem, nextItem) {
   return { raw: nextItem.raw._id ? nextItem.raw : prevItem.raw, doc: base };
 }
 
+let _bcCache = null;
+let _bcCacheTime = 0;
+let _bcCacheVersion = 1;
+function invalidateBcCache() {
+  _bcCache = null;
+  _bcCacheTime = 0;
+  _bcCacheVersion++;
+}
+router.invalidateBcCache = invalidateBcCache;
+router.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') invalidateBcCache();
+  next();
+});
+
+function indexBcItemInLookup(entry, idx, lookup) {
+  const d = { ...entry.doc, _id: entry.raw && entry.raw._id, _batchIdx: idx };
+  if (d._id) lookup.byMongoId.set(String(d._id), d);
+  if (d.id && String(d.id).trim()) lookup.byClientId.set(String(d.id).trim(), d);
+  const refRaw = String(d.ref || '').trim();
+  if (refRaw) lookup.byNormRef.set(refRaw.replace(/\s+/g, ' ').toLowerCase(), d);
+  const key = getBcDedupKey(d);
+  if (key) lookup.byDedupKey.set(key, d);
+  const serial = extractBcSerial(refRaw) || (!refRaw ? extractBcSerial(d.sourceFile) : null);
+  if (serial) {
+    lookup.byAnySerial.set(serial, d);
+    if (!extractBcYear(d)) lookup.bySerialOnly.set(serial, d);
+  }
+}
+
 function deduplicateIncomingBatch(rawRecords) {
   const items = [];
+  const lookup = buildBcLookup([]);
   for (const raw of rawRecords) {
     if (!raw || typeof raw !== 'object') continue;
     const doc = sanitizeBcPayload(raw);
-    const lookup = buildBcLookup(items.map((it, i) => ({ ...it.doc, _id: it.raw && it.raw._id, _batchIdx: i })));
     const matchedDoc = findMatchingBc(doc, raw, lookup);
     if (matchedDoc && typeof matchedDoc._batchIdx === 'number') {
-      items[matchedDoc._batchIdx] = mergeIntraBatchPair(items[matchedDoc._batchIdx], { raw, doc });
+      const idx = matchedDoc._batchIdx;
+      items[idx] = mergeIntraBatchPair(items[idx], { raw, doc });
+      indexBcItemInLookup(items[idx], idx, lookup);
       continue;
     }
-    items.push({ raw, doc });
+    const newIdx = items.length;
+    const entry = { raw, doc };
+    items.push(entry);
+    indexBcItemInLookup(entry, newIdx, lookup);
   }
   return items;
 }
@@ -201,18 +235,33 @@ async function setManualEmptySetting() {
   } catch (_) {}
 }
 
-// GET /api/bc — list all BC records
+// GET /api/bc — list all BC records (with in-memory RAM cache & instant ETag 304)
 router.get('/', authenticate, async (req, res) => {
   try {
     const { limit: lim, page } = req.query;
     const pageNum = parseInt(page) || 1;
     const limit = parseInt(lim) || 5000;
     const skip = (pageNum - 1) * limit;
-    const [records, total] = await Promise.all([
-      BcRecord.find().sort({ date: -1 }).skip(skip).limit(limit).lean(),
-      BcRecord.countDocuments()
-    ]);
-    res.json({ bcRecords: records, total });
+
+    if (skip === 0 && limit >= 1000 && _bcCache && (Date.now() - _bcCacheTime < 60000)) {
+      if (req.headers['if-none-match'] && req.headers['if-none-match'] === _bcCache.etag) {
+        return res.status(304).end();
+      }
+      res.setHeader('ETag', _bcCache.etag);
+      return res.json(_bcCache.payload);
+    }
+
+    const records = await BcRecord.find().sort({ date: -1 }).skip(skip).limit(limit).lean();
+    const total = (skip === 0 && records.length < limit) ? records.length : await BcRecord.countDocuments();
+    const payload = { bcRecords: records, total };
+
+    if (skip === 0 && limit >= 1000) {
+      const etag = `W/"bc-${_bcCacheVersion}-${total}"`;
+      _bcCache = { payload, etag };
+      _bcCacheTime = Date.now();
+      res.setHeader('ETag', etag);
+    }
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

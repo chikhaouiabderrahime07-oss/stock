@@ -625,27 +625,50 @@ function loadState() {
     return base;
   }
 }
-function saveState() {
+var _saveStateTimer = null;
+function _flushStateToStorage() {
+  _saveStateTimer = null;
+  try {
+    localStorage.setItem(STORAGE_KEYS[0], JSON.stringify({
+      version: SUIVI_DATA_VERSION,
+      settings: state.settings,
+      users: state.users,
+      suppliers: state.suppliers,
+      requesters: state.requesters,
+      bcRecords: state.bcRecords,
+      payments: state.payments,
+      stockItems: state.stockItems,
+      stockLogs: state.stockLogs,
+      holidays: state.holidays,
+    }));
+  } catch (e) {
+    console.warn('[STATE] Storage write warning:', e);
+  }
+}
+function saveState(immediate) {
+  if (typeof window !== 'undefined' && typeof window.invalidateRelationIndex === 'function') {
+    window.invalidateRelationIndex();
+  }
   try {
     LEGACY_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
   } catch (e) {}
   if (Array.isArray(state.payments) && state.payments.length > 1) {
     state.payments = deduplicatePaymentsList(state.payments);
   }
-  localStorage.setItem(STORAGE_KEYS[0], JSON.stringify({
-    version: SUIVI_DATA_VERSION,
-    settings: state.settings,
-    users: state.users,
-    suppliers: state.suppliers,
-    requesters: state.requesters,
-    bcRecords: state.bcRecords,
-    payments: state.payments,
-    stockItems: state.stockItems,
-    stockLogs: state.stockLogs,
-    holidays: state.holidays,
-  }));
+  if (immediate === true) {
+    if (_saveStateTimer) clearTimeout(_saveStateTimer);
+    _flushStateToStorage();
+    return;
+  }
+  if (_saveStateTimer) clearTimeout(_saveStateTimer);
+  _saveStateTimer = setTimeout(_flushStateToStorage, 60);
 }
-if (typeof window !== 'undefined') window.saveState = saveState;
+if (typeof window !== 'undefined') {
+  window.saveState = saveState;
+  window.addEventListener('beforeunload', () => {
+    if (_saveStateTimer) _flushStateToStorage();
+  });
+}
 function loadSession() {
   let raw = readStored(SESSION_KEYS, sessionStorage);
   if (!raw) {
@@ -7399,11 +7422,31 @@ window.LogicalMatchEngine = {
   _cacheKey: '',
   _cache: null,
   _ignoredKeys: null,
+  _entityCache: new Map(),
+  _supScoreCache: new Map(),
+  _stopForms: new Set([
+    'sarl', 'eurl', 'spa', 'snc', 'ets', 'etablissement', 'etablissements',
+    'ste', 'societe', 'groupe', 'entreprise', 'ent', 'agence', 'compagnie', 'company',
+    'mr', 'mme', 'mlle', 'dr', 'freres', 'fils', 'cie', 'co', 'algerie', 'dz', 'biskra',
+    'pour', 'les', 'des', 'aux', 'commerce', 'generale', 'general', 'service', 'services'
+  ]),
+  _aliasMap: {
+    mohammed: 'mohamed', mohamad: 'mohamed', mhamed: 'mohamed', med: 'mohamed',
+    abdelkader: 'abdelkader', abdelkadar: 'abdelkader', aek: 'abdelkader',
+    kherif: 'cherif', kharif: 'cherif', charif: 'cherif', cherif: 'cherif',
+    hassen: 'hacen', hassan: 'hacen', hacene: 'hacen', hacen: 'hacen',
+    megueddem: 'meguedem', meguedem: 'meguedem', megdem: 'meguedem',
+    ennakaa: 'nakaa', elnakaa: 'nakaa', nakaa: 'nakaa', naka: 'nakaa',
+    mtc: 'maghreb truck'
+  },
 
   invalidate() {
     this._version++;
     this._cacheKey = '';
     this._cache = null;
+    if (typeof window !== 'undefined' && typeof window.invalidateRelationIndex === 'function') {
+      window.invalidateRelationIndex();
+    }
   },
 
   getIgnoredSet() {
@@ -7437,22 +7480,11 @@ window.LogicalMatchEngine = {
 
   normalizeEntity(raw) {
     if (!raw) return { clean: '', compact: '', skeleton: '', tokens: [], skelTokens: [], acronym: '' };
-    const stopForms = new Set([
-      'sarl', 'eurl', 'spa', 'snc', 'ets', 'etablissement', 'etablissements',
-      'ste', 'societe', 'groupe', 'entreprise', 'ent', 'agence', 'compagnie', 'company',
-      'mr', 'mme', 'mlle', 'dr', 'freres', 'fils', 'cie', 'co', 'algerie', 'dz', 'biskra',
-      'pour', 'les', 'des', 'aux', 'commerce', 'generale', 'general', 'service', 'services'
-    ]);
-    const aliasMap = {
-      mohammed: 'mohamed', mohamad: 'mohamed', mhamed: 'mohamed', med: 'mohamed',
-      abdelkader: 'abdelkader', abdelkadar: 'abdelkader', aek: 'abdelkader',
-      kherif: 'cherif', kharif: 'cherif', charif: 'cherif', cherif: 'cherif',
-      hassen: 'hacen', hassan: 'hacen', hacene: 'hacen', hacen: 'hacen',
-      megueddem: 'meguedem', meguedem: 'meguedem', megdem: 'meguedem',
-      ennakaa: 'nakaa', elnakaa: 'nakaa', nakaa: 'nakaa', naka: 'nakaa',
-      mtc: 'maghreb truck'
-    };
-    const ascii = String(raw).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const key = String(raw);
+    if (this._entityCache && this._entityCache.has(key)) return this._entityCache.get(key);
+    const stopForms = this._stopForms;
+    const aliasMap = this._aliasMap;
+    const ascii = key.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .replace(/\bel[\s-]+/g, ' ')
       .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
     const expandedWords = [];
@@ -7465,7 +7497,7 @@ window.LogicalMatchEngine = {
     const toSkel = w => w.replace(/([a-z])\1+/g, '$1').replace(/ou/g, 'u').replace(/kh/g, 'ch').replace(/ph/g, 'f');
     const skelTokens = core.map(toSkel);
     const acronym = core.length >= 2 ? core.map(w => w[0]).join('') : '';
-    return {
+    const res = {
       clean: core.join(' '),
       compact: core.join(''),
       skeleton: skelTokens.join(''),
@@ -7473,6 +7505,11 @@ window.LogicalMatchEngine = {
       skelTokens,
       acronym
     };
+    if (this._entityCache) {
+      if (this._entityCache.size > 4000) this._entityCache.clear();
+      this._entityCache.set(key, res);
+    }
+    return res;
   },
 
   levenshtein(a, b) {
@@ -7495,39 +7532,47 @@ window.LogicalMatchEngine = {
   },
 
   scoreSupplier(bcSup, dpBen) {
+    if (!bcSup || !dpBen) return { sim: 0, tag: '' };
+    const pairKey = `${bcSup}\x00${dpBen}`;
+    if (this._supScoreCache && this._supScoreCache.has(pairKey)) return this._supScoreCache.get(pairKey);
     const a = this.normalizeEntity(bcSup);
     const b = this.normalizeEntity(dpBen);
     if (!a.compact || !b.compact) return { sim: 0, tag: '' };
+    let out;
     if (a.compact === b.compact || (a.skeleton.length >= 4 && a.skeleton === b.skeleton)) {
-      return { sim: 1.0, tag: 'Fournisseur exact' };
+      out = { sim: 1.0, tag: 'Fournisseur exact' };
+    } else if ((a.tokens.length === 1 && a.compact.length >= 2 && a.compact === b.acronym) ||
+               (b.tokens.length === 1 && b.compact.length >= 2 && b.compact === a.acronym)) {
+      out = { sim: 0.92, tag: 'Acronyme fournisseur' };
+    } else if (a.compact.length >= 4 && b.compact.length >= 4 &&
+               (a.compact.includes(b.compact) || b.compact.includes(a.compact) ||
+                a.skeleton.includes(b.skeleton) || b.skeleton.includes(a.skeleton))) {
+      out = { sim: 0.94, tag: 'Fournisseur concordant' };
+    } else {
+      let matched = 0;
+      for (let i = 0; i < a.tokens.length; i++) {
+        const ta = a.tokens[i];
+        const sa = a.skelTokens[i] || ta;
+        const hit = b.tokens.some((tb, j) => {
+          const sb = b.skelTokens[j] || tb;
+          if (ta === tb || sa === sb) return true;
+          if (ta.length >= 4 && tb.length >= 4 && (ta.startsWith(tb) || tb.startsWith(ta) || sa.startsWith(sb) || sb.startsWith(sa))) return true;
+          const minLen = Math.min(sa.length, sb.length);
+          const maxDist = minLen >= 7 ? 2 : (minLen >= 4 ? 1 : 0);
+          return maxDist > 0 && (this.levenshtein(ta, tb) <= maxDist || this.levenshtein(sa, sb) <= maxDist);
+        });
+        if (hit) matched++;
+      }
+      const denom = Math.max(1, Math.min(a.tokens.length, b.tokens.length));
+      const union = Math.max(1, new Set([...a.skelTokens, ...b.skelTokens]).size);
+      const sim = (matched / denom) * 0.72 + (matched / union) * 0.28;
+      out = { sim: Math.min(0.96, sim), tag: sim >= 0.75 ? 'Fournisseur proche' : (sim >= 0.45 ? 'Fournisseur partiel' : '') };
     }
-    if ((a.tokens.length === 1 && a.compact.length >= 2 && a.compact === b.acronym) ||
-        (b.tokens.length === 1 && b.compact.length >= 2 && b.compact === a.acronym)) {
-      return { sim: 0.92, tag: 'Acronyme fournisseur' };
+    if (this._supScoreCache) {
+      if (this._supScoreCache.size > 12000) this._supScoreCache.clear();
+      this._supScoreCache.set(pairKey, out);
     }
-    if (a.compact.length >= 4 && b.compact.length >= 4 &&
-        (a.compact.includes(b.compact) || b.compact.includes(a.compact) ||
-         a.skeleton.includes(b.skeleton) || b.skeleton.includes(a.skeleton))) {
-      return { sim: 0.94, tag: 'Fournisseur concordant' };
-    }
-    let matched = 0;
-    for (let i = 0; i < a.tokens.length; i++) {
-      const ta = a.tokens[i];
-      const sa = a.skelTokens[i] || ta;
-      const hit = b.tokens.some((tb, j) => {
-        const sb = b.skelTokens[j] || tb;
-        if (ta === tb || sa === sb) return true;
-        if (ta.length >= 4 && tb.length >= 4 && (ta.startsWith(tb) || tb.startsWith(ta) || sa.startsWith(sb) || sb.startsWith(sa))) return true;
-        const minLen = Math.min(sa.length, sb.length);
-        const maxDist = minLen >= 7 ? 2 : (minLen >= 4 ? 1 : 0);
-        return maxDist > 0 && (this.levenshtein(ta, tb) <= maxDist || this.levenshtein(sa, sb) <= maxDist);
-      });
-      if (hit) matched++;
-    }
-    const denom = Math.max(1, Math.min(a.tokens.length, b.tokens.length));
-    const union = Math.max(1, new Set([...a.skelTokens, ...b.skelTokens]).size);
-    const sim = (matched / denom) * 0.72 + (matched / union) * 0.28;
-    return { sim: Math.min(0.96, sim), tag: sim >= 0.75 ? 'Fournisseur proche' : (sim >= 0.45 ? 'Fournisseur partiel' : '') };
+    return out;
   },
 
   extractBcNumbers(dp) {
@@ -7694,11 +7739,12 @@ window.LogicalMatchEngine = {
     const hasExplicitRef = bcNum > 0 && nums.includes(bcNum);
     const sup = this.scoreSupplier(bc.supplierName, dp.beneficiary);
     const amt = this.scoreAmountHeuristic(dpAmt, bc);
-    const ctx = this.scoreContextAndDate(bc, dp);
 
     if (!hasExplicitRef && sup.sim < 0.38 && !(amt.pts >= 45 && (!bc.supplierName || sup.sim >= 0.2))) {
       return null;
     }
+
+    const ctx = this.scoreContextAndDate(bc, dp);
 
     let raw = 0;
     const reasons = [];
@@ -9235,21 +9281,89 @@ function isDpPaidStatus(dp) {
 }
 window.isDpPaidStatus = isDpPaidStatus;
 
+window._relVersion = 1;
+window._relIndexCache = null;
+window._relIndexKey = '';
+window.invalidateRelationIndex = function() {
+  window._relVersion = (window._relVersion || 0) + 1;
+  window._relIndexCache = null;
+  window._relIndexKey = '';
+};
+
+function getBcDpRelationIndex() {
+  const bcs = (typeof state !== 'undefined' && Array.isArray(state.bcRecords)) ? state.bcRecords : [];
+  const dps = (typeof state !== 'undefined' && Array.isArray(state.payments)) ? state.payments : [];
+  const key = `${window._relVersion || 1}|${bcs.length}|${dps.length}`;
+  if (window._relIndexCache && window._relIndexKey === key) return window._relIndexCache;
+
+  const dpsByBcId = new Map();
+  const bcsByDpId = new Map();
+  const bcById = new Map();
+  const bcByRef = new Map();
+  const bcsByDpCanon = new Map();
+
+  for (let i = 0; i < bcs.length; i++) {
+    const b = bcs[i];
+    if (!b || !b.id) continue;
+    bcById.set(b.id, b);
+    dpsByBcId.set(b.id, []);
+    const rNorm = String(b.ref || '').trim().toUpperCase();
+    if (rNorm) bcByRef.set(rNorm, b);
+    const rawDp = b.dpRef || b.paymentRef || '';
+    if (rawDp) {
+      const c = canonicalizeDpRef(rawDp, b.date) || String(rawDp).trim().toUpperCase();
+      if (c) {
+        if (!bcsByDpCanon.has(c)) bcsByDpCanon.set(c, []);
+        bcsByDpCanon.get(c).push(b);
+      }
+    }
+  }
+
+  for (let j = 0; j < dps.length; j++) {
+    const dp = dps[j];
+    if (!dp || !dp.id) continue;
+    const matchedBcs = [];
+    const seenBc = new Set();
+    const addBc = (b) => {
+      if (!b || !b.id || seenBc.has(b.id)) return;
+      seenBc.add(b.id);
+      matchedBcs.push(b);
+      if (!dp.isDirect && !dp.excluded && !dp.isSpecialCase) {
+        dpsByBcId.get(b.id).push(dp);
+      }
+    };
+    if (dp.bcId && bcById.has(dp.bcId)) addBc(bcById.get(dp.bcId));
+    if (Array.isArray(dp.linkedBcIds)) {
+      for (let k = 0; k < dp.linkedBcIds.length; k++) {
+        const b = bcById.get(dp.linkedBcIds[k]);
+        if (b) addBc(b);
+      }
+    }
+    if (Array.isArray(dp.linkedBcRefs)) {
+      for (let k = 0; k < dp.linkedBcRefs.length; k++) {
+        const rk = String(dp.linkedBcRefs[k] || '').trim().toUpperCase();
+        if (rk && bcByRef.has(rk)) addBc(bcByRef.get(rk));
+      }
+    }
+    if (dp.paymentRef) {
+      const dpCanon = canonicalizeDpRef(dp.paymentRef, dp.requestDate || dp.paidDate) || String(dp.paymentRef).trim().toUpperCase();
+      const byCanon = bcsByDpCanon.get(dpCanon);
+      if (byCanon) {
+        for (let k = 0; k < byCanon.length; k++) addBc(byCanon[k]);
+      }
+    }
+    bcsByDpId.set(dp.id, matchedBcs);
+  }
+
+  window._relIndexKey = key;
+  window._relIndexCache = { dpsByBcId, bcsByDpId };
+  return window._relIndexCache;
+}
+window.getBcDpRelationIndex = getBcDpRelationIndex;
+
 function getLinkedDpsForBc(bc) {
-  if (!bc || !Array.isArray(state.payments)) return [];
-  const bcRefNorm = String(bc.ref || '').trim().toUpperCase();
-  const bcDpCanonical = canonicalizeDpRef(bc.dpRef || bc.paymentRef || '', bc.date);
-  return state.payments.filter(dp => {
-    if (!dp || dp.isDirect || dp.excluded) return false;
-    if (dp.bcId && dp.bcId === bc.id) return true;
-    if (Array.isArray(dp.linkedBcIds) && dp.linkedBcIds.includes(bc.id)) return true;
-    if (bcRefNorm && Array.isArray(dp.linkedBcRefs) && dp.linkedBcRefs.some(r => String(r || '').trim().toUpperCase() === bcRefNorm)) return true;
-    const dpCanonical = canonicalizeDpRef(dp.paymentRef || '', dp.requestDate || dp.paidDate);
-    if (bcDpCanonical && dpCanonical && bcDpCanonical === dpCanonical) return true;
-    if (bc.dpRef && dp.paymentRef && String(dp.paymentRef).trim() === String(bc.dpRef).trim()) return true;
-    if (bc.paymentRef && dp.paymentRef && String(dp.paymentRef).trim() === String(bc.paymentRef).trim()) return true;
-    return false;
-  });
+  if (!bc || !bc.id) return [];
+  return getBcDpRelationIndex().dpsByBcId.get(bc.id) || [];
 }
 window.getLinkedDpsForBc = getLinkedDpsForBc;
 
@@ -13105,6 +13219,10 @@ const ApproNextGen = window.ApproNextGen = {
 
   findAssociatedBcsForDp(dp) {
     if (!dp || !Array.isArray(state.bcRecords)) return [];
+    if (dp.id && typeof window.getBcDpRelationIndex === 'function') {
+      const cached = window.getBcDpRelationIndex().bcsByDpId.get(dp.id);
+      if (cached) return cached;
+    }
     const idSet = new Set(Array.isArray(dp.linkedBcIds) ? dp.linkedBcIds : []);
     if (dp.bcId) idSet.add(dp.bcId);
     const refSet = new Set((Array.isArray(dp.linkedBcRefs) ? dp.linkedBcRefs : []).map(r => String(r || '').trim().toUpperCase()).filter(Boolean));
@@ -14457,15 +14575,28 @@ const ApproNextGen = window.ApproNextGen = {
   overridePaymentsTable() {
     this.bindDpBulkEventsOnce();
     window.filteredPayments = () => this.computeFilteredPayments();
-    window.renderPaymentsTable = () => {
+    window._dpVisibleLimit = window._dpVisibleLimit || 50;
+    window._lastDpFilterCount = window._lastDpFilterCount || 0;
+    window.loadMoreDpRows = (step) => {
+      const total = (this.computeFilteredPayments() || []).length;
+      window._dpVisibleLimit = step === 'all' ? Math.max(50, total) : Math.min(total, (window._dpVisibleLimit || 50) + (Number(step) || 50));
+      window.renderPaymentsTable(true);
+    };
+    window.renderPaymentsTable = (preserveLimit) => {
       this.populateDpSupplierFilter();
       const rows = this.computeFilteredPayments();
+      if (!preserveLimit && window._lastDpFilterCount !== rows.length) {
+        window._dpVisibleLimit = 50;
+      }
+      window._lastDpFilterCount = rows.length;
       this.renderDpSummaryBar(rows);
       const tbody = $('paymentsTableBody');
       if (!tbody) return;
       window.selectedPaymentIds = window.selectedPaymentIds || new Set();
+      const limit = Math.max(50, window._dpVisibleLimit || 50);
+      const visibleRows = rows.length > limit ? rows.slice(0, limit) : rows;
 
-      tbody.innerHTML = rows.length ? rows.map(row => {
+      tbody.innerHTML = visibleRows.length ? visibleRows.map(row => {
         const isExcluded = Boolean(row.excluded || row.isSpecialCase);
         const isPaid = isDpPaidStatus(row);
         const isSelected = window.selectedPaymentIds.has(row.id);
@@ -14532,7 +14663,39 @@ const ApproNextGen = window.ApproNextGen = {
       }).join('') : `<tr><td colspan="12" class="muted">Aucune demande de paiement correspondant aux filtres.</td></tr>`;
 
       if (typeof bindTableActions === 'function') bindTableActions();
-      if (typeof setTableCount === 'function') setTableCount('paymentsCount', rows.length);
+      if (typeof setTableCount === 'function') {
+        setTableCount('paymentsCount', rows.length);
+        const cntEl = $('paymentsCount');
+        if (cntEl && rows.length > visibleRows.length) {
+          cntEl.textContent = `${visibleRows.length} affichées sur ${rows.length} DP`;
+        }
+      }
+      const pagEl = $('paymentsPagination');
+      if (pagEl) {
+        if (rows.length > visibleRows.length) {
+          const rem = rows.length - visibleRows.length;
+          pagEl.innerHTML = `<div id="dpLazySentinel" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span class="muted" style="font-size:12px;">${visibleRows.length} / ${rows.length} DP</span>
+            <button type="button" class="btn btn-xs btn-soft" onclick="window.loadMoreDpRows(50)">⬇️ Afficher +${Math.min(50, rem)} DP</button>
+            <button type="button" class="btn btn-xs btn-ghost" onclick="window.loadMoreDpRows('all')">Tout afficher (${rows.length})</button>
+          </div>`;
+          if (typeof IntersectionObserver !== 'undefined') {
+            if (window._dpLazyObserver) window._dpLazyObserver.disconnect();
+            const sentinel = document.getElementById('dpLazySentinel');
+            if (sentinel) {
+              window._dpLazyObserver = new IntersectionObserver((entries) => {
+                if (entries.some(e => e.isIntersecting)) {
+                  window._dpLazyObserver.disconnect();
+                  window.loadMoreDpRows(50);
+                }
+              }, { rootMargin: '180px' });
+              window._dpLazyObserver.observe(sentinel);
+            }
+          }
+        } else {
+          pagEl.innerHTML = rows.length > 50 ? `<span class="muted" style="font-size:12px;">Toutes les ${rows.length} DP affichées</span>` : '';
+        }
+      }
       this.updateDpBulkBar(rows);
       if (typeof window.updateTopNavBadges === 'function') window.updateTopNavBadges();
     };
@@ -16625,8 +16788,10 @@ if (document.readyState === 'loading') {
           }
 
           if (typeof window.saveState === 'function') {
-            try { window.saveState(); } catch (e) {}
+            try { window.saveState(true); } catch (e) {}
           }
+          _lastBcSyncSig = _computeBcSig(window.state.bcRecords);
+          _lastPaySyncSig = _computePaySig(window.state.payments);
         }
       } finally {
         isHydratingFromServer = false;
@@ -16664,59 +16829,56 @@ if (document.readyState === 'loading') {
 
   var loadBcFromServer = hydrateFromServer;
 
-  // ─── Sync local BC data to MongoDB (bulk upsert) ───────────
-  async function syncBcToServer() {
-    if (isHydratingFromServer || !isHttpProtocol() || !getToken()) return;
-    cancelPendingSync();
-    try {
-      var bcRecords = [];
-      var payments = [];
-      if (typeof window !== 'undefined' && window.state && Array.isArray(window.state.bcRecords)) {
-        bcRecords = window.state.bcRecords;
-        payments = Array.isArray(window.state.payments) ? window.state.payments : [];
-      } else {
-        var raw = localStorage.getItem('suivi_linked_v30');
-        if (!raw) return;
-        var parsed = JSON.parse(raw);
-        bcRecords = parsed.bcRecords || [];
-        payments = parsed.payments || [];
-      }
+  var _lastBcSyncSig = '';
+  var _lastPaySyncSig = '';
+  function _computeBcSig(list) {
+    if (!Array.isArray(list)) return '0';
+    var h = list.length + ':';
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i] || {};
+      h += (r.id || '') + '|' + (r.ref || '') + '|' + (r.status || '') + '|' + (r.paymentStatus || '') + '|' + (r.dpRef || '') + '|' + (r.amountTTC || 0) + '|' + (r.updatedAt || '') + ';';
+    }
+    return h;
+  }
+  function _computePaySig(list) {
+    if (!Array.isArray(list)) return '0';
+    var h = list.length + ':';
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i] || {};
+      h += (p.id || '') + '|' + (p.paymentRef || '') + '|' + (p.status || '') + '|' + (p.excluded ? 1 : 0) + '|' + (p.isDirect ? 1 : 0) + '|' + (Array.isArray(p.linkedBcIds) ? p.linkedBcIds.join(',') : (p.bcId || '')) + '|' + (p.amount || 0) + ';';
+    }
+    return h;
+  }
 
-      if (bcRecords.length === 0 && payments.length === 0) return;
+  // ─── Sync local BC data to MongoDB (bulk upsert only when dirty) ───
+  async function syncBcToServer(force) {
+    if (isHydratingFromServer || !isHttpProtocol() || !getToken()) return;
+    if (_bcSyncTimer) { clearTimeout(_bcSyncTimer); _bcSyncTimer = null; }
+    try {
+      var bcRecords = (typeof window !== 'undefined' && window.state && Array.isArray(window.state.bcRecords))
+        ? window.state.bcRecords
+        : [];
+      if (!bcRecords.length) return;
+      var sig = _computeBcSig(bcRecords);
+      if (!force && sig === _lastBcSyncSig) return;
+      _lastBcSyncSig = sig;
 
       var objectIdRegex = /^[a-f\d]{24}$/i;
       var cleanBc = bcRecords.map(function(r) {
         var clean = Object.assign({}, r);
-        if (!objectIdRegex.test(String(clean._id || ''))) {
-          delete clean._id;
-        }
+        if (!objectIdRegex.test(String(clean._id || ''))) delete clean._id;
         return clean;
       });
 
-      var cleanPay = payments.map(function(p) {
-        var clean = Object.assign({}, p);
-        if (!objectIdRegex.test(String(clean._id || ''))) {
-          delete clean._id;
-        }
-        return clean;
-      });
-
-      var results = await Promise.all([
-        cleanBc.length > 0
-          ? apiRequest('POST', '/api/bc/bulk', { bcRecords: cleanBc }).catch(function(e) { return { error: e.message }; })
-          : { upserted: 0 },
-        cleanPay.length > 0
-          ? apiRequest('POST', '/api/payments/bulk', { payments: cleanPay }).catch(function(e) { return { error: e.message }; })
-          : { upserted: 0 }
-      ]);
-
-      console.log('[BC-BRIDGE] Synced to MongoDB — BC:', JSON.stringify(results[0]), '| Pay:', JSON.stringify(results[1]));
+      var res = await apiRequest('POST', '/api/bc/bulk', { bcRecords: cleanBc }).catch(function(e) { return { error: e.message }; });
+      console.log('[BC-BRIDGE] Synced BCs to MongoDB:', JSON.stringify(res));
+      return res;
     } catch (e) {
       console.warn('[BC-BRIDGE] Sync to server failed:', e.message);
     }
   }
 
-  async function syncPaymentsToServer() {
+  async function syncPaymentsToServer(force) {
     if (isHydratingFromServer || !isHttpProtocol() || !getToken()) return;
     if (_paySyncTimer) { clearTimeout(_paySyncTimer); _paySyncTimer = null; }
     try {
@@ -16724,6 +16886,10 @@ if (document.readyState === 'loading') {
         ? window.state.payments
         : [];
       if (!payments.length) return;
+      var sig = _computePaySig(payments);
+      if (!force && sig === _lastPaySyncSig) return;
+      _lastPaySyncSig = sig;
+
       var objectIdRegex = /^[a-f\d]{24}$/i;
       var cleanPay = payments.map(function(p) {
         var clean = Object.assign({}, p);
@@ -16741,7 +16907,7 @@ if (document.readyState === 'loading') {
   function queuePaymentSync() {
     if (isHydratingFromServer || !isHttpProtocol()) return;
     if (_paySyncTimer) clearTimeout(_paySyncTimer);
-    _paySyncTimer = setTimeout(syncPaymentsToServer, 600);
+    _paySyncTimer = setTimeout(syncPaymentsToServer, 900);
   }
 
   async function bulkUpdatePaymentStatusOnServer(ids, status, paidDate, extraRefs) {
