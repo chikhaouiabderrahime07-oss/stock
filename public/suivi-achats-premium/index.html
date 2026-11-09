@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
   <meta charset="UTF-8" />
@@ -75,7 +75,7 @@
             <option value="light">Clair</option>
             <option value="dark">Sombre</option>
           </select>
-          <div class="sa-user-wrap">
+          <div class="user-menu-wrapper sa-user-wrap">
             <button class="user-avatar-btn sa-user-btn" id="userChipWrap" type="button" title="Mon profil" aria-label="Mon profil">
               <span class="user-initials-badge sa-initials" id="currentUserLabel">AD</span>
             </button>
@@ -85,13 +85,19 @@
                 <div class="udrop-info">
                   <strong id="ucardName">Administrateur</strong>
                   <span id="ucardRole">R&#244;le</span>
-                  <span class="udrop-service">Suivi Achats &amp; BC</span>
+                  <span id="ucardService" class="udrop-service">Suivi Achats &amp; BC</span>
                 </div>
               </div>
+              <div class="udrop-stats">
+                <a href="#" class="udrop-stat-chip" onclick="setActiveTab('followup');document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-file-invoice"></i><span id="udropBcCount">0</span><small>BC enregistr&#233;s</small></a>
+                <a href="#" class="udrop-stat-chip" onclick="setActiveTab('payments');document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-credit-card"></i><span id="udropDpPendingCount">0</span><small>DP en attente</small></a>
+                <a href="#" class="udrop-stat-chip" onclick="setActiveTab('smart-match');document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-brain"></i><span id="udropAiMatchCount">0</span><small>&#192; rapprocher</small></a>
+              </div>
               <div class="dropdown-divider"></div>
-              <a href="/" class="udrop-achats-link"><i class="fas fa-gauge-high" style="color:#2563eb;"></i> GDS Stock ERP</a>
-              <div class="dropdown-divider"></div>
-              <div style="padding:7px 14px;font-size:11px;color:var(--muted);line-height:1.6;"><div><i class="fas fa-shield-halved me-1" style="color:#2563eb;"></i> ABDO INTELLIGENT SYSTEMS</div><div>Dev: <strong>CHIKHAOUIABDERRAHIME</strong></div></div>
+              <a href="#profil" onclick="if(window.App&&App.showUserSettings)App.showUserSettings();document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-id-card"></i> Mon Profil</a>
+              <a href="#parametres" onclick="if(window.App&&App.showSettings)App.showSettings();document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-cog"></i> Pr&#233;f&#233;rences</a>
+              <a href="/" class="udrop-achats-link"><i class="fas fa-boxes-stacked" style="color:var(--primary, #2563eb);"></i> Stock &amp; GDS ERP</a>
+              <a href="/general-settings.html" class="udrop-achats-link"><i class="fas fa-sliders" style="color:#7c3aed;"></i> Param&#232;tres G&#233;n&#233;raux</a>
               <div class="dropdown-divider"></div>
               <a href="#" id="logoutBtn" class="logout-link" onclick="if(typeof saLogout==='function')saLogout();return false;"><i class="fas fa-sign-out-alt"></i> D&#233;connexion</a>
             </div>
@@ -605,6 +611,7 @@
                 <label class="field"><span>Réf chèque / virement</span><input id="paymentTransactionRef" type="text" placeholder="N° pièce / virement" /></label>
                 <label class="field"><span>Statut DP</span><select id="paymentStatus"><option value="en_attente">⏳ En attente</option><option value="programme">📅 Programmé / En cours</option><option value="paye">✓ Payé (+ met à jour BC lié)</option><option value="annule">✕ Annulé / Rejeté</option></select></label>
                 <label class="field"><span>Objet / Remarques</span><input id="paymentNotes" type="text" placeholder="Objet de la dépense / facture..." /></label>
+                <label class="field" style="display:flex;align-items:center;gap:8px;padding-top:22px;"><input type="checkbox" id="paymentExcluded" style="width:16px;height:16px;" /> <span>🚫 Cas spécial (Exclure du calcul)</span></label>
                 <div class="form-actions wide"><button class="btn btn-primary" type="submit">💾 Enregistrer la DP</button><button class="btn btn-ghost" type="button" id="resetPaymentBtn" onclick="window.switchPaymentsSubview && window.switchPaymentsSubview('register');">Fermer</button></div>
               </form>
             </article>
@@ -616,11 +623,13 @@
               <div class="toolbar-row compact-toolbar filters-row filters-grid-compact" id="dpFiltersBar">
                 <input id="paymentSearch" type="search" placeholder="Réf DP, fournisseur, réf BC, objet, montant..." />
                 <select id="paymentFilterStatus" title="Statut DP">
-                  <option value="all">Tous statuts</option>
+                  <option value="all">Tous statuts (Actifs)</option>
+                  <option value="all_with_excluded">Tous (Y compris Cas spéciaux)</option>
                   <option value="paye">✓ Payé</option>
                   <option value="non_paye">⏳ Non payé / En attente</option>
                   <option value="en_cours">📅 En cours / Programmé</option>
                   <option value="annule">✕ Annulé / Rejeté</option>
+                  <option value="excluded">🚫 Cas spécial / Hors calcul (Exclus)</option>
                 </select>
                 <select id="paymentFilterLink" title="Liaison BC">
                   <option value="all">Toutes liaisons</option>
@@ -652,6 +661,7 @@
                   <option value="desc">Décroissant</option>
                   <option value="asc">Croissant</option>
                 </select>
+                <button class="btn btn-soft" id="btnDedupeDps" type="button" onclick="ApproNextGen.runManualDpDedupe()" title="Fusionner les doublons DP">🧹 Dédoublonner DP</button>
                 <button class="btn btn-ghost" id="resetPaymentFiltersBtn" type="button">Réinitialiser filtres</button>
               </div>
 
@@ -676,6 +686,12 @@
                   </button>
                   <button type="button" class="btn btn-sm dp-bulk-btn-ai" id="bulkAutoLinkDpBtn">
                     <i class="fas fa-brain me-1"></i> 🧠 Rapprocher avec BC (IA)
+                  </button>
+                  <button type="button" class="btn btn-sm" id="bulkExcludeDpBtn" style="background:#f59e0b;color:#fff;border:none;">
+                    <i class="fas fa-ban me-1"></i> 🚫 Cas spécial (Exclure du calcul)
+                  </button>
+                  <button type="button" class="btn btn-sm" id="bulkDeleteDpBtn" style="background:#dc2626;color:#fff;border:none;">
+                    <i class="fas fa-trash me-1"></i> 🗑️ Supprimer sélection
                   </button>
                   <button type="button" class="btn btn-sm btn-ghost dp-bulk-btn-clear" id="bulkClearDpSelectionBtn">
                     ✕ Tout désélectionner

@@ -34,10 +34,15 @@ const paymentSchema = new mongoose.Schema({
   delayBcToDpDays: { type: Number, default: 0 },
   totalPaymentDelayDays: { type: Number, default: 0 },
   delayStatus: { type: String, default: 'normal' },
-  manualLink: { type: Boolean, default: false }
+  manualLink: { type: Boolean, default: false },
+  canonicalRef: { type: String, default: '' },
+  excluded: { type: Boolean, default: false },
+  isSpecialCase: { type: Boolean, default: false },
+  excludedReason: { type: String, default: '' }
 }, { timestamps: true, id: false, strict: false, minimize: false });
 
 paymentSchema.index({ paymentRef: 1 });
+paymentSchema.index({ canonicalRef: 1 });
 paymentSchema.index({ id: 1 });
 paymentSchema.index({ bcId: 1 });
 paymentSchema.index({ status: 1 });

@@ -14,6 +14,45 @@ function normalizePaymentRef(val) {
   return String(val || '').replace(/\s+/g, '').toLowerCase();
 }
 
+// Canonical DP identity: "DP N° 0156 / 2026", "156-2026", "156/26" => "156/2026"
+function canonicalDpRef(ref, fallbackDate) {
+  const s = String(ref || '').toUpperCase()
+    .replace(/DEMANDE\s*DE\s*PAIEMENT/g, ' ')
+    .replace(/PAIEMENT|\bDP\b|N\s*[°º]|\bNO\b\.?/g, ' ');
+  const m = s.match(/(\d{1,5})\s*[\/\-_.\s]\s*(\d{2,4})(?!\d)/);
+  if (m) {
+    let y = m[2];
+    if (y.length === 2) y = '20' + y;
+    const yn = parseInt(y, 10);
+    if (y.length === 4 && yn >= 2000 && yn <= 2100) return `${parseInt(m[1], 10)}/${y}`;
+  }
+  const m2 = s.match(/^\s*(\d{1,5})\s*$/);
+  if (m2) {
+    const fy = String(fallbackDate || '').slice(0, 4);
+    return `${parseInt(m2[1], 10)}/${/^\d{4}$/.test(fy) ? fy : '2026'}`;
+  }
+  return '';
+}
+
+function formatCleanDpRef(canon) {
+  if (!canon) return '';
+  const parts = String(canon).split('/');
+  if (parts.length !== 2) return String(canon);
+  return `${parts[0].padStart(2, '0')}/${parts[1]}`;
+}
+
+function getDpIdentityKey(d) {
+  if (!d) return '';
+  const c = canonicalDpRef(d.paymentRef || d.canonicalRef, d.requestDate || d.paidDate);
+  if (c) return 'dp:' + c;
+  const ben = String(d.beneficiary || d.supplier || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const amt = Math.round(Number(d.amount) || 0);
+  if (ben && amt > 0) return `x:${ben}|${amt}|${String(d.requestDate || '').slice(0, 10)}`;
+  return '';
+}
+
+const SPECIAL_CASE_RE = /\b(special\s*case|cas\s*sp[eé]cial|hors\s*calcul|exclu)\b/i;
+
 function sanitizePaymentPayload(raw) {
   const doc = { ...(raw || {}) };
   delete doc._id;
@@ -27,6 +66,23 @@ function sanitizePaymentPayload(raw) {
   }
   if (typeof doc.paymentRef === 'string') {
     doc.paymentRef = doc.paymentRef.trim();
+  }
+  const canon = canonicalDpRef(doc.paymentRef || doc.canonicalRef, doc.requestDate || doc.paidDate);
+  if (canon) {
+    doc.canonicalRef = canon;
+    doc.paymentRef = formatCleanDpRef(canon);
+  }
+  if (raw && raw.excluded === false) {
+    doc.excluded = false;
+    doc.isSpecialCase = Boolean(raw.isSpecialCase);
+  } else {
+    const textBlob = [doc.notes, doc.natureExpense, doc.description, doc.objet, doc.excludedReason]
+      .filter(Boolean)
+      .join(' ');
+    if (Boolean(raw && (raw.excluded === true || raw.isSpecialCase === true)) || SPECIAL_CASE_RE.test(textBlob)) {
+      doc.excluded = true;
+      doc.isSpecialCase = true;
+    }
   }
   for (const arrField of ['linkedBcIds', 'linkedBcRefs', 'ignoredBcIds']) {
     if (Array.isArray(doc[arrField])) {
@@ -44,8 +100,8 @@ function buildPaymentLookup(docs) {
     if (!d) continue;
     if (d._id) byMongoId.set(String(d._id), d);
     if (d.id && String(d.id).trim()) byClientId.set(String(d.id).trim(), d);
-    const norm = normalizePaymentRef(d.paymentRef);
-    if (norm) byNormRef.set(norm, d);
+    const norm = getDpIdentityKey(d);
+    if (norm && !byNormRef.has(norm)) byNormRef.set(norm, d);
   }
   return { byMongoId, byClientId, byNormRef };
 }
@@ -55,12 +111,13 @@ function findMatchingPayment(doc, rawInput, lookup) {
     const byOid = lookup.byMongoId.get(String(rawInput._id));
     if (byOid) return byOid;
   }
-  if (doc.id && lookup.byClientId.has(doc.id)) {
-    return lookup.byClientId.get(doc.id);
-  }
-  const norm = normalizePaymentRef(doc.paymentRef);
+  // Canonical DP number wins over client ids (scanned files carry random ids)
+  const norm = getDpIdentityKey(doc);
   if (norm && lookup.byNormRef.has(norm)) {
     return lookup.byNormRef.get(norm);
+  }
+  if (doc.id && lookup.byClientId.has(doc.id)) {
+    return lookup.byClientId.get(doc.id);
   }
   return null;
 }
@@ -109,13 +166,21 @@ function mergeWithExistingPayment(incomingDoc, existingDoc, fromFolderScan) {
   const merged = { ...incomingDoc };
   if (!merged.id && existingDoc.id) merged.id = existingDoc.id;
   if (fromFolderScan) {
-    if (existingDoc.status === 'paye' && merged.status !== 'paye') {
+    if ((existingDoc.status === 'paye' || existingDoc.status === 'paid') && merged.status !== 'paye') {
       merged.status = 'paye';
       if (!merged.paidDate && existingDoc.paidDate) merged.paidDate = existingDoc.paidDate;
     }
-    for (const f of ['bcId', 'bcRef', 'paidDate', 'aiMatchReason']) {
+    for (const f of ['bcId', 'bcRef', 'paidDate', 'aiMatchReason', 'excludedReason']) {
       if ((!merged[f] || !String(merged[f]).trim()) && existingDoc[f]) merged[f] = existingDoc[f];
     }
+    if (existingDoc.excluded === true || existingDoc.isSpecialCase === true) {
+      merged.excluded = true;
+      merged.isSpecialCase = true;
+    } else if (merged.excluded === undefined && existingDoc.excluded !== undefined) {
+      merged.excluded = existingDoc.excluded;
+      merged.isSpecialCase = Boolean(existingDoc.isSpecialCase);
+    }
+    if (existingDoc.status && existingDoc.status !== merged.status && existingDoc.status !== 'paye') merged.status = existingDoc.status;
     for (const af of ['linkedBcIds', 'linkedBcRefs', 'ignoredBcIds']) {
       if ((!Array.isArray(merged[af]) || merged[af].length === 0) && Array.isArray(existingDoc[af]) && existingDoc[af].length > 0) {
         merged[af] = existingDoc[af];
@@ -170,6 +235,117 @@ async function upsertPaymentBatch(rawRecords, options = {}) {
     deduplicatedInBatch: rawRecords.length - uniqueItems.length
   };
 }
+
+// Merge duplicated DP documents already stored in MongoDB (same canonical DP number)
+function dpWinnerScore(d) {
+  let s = 0;
+  if (d.status === 'paye' || d.status === 'paid') s += 100;
+  if (d.manualLink) s += 40;
+  if (Array.isArray(d.linkedBcIds) && d.linkedBcIds.length) s += 30;
+  if (d.bcId || d.bcRef) s += 20;
+  if (d.excluded === true || d.isSpecialCase === true) s += 25;
+  else if (d.excluded === false) s += 10;
+  if (Number(d.amount) > 0) s += 5;
+  return s;
+}
+
+async function dedupePaymentsInDb() {
+  const all = await Payment.find().lean();
+  const groups = new Map();
+  for (const d of all) {
+    const k = getDpIdentityKey(d);
+    if (!k) continue;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(d);
+  }
+  const ops = [];
+  const toDelete = [];
+  for (const list of groups.values()) {
+    list.sort((a, b) => (dpWinnerScore(b) - dpWinnerScore(a)) ||
+      (new Date(a.createdAt || 0) - new Date(b.createdAt || 0)));
+    const winner = list[0];
+    const merged = {};
+    const canon = canonicalDpRef(winner.paymentRef || winner.canonicalRef, winner.requestDate || winner.paidDate);
+    if (canon) {
+      const cleanRef = formatCleanDpRef(canon);
+      if (winner.canonicalRef !== canon) merged.canonicalRef = canon;
+      if (winner.paymentRef !== cleanRef) merged.paymentRef = cleanRef;
+    }
+    const winText = [winner.notes, winner.natureExpense, winner.description, winner.objet, winner.excludedReason].filter(Boolean).join(' ');
+    if (winner.excluded !== false && (winner.excluded === true || winner.isSpecialCase === true || SPECIAL_CASE_RE.test(winText))) {
+      if (!winner.excluded) merged.excluded = true;
+      if (!winner.isSpecialCase) merged.isSpecialCase = true;
+    }
+    for (const loser of list.slice(1)) {
+      if ((loser.status === 'paye' || loser.status === 'paid') && winner.status !== 'paye' && merged.status !== 'paye') {
+        merged.status = 'paye';
+      }
+      if (loser.manualLink && !winner.manualLink) merged.manualLink = true;
+      if ((loser.excluded === true || loser.isSpecialCase === true) && !winner.excluded) {
+        merged.excluded = true;
+        merged.isSpecialCase = true;
+      }
+      for (const [k, v] of Object.entries(loser)) {
+        if (k === '_id' || k === '__v' || k === 'createdAt' || k === 'updatedAt' || k === 'paymentRef' || k === 'canonicalRef') continue;
+        const cur = merged[k] !== undefined ? merged[k] : winner[k];
+        if ((cur === undefined || cur === null || cur === '' || (Array.isArray(cur) && cur.length === 0)) &&
+            v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0)) {
+          merged[k] = v;
+        }
+      }
+      for (const af of ['linkedBcIds', 'linkedBcRefs', 'ignoredBcIds']) {
+        const base = merged[af] || winner[af] || [];
+        const add = Array.isArray(loser[af]) ? loser[af] : [];
+        merged[af] = Array.from(new Set([...base, ...add].map(x => String(x || '').trim()).filter(Boolean)));
+      }
+      toDelete.push(loser._id);
+    }
+    if (Object.keys(merged).length) ops.push({ updateOne: { filter: { _id: winner._id }, update: { $set: merged } } });
+  }
+  if (ops.length) await Payment.bulkWrite(ops, { ordered: false });
+  if (toDelete.length) await Payment.deleteMany({ _id: { $in: toDelete } });
+  return { before: all.length, after: all.length - toDelete.length, removed: toDelete.length, normalized: ops.length };
+}
+
+// POST /api/payments/dedupe — merge duplicate DPs stored in DB
+router.post('/dedupe', authenticate, async (req, res) => {
+  try {
+    res.json(await dedupePaymentsInDb());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/payments/bulk-delete — permanently delete several DPs (by _id, client id, ref, or canonical DP ref)
+router.post('/bulk-delete', authenticate, async (req, res) => {
+  try {
+    const ids = (Array.isArray(req.body && req.body.ids) ? req.body.ids : []).map(x => String(x || '').trim()).filter(Boolean);
+    const refs = (Array.isArray(req.body && req.body.refs) ? req.body.refs : []).map(x => String(x || '').trim()).filter(Boolean);
+    if (!ids.length && !refs.length) return res.status(400).json({ error: 'ids or refs required' });
+    const idSet = new Set(ids);
+    const refSet = new Set([...refs, ...ids]);
+    const normSet = new Set([...refs, ...ids].map(normalizePaymentRef).filter(Boolean));
+    const canonSet = new Set([...refs, ...ids].map(r => canonicalDpRef(r)).filter(Boolean));
+    const allDocs = await Payment.find().lean();
+    for (const d of allDocs) {
+      if (idSet.has(String(d._id)) || (d.id && idSet.has(String(d.id))) || (d.paymentRef && refSet.has(String(d.paymentRef)))) {
+        const c = canonicalDpRef(d.paymentRef || d.canonicalRef, d.requestDate || d.paidDate);
+        if (c) canonSet.add(c);
+      }
+    }
+    const targetOids = allDocs.filter(d => {
+      const c = canonicalDpRef(d.paymentRef || d.canonicalRef, d.requestDate || d.paidDate);
+      return idSet.has(String(d._id)) ||
+        (d.id && idSet.has(String(d.id))) ||
+        (d.paymentRef && (refSet.has(String(d.paymentRef)) || normSet.has(normalizePaymentRef(d.paymentRef)))) ||
+        (c && canonSet.has(c));
+    }).map(d => d._id);
+    const result = targetOids.length ? await Payment.deleteMany({ _id: { $in: targetOids } }) : { deletedCount: 0 };
+    res.json({ deleted: result.deletedCount || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/payments
 router.get('/', authenticate, async (req, res) => {
@@ -418,7 +594,7 @@ router.post('/bulk-status', authenticate, async (req, res) => {
   try {
     const body = req.body || {};
     const status = String(body.status || '').trim();
-    if (!status) {
+    if (!status && body.excluded === undefined) {
       return res.status(400).json({ error: 'status required' });
     }
     const rawIds = Array.isArray(body.ids) ? body.ids : (Array.isArray(body.paymentIds) ? body.paymentIds : []);
@@ -437,40 +613,64 @@ router.post('/bulk-status', authenticate, async (req, res) => {
     const idSet = new Set(cleanIds);
     const refSet = new Set([...cleanRefs, ...cleanIds]);
     const normRefSet = new Set([...cleanRefs, ...cleanIds].map(normalizePaymentRef).filter(Boolean));
+    const canonRefSet = new Set([...cleanRefs, ...cleanIds].map(r => canonicalDpRef(r)).filter(Boolean));
 
     const allPayments = await Payment.find().lean();
+    for (const p of allPayments) {
+      if (oidSet.has(String(p._id || '')) || idSet.has(String(p.id || ''))) {
+        const c = canonicalDpRef(p.paymentRef || p.canonicalRef, p.requestDate || p.paidDate);
+        if (c) canonRefSet.add(c);
+      }
+    }
     const matchedPayments = allPayments.filter(p => {
       const mId = String(p._id || '').trim();
       const cId = String(p.id || '').trim();
       const pRef = String(p.paymentRef || '').trim();
       const pNorm = normalizePaymentRef(pRef);
+      const pCanon = canonicalDpRef(pRef || p.canonicalRef, p.requestDate || p.paidDate);
       return (mId && oidSet.has(mId)) ||
         (cId && idSet.has(cId)) ||
         (pRef && refSet.has(pRef)) ||
-        (pNorm && normRefSet.has(pNorm));
+        (pNorm && normRefSet.has(pNorm)) ||
+        (pCanon && canonRefSet.has(pCanon));
     });
 
-    const paymentUpdate = { status };
+    const isExclusionOnly = status === 'excluded' || status === 'included' || (!status && body.excluded !== undefined);
+    const paymentUpdate = {};
+    if (status === 'excluded' || body.excluded === true) {
+      paymentUpdate.excluded = true;
+      paymentUpdate.isSpecialCase = true;
+      if (body.excludedReason !== undefined) paymentUpdate.excludedReason = String(body.excludedReason || '');
+    } else if (status === 'included' || body.excluded === false) {
+      paymentUpdate.excluded = false;
+      paymentUpdate.isSpecialCase = false;
+      if (body.excludedReason !== undefined) paymentUpdate.excludedReason = String(body.excludedReason || '');
+    }
+    if (status && status !== 'excluded' && status !== 'included') {
+      paymentUpdate.status = status;
+    }
     if (paidDate !== undefined) {
       paymentUpdate.paidDate = String(paidDate || '');
     }
 
     let updatedPayments = 0;
-    if (matchedPayments.length > 0) {
+    if (matchedPayments.length > 0 && Object.keys(paymentUpdate).length > 0) {
       const matchedMongoIds = matchedPayments.map(p => p._id);
       const payRes = await Payment.updateMany({ _id: { $in: matchedMongoIds } }, { $set: paymentUpdate });
       updatedPayments = payRes.matchedCount !== undefined ? payRes.matchedCount : matchedMongoIds.length;
     }
 
     let updatedBcs = 0;
-    const matchedIdStrs = new Set(matchedPayments.map(p => String(p._id)));
-    if (status === 'paye' || status === 'paid') {
-      const updatedPaymentSnapshots = matchedPayments.map(p => ({ ...p, ...paymentUpdate, status: 'paye' }));
-      updatedBcs = await cascadePaidStatusToBcs(updatedPaymentSnapshots, cleanRefs, paidDate);
-    } else {
-      const revertedSnapshots = matchedPayments.map(p => ({ ...p, ...paymentUpdate }));
-      const postUpdatePayments = allPayments.map(p => (matchedIdStrs.has(String(p._id)) ? { ...p, ...paymentUpdate } : p));
-      updatedBcs = await cascadeUnpaidStatusToBcs(revertedSnapshots, postUpdatePayments, cleanRefs);
+    if (!isExclusionOnly) {
+      const matchedIdStrs = new Set(matchedPayments.map(p => String(p._id)));
+      if (status === 'paye' || status === 'paid') {
+        const updatedPaymentSnapshots = matchedPayments.map(p => ({ ...p, ...paymentUpdate, status: 'paye' }));
+        updatedBcs = await cascadePaidStatusToBcs(updatedPaymentSnapshots, cleanRefs, paidDate);
+      } else {
+        const revertedSnapshots = matchedPayments.map(p => ({ ...p, ...paymentUpdate }));
+        const postUpdatePayments = allPayments.map(p => (matchedIdStrs.has(String(p._id)) ? { ...p, ...paymentUpdate } : p));
+        updatedBcs = await cascadeUnpaidStatusToBcs(revertedSnapshots, postUpdatePayments, cleanRefs);
+      }
     }
 
     res.json({ ok: true, updatedPayments, updatedBcs });
@@ -493,6 +693,10 @@ router.post('/scan', authenticate, scanDpHandler);
 router.scanDpHandler = scanDpHandler;
 router.scanAndUpsertDps = scanAndUpsertDps;
 router.normalizePaymentRef = normalizePaymentRef;
+router.canonicalDpRef = canonicalDpRef;
+router.formatCleanDpRef = formatCleanDpRef;
+router.getDpIdentityKey = getDpIdentityKey;
+router.dedupePaymentsInDb = dedupePaymentsInDb;
 router.computePaidBcStatus = computePaidBcStatus;
 
 // PUT /api/payments/:id — update by _id, client id, or normalized paymentRef without CastErrors
@@ -543,15 +747,33 @@ router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'
   }
 });
 
-// DELETE /api/payments/:id — delete by _id, client id, or paymentRef without CastErrors
+// DELETE /api/payments/:id — delete by _id, client id, paymentRef, or canonicalDpRef without CastErrors
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     const paramId = String(req.params.id || '').trim();
-    const orClauses = [{ id: paramId }, { paymentRef: paramId }];
-    if (isValidObjectId24(paramId)) orClauses.unshift({ _id: paramId });
-    const result = await Payment.deleteMany({ $or: orClauses });
+    const paramNorm = normalizePaymentRef(paramId);
+    const canonSet = new Set();
+    const directCanon = canonicalDpRef(paramId);
+    if (directCanon) canonSet.add(directCanon);
+    const allDocs = await Payment.find().lean();
+    for (const d of allDocs) {
+      if (String(d._id) === paramId || String(d.id || '') === paramId || String(d.paymentRef || '').trim() === paramId || (paramNorm && normalizePaymentRef(d.paymentRef) === paramNorm)) {
+        const c = canonicalDpRef(d.paymentRef || d.canonicalRef, d.requestDate || d.paidDate);
+        if (c) canonSet.add(c);
+      }
+    }
+    const targetOids = allDocs.filter(d => {
+      const c = canonicalDpRef(d.paymentRef || d.canonicalRef, d.requestDate || d.paidDate);
+      return String(d._id) === paramId ||
+        String(d.id || '') === paramId ||
+        String(d.paymentRef || '').trim() === paramId ||
+        (paramNorm && normalizePaymentRef(d.paymentRef) === paramNorm) ||
+        (c && canonSet.has(c));
+    }).map(d => d._id);
+    if (targetOids.length === 0) return res.status(404).json({ error: 'Paiement non trouvé' });
+    const result = await Payment.deleteMany({ _id: { $in: targetOids } });
     if (result.deletedCount === 0) return res.status(404).json({ error: 'Paiement non trouvé' });
-    res.json({ message: 'Paiement supprimé' });
+    res.json({ message: 'Paiement supprimé', deleted: result.deletedCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

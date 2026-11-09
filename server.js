@@ -336,6 +336,10 @@ async function startServer() {
     } else {
       console.log(`[SEED] Payment records verified: ${payCount} present in MongoDB Atlas`);
     }
+    if (paymentRoutes && typeof paymentRoutes.dedupePaymentsInDb === 'function') {
+      const dedupeStats = await paymentRoutes.dedupePaymentsInDb();
+      console.log(`[DEDUPE] Payment deduplication completed: before=${dedupeStats.before}, after=${dedupeStats.after}, removed=${dedupeStats.removed}, normalized=${dedupeStats.normalized || 0}`);
+    }
   } catch (err) {
     console.warn('[SEED] BC/Payment seed notice:', err.message);
   }

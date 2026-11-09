@@ -379,14 +379,120 @@ function mergeBcPreservingStatus(existing = {}, incoming = {}, allowExplicitStat
   }
   return merged;
 }
+function canonicalizeDpRef(rawRef, fallbackDate = '') {
+  const s = String(rawRef || '').trim();
+  if (!s) return '';
+  if (/^BC\b/i.test(s)) return s;
+  const cleaned = s.replace(/^(?:DEMANDE\s+DE\s+PAIEMENT|PAIEMENT|DP)?\s*(?:N\s*[°oº]?|NO\.?)?\s*[:\-]?\s*/i, '').trim();
+  const slashMatch = cleaned.match(/^0*(\d{1,5})\s*[\/\-_.\s]\s*(\d{2}|20\d{2})$/);
+  if (slashMatch) {
+    const num = String(parseInt(slashMatch[1], 10)).padStart(2, '0');
+    const yr = slashMatch[2].length === 2 ? `20${slashMatch[2]}` : slashMatch[2];
+    return `${num}/${yr}`;
+  }
+  const numOnly = cleaned.match(/^0*(\d{1,5})$/);
+  if (numOnly) {
+    const yearMatch = String(fallbackDate || '').match(/(20\d{2})/);
+    const year = yearMatch ? yearMatch[1] : '2026';
+    const num = String(parseInt(numOnly[1], 10)).padStart(2, '0');
+    return `${num}/${year}`;
+  }
+  return cleaned;
+}
+
+function getDpDedupKey(dp) {
+  if (!dp) return '';
+  const cRef = canonicalizeDpRef(dp.paymentRef, dp.requestDate || dp.paidDate);
+  if (cRef && !/^DP-[a-z0-9]{4}$/i.test(cRef) && !/^BC\b/i.test(cRef)) {
+    return 'dp:' + cRef.toUpperCase().replace(/\s+/g, '');
+  }
+  const ben = String(dp.beneficiary || dp.supplierName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const amt = Math.round(Number(dp.amount || 0));
+  const dt = String(dp.requestDate || dp.paidDate || '').slice(0, 10);
+  if (ben && amt > 0) {
+    return `ben:${ben}|${amt}|${dt}`;
+  }
+  return String(dp.id || dp._id || '');
+}
+
+function mergeTwoPayments(existing, incoming) {
+  const a = existing || {};
+  const b = incoming || {};
+  const objIdRe = /^[a-f\d]{24}$/i;
+  const bestMongoId = objIdRe.test(String(b._id || '')) ? String(b._id) : (objIdRe.test(String(a._id || '')) ? String(a._id) : (a._id || b._id));
+  const bestId = objIdRe.test(String(a.id || '')) ? a.id : (objIdRe.test(String(b.id || '')) ? b.id : (a.id || b.id || uid('pay')));
+  const isPaid = a.status === 'paye' || a.status === 'paid' || b.status === 'paye' || b.status === 'paid';
+  const mergedBcIds = Array.from(new Set([...(Array.isArray(a.linkedBcIds) ? a.linkedBcIds : []), ...(Array.isArray(b.linkedBcIds) ? b.linkedBcIds : []), a.bcId, b.bcId].filter(Boolean)));
+  const mergedBcRefs = Array.from(new Set([...(Array.isArray(a.linkedBcRefs) ? a.linkedBcRefs : []), ...(Array.isArray(b.linkedBcRefs) ? b.linkedBcRefs : [])].filter(Boolean)));
+  const explicitExcluded = (b._rawExcluded === false && a._rawExcluded !== true)
+    ? false
+    : Boolean(a.excluded || b.excluded || a.isSpecialCase || b.isSpecialCase);
+  const merged = {
+    ...a,
+    ...b,
+    id: String(bestId),
+    paymentRef: canonicalizeDpRef(b.paymentRef || a.paymentRef, b.requestDate || a.requestDate),
+    status: isPaid ? 'paye' : (b.status || a.status || 'en_attente'),
+    paidDate: (isPaid ? (b.paidDate || a.paidDate || b.requestDate || a.requestDate) : (b.paidDate || a.paidDate)) || '',
+    requestDate: a.requestDate || b.requestDate || '',
+    amount: Number(b.amount || a.amount || 0) || 0,
+    beneficiary: b.beneficiary || a.beneficiary || '',
+    notes: b.notes || a.notes || '',
+    natureExpense: b.natureExpense || a.natureExpense || '',
+    referenceDocs: b.referenceDocs || a.referenceDocs || '',
+    transactionRef: b.transactionRef || a.transactionRef || '',
+    bcId: mergedBcIds[0] || '',
+    linkedBcIds: mergedBcIds,
+    linkedBcRefs: mergedBcRefs,
+    manualLink: Boolean(a.manualLink || b.manualLink),
+    isDirect: Boolean(a.isDirect || b.isDirect),
+    directCategory: b.directCategory || a.directCategory || '',
+    excluded: explicitExcluded,
+    isSpecialCase: explicitExcluded,
+    excludedReason: String(b.excludedReason || a.excludedReason || '').trim(),
+  };
+  if (bestMongoId) merged._id = String(bestMongoId);
+  else delete merged._id;
+  return merged;
+}
+
+function deduplicatePaymentsList(list) {
+  if (!Array.isArray(list)) return [];
+  const map = new Map();
+  const unkeyed = [];
+  for (const raw of list) {
+    if (!raw) continue;
+    const norm = normalizePayment(raw);
+    const key = getDpDedupKey(norm);
+    if (!key) {
+      unkeyed.push(norm);
+      continue;
+    }
+    if (map.has(key)) {
+      map.set(key, mergeTwoPayments(map.get(key), norm));
+    } else {
+      map.set(key, norm);
+    }
+  }
+  return Array.from(map.values()).concat(unkeyed);
+}
+
 function normalizePayment(row = {}) {
+  const reqDate = toYmd(row.requestDate) || '';
+  const pDate = toYmd(row.paidDate) || '';
+  const canonRef = canonicalizeDpRef(row.paymentRef, reqDate || pDate);
+  const textForSpecial = `${row.notes || ''} ${row.natureExpense || ''} ${row.excludedReason || ''} ${row.directCategory || ''}`;
+  const autoSpecial = /\b(special\s*case|cas\s*sp[eé]cial|hors\s*calcul)\b/i.test(textForSpecial);
+  const isExcluded = (row.excluded === false && row.isSpecialCase !== true)
+    ? false
+    : Boolean(row.excluded || row.isSpecialCase || autoSpecial);
   const normalized = {
     ...row,
     id: String(row.id || row._id || uid('pay')),
     bcId: row.bcId || (Array.isArray(row.linkedBcIds) && row.linkedBcIds[0]) || '',
-    paymentRef: String(row.paymentRef || '').trim(),
-    requestDate: toYmd(row.requestDate) || '',
-    paidDate: toYmd(row.paidDate) || '',
+    paymentRef: canonRef,
+    requestDate: reqDate,
+    paidDate: pDate,
     amount: Number(row.amount || 0) || 0,
     mode: row.mode || row.paymentMode || 'virement',
     transactionRef: String(row.transactionRef || '').trim(),
@@ -398,6 +504,9 @@ function normalizePayment(row = {}) {
     referenceDocs: String(row.referenceDocs || '').trim(),
     linkedBcRefs: Array.isArray(row.linkedBcRefs) ? row.linkedBcRefs : (row.linkedBcRef ? [row.linkedBcRef] : []),
     linkedBcIds: Array.isArray(row.linkedBcIds) ? row.linkedBcIds : (row.bcId ? [row.bcId] : []),
+    excluded: isExcluded,
+    isSpecialCase: isExcluded,
+    excludedReason: String(row.excludedReason || (autoSpecial ? 'Cas spécial / Hors calcul' : '')).trim(),
     createdAt: row.createdAt || nowIso(),
     updatedAt: row.updatedAt || nowIso(),
   };
@@ -406,6 +515,9 @@ function normalizePayment(row = {}) {
   return normalized;
 }
 if (typeof window !== 'undefined') {
+  window.canonicalizeDpRef = canonicalizeDpRef;
+  window.getDpDedupKey = getDpDedupKey;
+  window.deduplicatePaymentsList = deduplicatePaymentsList;
   window.normalizeBcRecord = normalizeBcRecord;
   window.mergeBcPreservingStatus = mergeBcPreservingStatus;
   window.normalizePayment = normalizePayment;
@@ -456,7 +568,7 @@ function loadState() {
         base.bcRecords = preload.bcRecords.map(normalizeBcRecord);
       }
       if (Array.isArray(preload.payments) && preload.payments.length > 0) {
-        base.payments = preload.payments.map(normalizePayment);
+        base.payments = deduplicatePaymentsList(preload.payments);
       }
     }
     return base;
@@ -471,19 +583,19 @@ function loadState() {
           base.bcRecords = preload.bcRecords.map(normalizeBcRecord);
         }
         if (Array.isArray(preload.payments) && preload.payments.length > 0) {
-          base.payments = preload.payments.map(normalizePayment);
+          base.payments = deduplicatePaymentsList(preload.payments);
         }
       }
       return base;
     }
     let loadedBcs = Array.isArray(parsed.bcRecords) ? parsed.bcRecords.map(normalizeBcRecord) : [];
-    let loadedPayments = Array.isArray(parsed.payments) ? parsed.payments.map(normalizePayment) : [];
+    let loadedPayments = Array.isArray(parsed.payments) ? deduplicatePaymentsList(parsed.payments) : [];
 
     if (loadedBcs.length === 0 && preload && Array.isArray(preload.bcRecords) && preload.bcRecords.length > 0) {
       loadedBcs = preload.bcRecords.map(normalizeBcRecord);
     }
     if (loadedPayments.length === 0 && preload && Array.isArray(preload.payments) && preload.payments.length > 0) {
-      loadedPayments = preload.payments.map(normalizePayment);
+      loadedPayments = deduplicatePaymentsList(preload.payments);
     }
 
     const safeActiveTab = (!parsed.activeTab || parsed.activeTab === 'stock' || parsed.activeTab === 'fleet') ? 'followup' : parsed.activeTab;
@@ -511,6 +623,9 @@ function saveState() {
   try {
     LEGACY_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
   } catch (e) {}
+  if (Array.isArray(state.payments) && state.payments.length > 1) {
+    state.payments = deduplicatePaymentsList(state.payments);
+  }
   localStorage.setItem(STORAGE_KEYS[0], JSON.stringify({
     version: SUIVI_DATA_VERSION,
     settings: state.settings,
@@ -620,39 +735,17 @@ function setupState() {
     }
     if (!Array.isArray(state.payments) || state.payments.length === 0) {
       if (Array.isArray(window.PRELOAD_DATA.payments) && window.PRELOAD_DATA.payments.length > 0) {
-        state.payments = window.PRELOAD_DATA.payments.map(normalizePayment);
+        state.payments = deduplicatePaymentsList(window.PRELOAD_DATA.payments);
       }
     } else if (Array.isArray(window.PRELOAD_DATA.payments) && window.PRELOAD_DATA.payments.length > 0) {
-      // Merge server payments into state without duplicating — server wins by paymentRef
-      const dpMap = new Map();
-      for (const dp of state.payments) {
-        const key = String(dp.paymentRef || dp.id || '').replace(/\s+/g,'').toLowerCase();
-        if (key) dpMap.set(key, dp);
-      }
-      for (const dp of window.PRELOAD_DATA.payments.map(normalizePayment)) {
-        const key = String(dp.paymentRef || dp.id || '').replace(/\s+/g,'').toLowerCase();
-        if (key) dpMap.set(key, dp); // server always overwrites stale local
-        else if (!dpMap.has(dp.id || '')) dpMap.set(dp.id || Math.random(), dp);
-      }
-      state.payments = Array.from(dpMap.values());
+      state.payments = deduplicatePaymentsList([...state.payments, ...window.PRELOAD_DATA.payments]);
     }
   }
   if (state.activeTab === 'stock' || !state.activeTab) {
     state.activeTab = 'followup';
   }
-  // Final dedup safety net — deduplicate payments by paymentRef
   if (Array.isArray(state.payments) && state.payments.length > 0) {
-    const dpMap = new Map();
-    for (const dp of state.payments) {
-      const key = String(dp.paymentRef || '').replace(/\s+/g,'').toLowerCase() || dp.id || '';
-      if (key && !dpMap.has(key)) dpMap.set(key, dp);
-      else if (key && dpMap.has(key)) {
-        // Keep the one with more data (paid status wins)
-        const existing = dpMap.get(key);
-        if (dp.status === 'paye' || dp.status === 'paid') dpMap.set(key, { ...existing, ...dp });
-      }
-    }
-    state.payments = Array.from(dpMap.values());
+    state.payments = deduplicatePaymentsList(state.payments);
   }
   state.session = loadSession();
   state.settings.bcSequence = Math.max(Number(state.settings.bcSequence || 1), highestBcSequence() + 1);
@@ -1613,19 +1706,20 @@ function renderBcRow(row) {
     ? `<span class="status-pill status-paye" style="font-size:10px;margin-left:4px;">✓ Payé</span>`
     : '';
   const linkedDps = (typeof getLinkedDpsForBc === 'function') ? getLinkedDpsForBc(row) : [];
-  const primaryDpRef = (linkedDps[0] && linkedDps[0].paymentRef) || row.dpRef || row.paymentRef || '';
+  const rawDpCandidate = (linkedDps[0] && linkedDps[0].paymentRef) || (!/^BC\b/i.test(String(row.dpRef || '').trim()) ? row.dpRef : '') || (!/^BC\b/i.test(String(row.paymentRef || '').trim()) ? row.paymentRef : '') || '';
+  const primaryDpRef = canonicalizeDpRef(rawDpCandidate, row.date);
   const hasUnpaidDp = linkedDps.length > 0 && !isPaidRow;
   let dpChipHtml = '';
   if (isPaidRow && primaryDpRef) {
     const extraCnt = linkedDps.length > 1 ? ` +${linkedDps.length - 1}` : '';
-    dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-paid view-bc-btn" data-id="${row.id}" title="Règlement lié : DP ${escapeHtml(primaryDpRef)}">💳 DP ${escapeHtml(primaryDpRef)}${extraCnt}</span>`;
-  } else if (hasUnpaidDp) {
-    dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-pending view-bc-btn" data-id="${row.id}" title="DP liée en attente de règlement : ${escapeHtml(primaryDpRef)}">⏳ DP ${escapeHtml(primaryDpRef)} (En attente)</span>`;
+    dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-paid bc-dp-open-btn" data-action="view-bc" data-id="${row.id}" title="Règlement lié : DP ${escapeHtml(primaryDpRef)}">💳 DP ${escapeHtml(primaryDpRef)}${extraCnt}</span>`;
+  } else if (hasUnpaidDp && primaryDpRef) {
+    dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-pending bc-dp-open-btn" data-action="view-bc" data-id="${row.id}" title="DP liée en attente de règlement : ${escapeHtml(primaryDpRef)}">⏳ DP ${escapeHtml(primaryDpRef)} (En attente)</span>`;
   } else if (!isPaidRow && !primaryDpRef && typeof window !== 'undefined' && window.LogicalMatchEngine && typeof window.LogicalMatchEngine.getLogicalDpCandidatesForBc === 'function') {
     const cands = window.LogicalMatchEngine.getLogicalDpCandidatesForBc(row);
     if (cands && cands.length > 0 && cands[0].score >= 45) {
       const top = cands[0];
-      dpChipHtml = `<span class="bc-ai-suggest-chip view-bc-btn" data-id="${row.id}" title="DP logique détectée : ${escapeHtml(top.dp.paymentRef || '')}">🤖 DP suggérée (${top.score}%)</span>`;
+      dpChipHtml = `<span class="bc-ai-suggest-chip bc-dp-open-btn" data-action="view-bc" data-id="${row.id}" title="DP logique détectée : ${escapeHtml(top.dp.paymentRef || '')}">🤖 DP suggérée (${top.score}%)</span>`;
     }
   }
   const isChecked = typeof window !== 'undefined' && window.selectedFollowupBcIds && window.selectedFollowupBcIds.has(row.id);
@@ -1887,6 +1981,7 @@ function resetPaymentForm() {
   if ($('paymentRequestDate')) $('paymentRequestDate').value = todayYmd();
   if ($('paymentStatus')) $('paymentStatus').value = 'en_attente';
   if ($('paymentMode')) $('paymentMode').value = 'virement';
+  if ($('paymentExcluded')) $('paymentExcluded').checked = false;
 }
 function submitPaymentForm(e) {
   e.preventDefault();
@@ -1905,6 +2000,7 @@ function submitPaymentForm(e) {
     nextLinkedIds = [];
   }
   const nextLinkedRefs = nextLinkedIds.map(id => findBcById(id)?.ref).filter(Boolean);
+  const isExcludedNow = Boolean($('paymentExcluded')?.checked);
   const payload = normalizePayment({
     ...(existing || {}),
     id: existing?.id || $('paymentId').value || uid('pay'),
@@ -1919,6 +2015,8 @@ function submitPaymentForm(e) {
     mode: $('paymentMode').value,
     transactionRef: $('paymentTransactionRef').value.trim(),
     status: st,
+    excluded: isExcludedNow,
+    isSpecialCase: isExcludedNow,
     notes: $('paymentNotes').value.trim(),
     manualLink: Boolean(chosenBcId || existing?.manualLink || (existing && !chosenBcId && prevIds.length > 0)),
     updatedAt: nowIso(),
@@ -1926,6 +2024,7 @@ function submitPaymentForm(e) {
   const idx = state.payments.findIndex((row) => row.id === payload.id);
   if (idx >= 0) state.payments.splice(idx, 1, payload);
   else state.payments.unshift(payload);
+  state.payments = deduplicatePaymentsList(state.payments);
   prevIds.filter(oldId => !nextLinkedIds.includes(oldId)).forEach(oldId => {
     const oldBc = findBcById(oldId);
     if (oldBc && window.ApproNextGen && typeof window.ApproNextGen._recomputeBcPaymentFromRemainingDps === 'function') {
@@ -1935,7 +2034,11 @@ function submitPaymentForm(e) {
     }
   });
   let cascadedCount = 0;
-  if (window.ApproNextGen && typeof window.ApproNextGen.cascadeDpStatusToLinkedBcs === 'function') {
+  if (payload.excluded) {
+    if (window.ApproNextGen && typeof window.ApproNextGen.reconcileAfterDpRemoved === 'function') {
+      window.ApproNextGen.reconcileAfterDpRemoved(payload);
+    }
+  } else if (window.ApproNextGen && typeof window.ApproNextGen.cascadeDpStatusToLinkedBcs === 'function') {
     const cascadedBcs = window.ApproNextGen.cascadeDpStatusToLinkedBcs(payload);
     cascadedCount = Array.isArray(cascadedBcs) ? cascadedBcs.length : Number(cascadedBcs || 0);
   }
@@ -2007,6 +2110,7 @@ function editPayment(id) {
   $('paymentTransactionRef').value = row.transactionRef || '';
   $('paymentStatus').value = (row.status === 'paid' || row.status === 'paye') ? 'paye' : (row.status || 'en_attente');
   $('paymentNotes').value = row.notes || row.natureExpense || '';
+  if ($('paymentExcluded')) $('paymentExcluded').checked = Boolean(row.excluded || row.isSpecialCase);
   if (card) card.scrollIntoView({ behavior: 'smooth' });
 }
 function deletePayment(id) {
@@ -2197,9 +2301,10 @@ function computeKpis() {
   const lateCount = state.bcRecords.filter((row) => computeDelay(row).cls === 'late').length;
   const purchaseCount = state.bcRecords.filter((row) => row.type !== 'service').length;
   const serviceCount = totalBC - purchaseCount;
-  const pendingPayments = state.payments.filter((row) => row.status !== 'paye').length;
-  const pendingAmount = state.payments.filter((row) => row.status !== 'paye').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const financeClosed = state.payments.filter((row) => row.requestDate && row.paidDate);
+  const activePayments = state.payments.filter((row) => !row.excluded && row.status !== 'annule');
+  const pendingPayments = activePayments.filter((row) => row.status !== 'paye').length;
+  const pendingAmount = activePayments.filter((row) => row.status !== 'paye').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const financeClosed = activePayments.filter((row) => row.requestDate && row.paidDate);
   const avgFinanceDelay = financeClosed.length ? Math.round(financeClosed.reduce((sum, row) => sum + Math.max(0, businessDaysBetween(row.requestDate, row.paidDate) || 0), 0) / financeClosed.length) : 0;
   const stockLow = state.stockItems.filter((row) => row.qty <= row.minQty).length;
   return { totalBC, totalAmount, validatedCount, draftCount, lateCount, purchaseCount, serviceCount, pendingPayments, pendingAmount, avgFinanceDelay, stockLow };
@@ -2228,6 +2333,7 @@ function buildChartSpecs() {
     }
   }
   for (const row of state.payments) {
+    if (row.excluded || row.status === 'annule') continue;
     const month = (row.requestDate || 'Sans date').slice(0, 7) || 'Sans date';
     paymentByMonth[month] = (paymentByMonth[month] || 0) + Number(row.amount || 0);
   }
@@ -2262,7 +2368,7 @@ function renderKpi() {
     const delay = computeDelay(row);
     attention.push(`<div class="focus-item"><strong>${escapeHtml(row.ref)} — ${escapeHtml(row.supplierName || 'Sans fournisseur')}</strong><span>${escapeHtml(delay.label)} · date promise ${escapeHtml(formatDate(row.promisedDate))}</span><div class="focus-tags"><span class="mini-tag">${escapeHtml(statusLabel(row.status))}</span><span class="mini-tag">${escapeHtml(row.comments || 'Sans justification')}</span></div></div>`);
   });
-  state.payments.filter((row) => row.status !== 'paye').slice(0, 4).forEach((row) => {
+  state.payments.filter((row) => !row.excluded && row.status !== 'annule' && row.status !== 'paye').slice(0, 4).forEach((row) => {
     const bc = findBcById(row.bcId);
     attention.push(`<div class="focus-item"><strong>${escapeHtml(row.paymentRef || 'Demande paiement')}</strong><span>${escapeHtml(bc?.supplierName || 'Sans fournisseur')} · ${escapeHtml(formatMoney(row.amount || 0, 'DZD'))}</span><div class="focus-tags"><span class="mini-tag">${escapeHtml(statusLabel(row.status))}</span><span class="mini-tag">${escapeHtml(formatDate(row.requestDate))}</span></div></div>`);
   });
@@ -3284,26 +3390,40 @@ function bindEvents() {
     });
   }
 
-  // User card toggle — GDS-style with .open class
+  // User card toggle — GDS-style rich dropdown with .open class & live stats
   const userChip = document.getElementById('userChipWrap');
   if (userChip) {
     userChip.addEventListener('click', (e) => {
       e.stopPropagation();
       const card = document.getElementById('userProfileCard');
-      if (card) {
-        card.classList.toggle('open');
-        // Also handle legacy display style
-        if (card.classList.contains('open')) {
-          card.style.removeProperty('display');
-        } else {
-          card.style.display = 'none';
-        }
+      if (!card) return;
+      const willOpen = !card.classList.contains('open');
+      card.classList.toggle('open', willOpen);
+      if (willOpen) {
+        card.style.removeProperty('display');
+        const u = getActiveUser() || {};
+        const nameStr = u.fullName || u.name || 'Administrateur';
+        const roleStr = u.role || 'Resp. Achats & Appro';
+        const initials = nameStr.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'AD';
+        if ($('ucardName')) $('ucardName').textContent = nameStr;
+        if ($('ucardRole')) $('ucardRole').textContent = roleStr;
+        if ($('ucardInitials')) $('ucardInitials').textContent = initials;
+        if ($('userChipAvatar')) $('userChipAvatar').textContent = initials;
+        if ($('udropBcCount')) $('udropBcCount').textContent = String((state.bcRecords || []).length);
+        const pendingDps = (state.payments || []).filter(p => !p.excluded && p.status !== 'annule' && !(typeof isDpPaidStatus === 'function' ? isDpPaidStatus(p) : p.status === 'paye')).length;
+        if ($('udropDpPendingCount')) $('udropDpPendingCount').textContent = String(pendingDps);
+        const aiCount = (window.LogicalMatchEngine && typeof window.LogicalMatchEngine.getSummaryStats === 'function')
+          ? (window.LogicalMatchEngine.getSummaryStats().unpaidWithDpCount || 0)
+          : 0;
+        if ($('udropAiMatchCount')) $('udropAiMatchCount').textContent = String(aiCount);
       }
     });
   }
-  document.addEventListener('click', () => {
+  document.addEventListener('click', (e) => {
     const card = document.getElementById('userProfileCard');
-    if (card) { card.classList.remove('open'); card.style.display = 'none'; }
+    if (card && !card.contains(e.target)) {
+      card.classList.remove('open');
+    }
   });
 
   // Smart match run button
@@ -7500,7 +7620,7 @@ window.LogicalMatchEngine = {
     if (this._cache && this._cacheKey === key) return this._cache;
 
     const unlinkedBcs = bcs.filter(b => b.ref && getLinkedDpsForBc(b).length === 0 && !b.dpRef && !isBcActuallyPaid(b));
-    const unlinkedDps = dps.filter(d => !d.isDirect && (!Array.isArray(d.linkedBcIds) || d.linkedBcIds.length === 0) && !d.bcId);
+    const unlinkedDps = dps.filter(d => !d.excluded && !d.isSpecialCase && !d.isDirect && (!Array.isArray(d.linkedBcIds) || d.linkedBcIds.length === 0) && !d.bcId);
 
     const byBcId = new Map();
     const byDpId = new Map();
@@ -8833,35 +8953,11 @@ window.normalizeBcRecord = function(row = {}) {
     });
   }
 
-  // Merge & deduplicate payments by paymentRef || id (preserving exact 155 DPs)
-  const payByKey = new Map();
-  (state.payments || []).forEach(p => {
-    const normP = typeof normalizePayment === 'function' ? normalizePayment(p) : p;
-    const key = normP.paymentRef || normP.id;
-    if (key && !payByKey.has(key)) payByKey.set(key, normP);
-  });
-  if (Array.isArray(preload.payments)) {
-    preload.payments.forEach(p => {
-      const normP = typeof normalizePayment === 'function' ? normalizePayment(p) : p;
-      const key = normP.paymentRef || normP.id;
-      if (!key) return;
-      if (!payByKey.has(key)) {
-        payByKey.set(key, normP);
-      } else {
-        const existingP = payByKey.get(key);
-        payByKey.set(key, {
-          ...normP,
-          ...existingP,
-          id: existingP.id || normP.id,
-          _id: existingP._id || normP._id,
-          bcId: existingP.bcId || normP.bcId || '',
-          linkedBcIds: (Array.isArray(existingP.linkedBcIds) && existingP.linkedBcIds.length) ? existingP.linkedBcIds : (normP.linkedBcIds || []),
-          linkedBcRefs: (Array.isArray(existingP.linkedBcRefs) && existingP.linkedBcRefs.length) ? existingP.linkedBcRefs : (normP.linkedBcRefs || []),
-        });
-      }
-    });
-  }
-  state.payments = Array.from(payByKey.values());
+  // Merge & deduplicate payments canonically (preserving exact unique DPs)
+  state.payments = deduplicatePaymentsList([
+    ...(Array.isArray(state.payments) ? state.payments : []),
+    ...(Array.isArray(preload.payments) ? preload.payments : []),
+  ]);
 
   // Update sequences dynamically from existing records
   state.settings.bcSequence = Math.max(state.settings.bcSequence || 1, highestBcSequence() + 1);
@@ -8914,12 +9010,12 @@ function refreshSupplierMultiSelectOptions() {
   if (!listEl) return;
   
   const currentSel = getSelectedSuppliers();
-  const searchVal = ($('supplierMultiSelectSearch')?.value || '').toLowerCase().trim();
+  const searchVal = normalizeText($('supplierMultiSelectSearch')?.value || '');
   
   listEl.innerHTML = '';
   sups.forEach(s => {
     const isChecked = currentSel.includes(s);
-    const isVisible = !searchVal || s.toLowerCase().includes(searchVal);
+    const isVisible = !searchVal || normalizeText(s).includes(searchVal);
     
     const label = document.createElement('label');
     label.className = 'multi-select-item';
@@ -8941,6 +9037,7 @@ function refreshSupplierMultiSelectOptions() {
         state.ui.selectedSuppliers = sel.filter(x => x !== s);
       }
       updateSupplierTriggerLabel();
+      resetFollowupPage();
       renderFollowupTable();
     });
     
@@ -8957,7 +9054,7 @@ function refreshSupplierMultiSelectOptions() {
 }
 
 function isDpPaidStatus(dp) {
-  if (!dp) return false;
+  if (!dp || dp.excluded) return false;
   const st = String(dp.status || '').toLowerCase();
   if (st === 'en_attente' || st === 'programme' || st === 'en_cours' || st === 'annule' || st === 'rejete') return false;
   return st === 'paye' || st === 'paid' || Boolean(dp.paidDate);
@@ -8967,11 +9064,14 @@ window.isDpPaidStatus = isDpPaidStatus;
 function getLinkedDpsForBc(bc) {
   if (!bc || !Array.isArray(state.payments)) return [];
   const bcRefNorm = String(bc.ref || '').trim().toUpperCase();
+  const bcDpCanonical = canonicalizeDpRef(bc.dpRef || bc.paymentRef || '', bc.date);
   return state.payments.filter(dp => {
-    if (!dp || dp.isDirect) return false;
+    if (!dp || dp.isDirect || dp.excluded) return false;
     if (dp.bcId && dp.bcId === bc.id) return true;
     if (Array.isArray(dp.linkedBcIds) && dp.linkedBcIds.includes(bc.id)) return true;
     if (bcRefNorm && Array.isArray(dp.linkedBcRefs) && dp.linkedBcRefs.some(r => String(r || '').trim().toUpperCase() === bcRefNorm)) return true;
+    const dpCanonical = canonicalizeDpRef(dp.paymentRef || '', dp.requestDate || dp.paidDate);
+    if (bcDpCanonical && dpCanonical && bcDpCanonical === dpCanonical) return true;
     if (bc.dpRef && dp.paymentRef && String(dp.paymentRef).trim() === String(bc.dpRef).trim()) return true;
     if (bc.paymentRef && dp.paymentRef && String(dp.paymentRef).trim() === String(bc.paymentRef).trim()) return true;
     return false;
@@ -9318,19 +9418,20 @@ window.renderFollowupTable = function() {
       const isPaid = isBcActuallyPaid(row);
       const isDelivered = ['livre_paye', 'livre', 'receptionne', 'service_fait', 'clos', 'cloture'].includes(row.status) || Boolean(row.goodsReceivedDate || row.serviceDoneDate);
       const linkedDps = getLinkedDpsForBc(row);
-      const primaryDpRef = (linkedDps[0] && linkedDps[0].paymentRef) || row.dpRef || row.paymentRef || '';
+      const rawDpRefCandidate = (linkedDps[0] && linkedDps[0].paymentRef) || (!/^BC\b/i.test(String(row.dpRef || '').trim()) ? row.dpRef : '') || (!/^BC\b/i.test(String(row.paymentRef || '').trim()) ? row.paymentRef : '') || '';
+      const primaryDpRef = canonicalizeDpRef(rawDpRefCandidate, row.date);
       const hasUnpaidDp = linkedDps.length > 0 && !isPaid;
       let dpChipHtml = '';
       if (isPaid && primaryDpRef) {
         const extraCnt = linkedDps.length > 1 ? ` +${linkedDps.length - 1}` : '';
-        dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-paid view-bc-btn" data-id="${row.id}" title="Règlement lié : DP ${escapeHtml(primaryDpRef)} — Cliquer pour ouvrir la revue BC">💳 DP ${escapeHtml(primaryDpRef)}${extraCnt}</span>`;
-      } else if (hasUnpaidDp) {
-        dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-pending view-bc-btn" data-id="${row.id}" title="DP liée en attente de règlement : ${escapeHtml(primaryDpRef)}">⏳ DP ${escapeHtml(primaryDpRef)} (En attente)</span>`;
+        dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-paid bc-dp-open-btn" data-action="view-bc" data-id="${row.id}" title="Règlement lié : DP ${escapeHtml(primaryDpRef)} — Cliquer pour ouvrir la revue BC">💳 DP ${escapeHtml(primaryDpRef)}${extraCnt}</span>`;
+      } else if (hasUnpaidDp && primaryDpRef) {
+        dpChipHtml = `<span class="bc-dp-chip bc-dp-chip-pending bc-dp-open-btn" data-action="view-bc" data-id="${row.id}" title="DP liée en attente de règlement : ${escapeHtml(primaryDpRef)}">⏳ DP ${escapeHtml(primaryDpRef)} (En attente)</span>`;
       } else if (!isPaid && !primaryDpRef && window.LogicalMatchEngine && typeof window.LogicalMatchEngine.getLogicalDpCandidatesForBc === 'function') {
         const cands = window.LogicalMatchEngine.getLogicalDpCandidatesForBc(row);
         if (cands && cands.length > 0 && cands[0].score >= 45) {
           const top = cands[0];
-          dpChipHtml = `<span class="bc-ai-suggest-chip view-bc-btn" data-id="${row.id}" title="DP logique détectée : ${escapeHtml(top.dp.paymentRef || '')} (${escapeHtml(top.dp.beneficiary || '')} · ${formatMoney(top.dp.amount, 'DZD')}) — Cliquer pour vérifier &amp; lier en 1 clic">🤖 DP suggérée (${top.score}%)</span>`;
+          dpChipHtml = `<span class="bc-ai-suggest-chip bc-dp-open-btn" data-action="view-bc" data-id="${row.id}" title="DP logique détectée : ${escapeHtml(top.dp.paymentRef || '')} (${escapeHtml(top.dp.beneficiary || '')} · ${formatMoney(top.dp.amount, 'DZD')}) — Cliquer pour vérifier &amp; lier en 1 clic">🤖 DP suggérée (${top.score}%)</span>`;
         }
       }
 
@@ -9433,8 +9534,8 @@ window.renderFollowupTable = function() {
   
   if (typeof bindTableActions === 'function') bindTableActions();
   
-  // Bind view-bc buttons
-  document.querySelectorAll('.view-bc-btn').forEach(btn => {
+  // Bind view-bc buttons and DP / AI chips
+  document.querySelectorAll('.view-bc-btn, .bc-dp-open-btn, .bc-dp-chip, .bc-ai-suggest-chip').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const id = e.currentTarget.getAttribute('data-id');
       if (id) openBcDetailModal(id);
@@ -10656,6 +10757,8 @@ document.head.appendChild(styleSheet);
       state.ui.selectedSuppliers = [...sups];
       document.querySelectorAll('#supplierMultiSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
       updateSupplierTriggerLabel();
+      if (typeof resetFollowupPage === 'function') resetFollowupPage();
+      if (typeof renderFollowupTable === 'function') renderFollowupTable();
     }
 
     // Clear All Suppliers
@@ -10664,16 +10767,18 @@ document.head.appendChild(styleSheet);
       state.ui.selectedSuppliers = [];
       document.querySelectorAll('#supplierMultiSelectList input[type="checkbox"]').forEach(cb => cb.checked = false);
       updateSupplierTriggerLabel();
+      if (typeof resetFollowupPage === 'function') resetFollowupPage();
+      if (typeof renderFollowupTable === 'function') renderFollowupTable();
     }
   });
 
   // Multi-Select Search Filter
   document.addEventListener('input', (e) => {
     if (e.target && e.target.id === 'supplierMultiSelectSearch') {
-      const val = e.target.value.toLowerCase().trim();
+      const val = normalizeText(e.target.value || '');
       const items = document.querySelectorAll('#supplierMultiSelectList .multi-select-item');
       items.forEach(it => {
-        const text = it.textContent.toLowerCase();
+        const text = normalizeText(it.textContent || '');
         it.style.display = (!val || text.includes(val)) ? 'flex' : 'none';
       });
     }
@@ -11401,16 +11506,8 @@ window.deleteUserFromSettings = function(username) {
   }
 };
 
-// Wire user modal controls & user chip
+// Wire user modal controls (do NOT attach showUserModal to #userChipWrap, which opens #userProfileCard GDS dropdown)
 document.addEventListener('DOMContentLoaded', () => {
-  const chip = document.getElementById('userChipWrap') || document.querySelector('.user-chip');
-  if (chip) {
-    chip.addEventListener('click', () => {
-      const u = (typeof state !== 'undefined' && state.session) ? state.session.username : 'admin';
-      showUserModal(u);
-    });
-  }
-
   const addBtn = document.getElementById('addNewUserBtn');
   if (addBtn) addBtn.addEventListener('click', () => showUserModal());
 
@@ -12574,34 +12671,10 @@ const ApproNextGen = window.ApproNextGen = {
 
   _dedupAndNormalizePayments(rawList) {
     if (!Array.isArray(rawList)) return [];
-    const map = new Map();
-    const out = [];
-    rawList.forEach(item => {
-      if (!item) return;
-      const cloned = JSON.parse(JSON.stringify(item));
-      const norm = typeof normalizePayment === 'function' ? normalizePayment(cloned) : cloned;
-      const refKey = String(norm.paymentRef || '').trim().toUpperCase();
-      const key = refKey || String(norm.id || '');
-      if (!key) {
-        out.push(norm);
-        return;
-      }
-      if (map.has(key)) {
-        const prev = map.get(key);
-        if (isDpPaidStatus(norm) && !isDpPaidStatus(prev)) {
-          prev.status = 'paye';
-          prev.paidDate = norm.paidDate || prev.paidDate;
-        }
-        if ((!prev.linkedBcIds || !prev.linkedBcIds.length) && Array.isArray(norm.linkedBcIds) && norm.linkedBcIds.length) {
-          prev.linkedBcIds = norm.linkedBcIds;
-          prev.linkedBcRefs = norm.linkedBcRefs || prev.linkedBcRefs;
-          prev.bcId = norm.bcId || prev.bcId;
-        }
-      } else {
-        map.set(key, norm);
-      }
-    });
-    return Array.from(map.values()).concat(out);
+    if (typeof deduplicatePaymentsList === 'function') {
+      return deduplicatePaymentsList(rawList);
+    }
+    return rawList.map(item => (typeof normalizePayment === 'function' ? normalizePayment(item) : item));
   },
 
   ensureDataHydrated() {
@@ -12985,6 +13058,7 @@ const ApproNextGen = window.ApproNextGen = {
     };
 
     state.payments.forEach(dp => {
+      if (dp.excluded || dp.isSpecialCase) return;
       const existingBcs = resolveExistingLinkedBcs(dp);
 
       // 0A. Preserve explicit manual link, manual unlink, or manual direct classification
@@ -13439,17 +13513,26 @@ const ApproNextGen = window.ApproNextGen = {
 
     let processed = 0;
     let addedCount = 0;
-    const dpsMap = new Map((state.payments || []).map(p => [p.id || p.paymentRef, p]));
+    let updatedCount = 0;
+    const dpsMap = new Map();
+    (state.payments || []).forEach(p => {
+      const normP = typeof normalizePayment === 'function' ? normalizePayment(p) : p;
+      const k = (typeof getDpDedupKey === 'function' ? getDpDedupKey(normP) : '') || normP.paymentRef || normP.id;
+      if (k) dpsMap.set(k, normP);
+    });
 
     const processNext = (index) => {
       if (index >= dpFiles.length) {
-        this.updateScanLog(`Scan DP terminé ! ${processed} fichiers traités, ${addedCount} Demandes de Paiement prêtes.`, 'success');
+        this.updateScanLog(`Scan DP terminé ! ${processed} fichiers traités (${addedCount} nouvelles DP, ${updatedCount} existantes fusionnées sans doublon).`, 'success');
         this.finishScanButton(() => {
-          state.payments = Array.from(dpsMap.values());
+          state.payments = deduplicatePaymentsList(Array.from(dpsMap.values()));
           this.autoLinkBcsAndDps();
           saveState();
+          if (window.bcBridge && typeof window.bcBridge.syncPaymentsToServer === 'function') {
+            window.bcBridge.syncPaymentsToServer();
+          }
           renderApp();
-          showToast(`${addedCount} Demandes de Paiement importées et indexées !`);
+          showToast(`${state.payments.length} Demandes de Paiement uniques indexées (${addedCount} nouvelles, ${updatedCount} mises à jour) !`);
         });
         return;
       }
@@ -13466,10 +13549,18 @@ const ApproNextGen = window.ApproNextGen = {
             })
             .then(xml => {
               if (xml) {
-                const parsed = this.parseDpXml(xml, file.name, file.webkitRelativePath || file.name);
+                const rawParsed = this.parseDpXml(xml, file.name, file.webkitRelativePath || file.name);
+                const parsed = typeof normalizePayment === 'function' ? normalizePayment(rawParsed) : rawParsed;
                 if (parsed && (parsed.id || parsed.paymentRef)) {
-                  dpsMap.set(parsed.id || parsed.paymentRef, parsed);
-                  addedCount++;
+                  const dKey = (typeof getDpDedupKey === 'function' ? getDpDedupKey(parsed) : '') || parsed.paymentRef || parsed.id;
+                  if (dpsMap.has(dKey)) {
+                    const merged = typeof mergeTwoPayments === 'function' ? mergeTwoPayments(dpsMap.get(dKey), parsed) : dpsMap.get(dKey);
+                    dpsMap.set(dKey, merged);
+                    updatedCount++;
+                  } else {
+                    dpsMap.set(dKey, parsed);
+                    addedCount++;
+                  }
                   this.updateScanLog(`[${index + 1}/${dpFiles.length}] DP ${parsed.paymentRef} — ${parsed.beneficiary} (${formatMoney(parsed.amount, 'DZD')})`, 'info');
                 }
               }
@@ -13555,9 +13646,10 @@ const ApproNextGen = window.ApproNextGen = {
       }
     }
 
+    const canonicalRef = canonicalizeDpRef(ref, date_str || '2026-03-01');
     return {
-      id: `dp_${Math.random().toString(36).substr(2, 6)}_${ref.replace(/[^a-zA-Z0-9]/g, '')}`,
-      paymentRef: ref || `DP-${Math.random().toString(36).substr(2, 4)}`,
+      id: `dp_${(canonicalRef || ref || Math.random().toString(36).substr(2, 6)).replace(/[^a-zA-Z0-9]/g, '_')}`,
+      paymentRef: canonicalRef || ref || `DP-${Math.random().toString(36).substr(2, 4)}`,
       requestDate: date_str || '2026-03-01',
       paidDate: date_str || '2026-03-15',
       amount: amount,
@@ -13678,18 +13770,26 @@ const ApproNextGen = window.ApproNextGen = {
   triggerServerDpScan() {
     this.showScannerModal('Scan des Demandes de Paiement', 148);
 
+    const mergeAndDedupeDps = (incomingList) => {
+      state.payments = deduplicatePaymentsList([
+        ...(Array.isArray(state.payments) ? state.payments : []),
+        ...(Array.isArray(incomingList) ? incomingList : []),
+      ]);
+      return state.payments.length;
+    };
+
     if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') {
       const records = (window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.payments) && window.PRELOAD_DATA.payments.length > 0)
         ? window.PRELOAD_DATA.payments
         : (state.payments || []);
-      state.payments = records;
+      const count = mergeAndDedupeDps(records);
       this.updateScanProgress(100, 100);
-      this.updateScanLog(`Mode Hors-Ligne (file://) : ${records.length} Demandes de Paiement chargées depuis le dataset embarqué !`, 'success');
+      this.updateScanLog(`Mode Hors-Ligne (file://) : ${count} Demandes de Paiement uniques chargées !`, 'success');
       this.finishScanButton(() => {
         this.autoLinkBcsAndDps();
         saveState();
         renderApp();
-        showToast(`${records.length} Demandes de Paiement prêtes (Mode Hors-ligne) !`);
+        showToast(`${count} Demandes de Paiement prêtes (Mode Hors-ligne) !`);
       });
       return;
     }
@@ -13703,25 +13803,25 @@ const ApproNextGen = window.ApproNextGen = {
       .then(r => r.json())
       .then(res => {
         if (res.success && res.records) {
-          state.payments = res.records;
+          const count = mergeAndDedupeDps(res.records);
           this.updateScanProgress(100, 100);
-          this.updateScanLog(`Scan serveur terminé : ${res.count} Demandes de Paiement indexées !`, 'success');
+          this.updateScanLog(`Scan serveur terminé : ${count} Demandes de Paiement uniques indexées !`, 'success');
           this.finishScanButton(() => {
             this.autoLinkBcsAndDps();
             saveState();
             renderApp();
-            showToast(`${res.count} Demandes de Paiement chargées !`);
+            showToast(`${count} Demandes de Paiement uniques chargées !`);
           });
         } else {
           if (window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.payments)) {
-            state.payments = window.PRELOAD_DATA.payments;
+            const count = mergeAndDedupeDps(window.PRELOAD_DATA.payments);
             this.updateScanProgress(100, 100);
-            this.updateScanLog(`Chargé : ${state.payments.length} Demandes de Paiement depuis le dataset embarqué !`, 'success');
+            this.updateScanLog(`Chargé : ${count} Demandes de Paiement uniques depuis le dataset embarqué !`, 'success');
             this.finishScanButton(() => {
               this.autoLinkBcsAndDps();
               saveState();
               renderApp();
-              showToast(`${state.payments.length} Demandes de Paiement prêtes !`);
+              showToast(`${count} Demandes de Paiement prêtes !`);
             });
             return;
           }
@@ -13729,28 +13829,28 @@ const ApproNextGen = window.ApproNextGen = {
           return fetch('../data/extracted_dps_linked.json')
             .then(r => r.json())
             .then(localDps => {
-              state.payments = localDps;
+              const count = mergeAndDedupeDps(localDps);
               this.updateScanProgress(100, 100);
-              this.updateScanLog(`Chargé : ${localDps.length} Demandes de Paiement !`, 'success');
+              this.updateScanLog(`Chargé : ${count} Demandes de Paiement uniques !`, 'success');
               this.finishScanButton(() => {
                 this.autoLinkBcsAndDps();
                 saveState();
                 renderApp();
-                showToast(`${localDps.length} Demandes de Paiement prêtes !`);
+                showToast(`${count} Demandes de Paiement prêtes !`);
               });
             });
         }
       })
       .catch(() => {
         if (window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.payments)) {
-          state.payments = window.PRELOAD_DATA.payments;
+          const count = mergeAndDedupeDps(window.PRELOAD_DATA.payments);
           this.updateScanProgress(100, 100);
-          this.updateScanLog(`Données pré-scannées appliquées : ${state.payments.length} Demandes de Paiement !`, 'success');
+          this.updateScanLog(`Données pré-scannées appliquées : ${count} Demandes de Paiement uniques !`, 'success');
           this.finishScanButton(() => {
             this.autoLinkBcsAndDps();
             saveState();
             renderApp();
-            showToast(`${state.payments.length} Demandes de Paiement prêtes !`);
+            showToast(`${count} Demandes de Paiement prêtes !`);
           });
         }
       });
@@ -13853,11 +13953,19 @@ const ApproNextGen = window.ApproNextGen = {
     const dir = sortDir === 'asc' ? 1 : -1;
 
     return (state.payments || []).filter(row => {
-      const isPaid = isDpPaidStatus(row);
-      if (stFilter === 'paye' && !isPaid) return false;
-      if (stFilter === 'non_paye' && (isPaid || row.status === 'annule')) return false;
-      if (stFilter === 'en_cours' && row.status !== 'programme' && row.status !== 'en_cours') return false;
-      if (stFilter === 'annule' && row.status !== 'annule') return false;
+      const isExcluded = Boolean(row.excluded || row.isSpecialCase);
+      if (stFilter === 'excluded') {
+        if (!isExcluded) return false;
+      } else if (stFilter === 'all') {
+        if (isExcluded) return false;
+      } else if (stFilter !== 'all_with_excluded') {
+        if (isExcluded) return false;
+        const isPaid = isDpPaidStatus(row);
+        if (stFilter === 'paye' && !isPaid) return false;
+        if (stFilter === 'non_paye' && (isPaid || row.status === 'annule')) return false;
+        if (stFilter === 'en_cours' && row.status !== 'programme' && row.status !== 'en_cours') return false;
+        if (stFilter === 'annule' && row.status !== 'annule') return false;
+      }
 
       const assocBcs = this.findAssociatedBcsForDp(row);
       if (linkFilter === 'linked' && (row.isDirect || assocBcs.length === 0)) return false;
@@ -13903,20 +14011,108 @@ const ApproNextGen = window.ApproNextGen = {
   renderDpSummaryBar(rows) {
     const el = document.getElementById('dpSummaryBar');
     if (!el) return;
-    const totalAll = (state.payments || []).length;
-    const totalAmt = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const paidRows = rows.filter(isDpPaidStatus);
-    const unpaidRows = rows.filter(r => !isDpPaidStatus(r) && r.status !== 'annule');
-    const linkedRows = rows.filter(r => !r.isDirect && this.findAssociatedBcsForDp(r).length > 0);
-    const unlinkedRows = rows.filter(r => !r.isDirect && this.findAssociatedBcsForDp(r).length === 0);
+    const allPayments = state.payments || [];
+    const activeAll = allPayments.filter(r => !r.excluded && !r.isSpecialCase);
+    const excludedAll = allPayments.filter(r => r.excluded || r.isSpecialCase);
+    const excludedAmt = excludedAll.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const activeRows = rows.filter(r => !r.excluded && !r.isSpecialCase);
+    const totalAmt = activeRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const paidRows = activeRows.filter(isDpPaidStatus);
+    const unpaidRows = activeRows.filter(r => !isDpPaidStatus(r) && r.status !== 'annule');
+    const linkedRows = activeRows.filter(r => !r.isDirect && this.findAssociatedBcsForDp(r).length > 0);
+    const unlinkedRows = activeRows.filter(r => !r.isDirect && this.findAssociatedBcsForDp(r).length === 0);
     el.innerHTML = `
-      <div class="f-summary-card"><span class="f-sum-lbl">Total DP</span><strong class="f-sum-val">${rows.length}${rows.length !== totalAll ? ` / ${totalAll}` : ''}</strong></div>
-      <div class="f-summary-card"><span class="f-sum-lbl">Montant Total</span><strong class="f-sum-val" style="color:var(--primary);">${formatMoney(totalAmt, 'DZD')}</strong></div>
-      <div class="f-summary-card" style="border-left:3px solid #10b981;"><span class="f-sum-lbl">✓ DP Payées</span><strong class="f-sum-val" style="color:#059669;">${paidRows.length}</strong></div>
-      <div class="f-summary-card" style="border-left:3px solid #d97706;"><span class="f-sum-lbl">⏳ En attente</span><strong class="f-sum-val" style="color:#d97706;">${unpaidRows.length}</strong></div>
+      <div class="f-summary-card" style="cursor:pointer;" onclick="if($('paymentFilterStatus')){$('paymentFilterStatus').value='all';window.renderPaymentsTable();}" title="Afficher les DP actives"><span class="f-sum-lbl">Total DP (Actives)</span><strong class="f-sum-val">${activeRows.length}${activeRows.length !== activeAll.length ? ` / ${activeAll.length}` : ''}</strong></div>
+      <div class="f-summary-card"><span class="f-sum-lbl">Montant Total (Calculé)</span><strong class="f-sum-val" style="color:var(--primary);">${formatMoney(totalAmt, 'DZD')}</strong></div>
+      <div class="f-summary-card" style="border-left:3px solid #10b981;cursor:pointer;" onclick="if($('paymentFilterStatus')){$('paymentFilterStatus').value='paye';window.renderPaymentsTable();}"><span class="f-sum-lbl">✓ DP Payées</span><strong class="f-sum-val" style="color:#059669;">${paidRows.length}</strong></div>
+      <div class="f-summary-card" style="border-left:3px solid #d97706;cursor:pointer;" onclick="if($('paymentFilterStatus')){$('paymentFilterStatus').value='non_paye';window.renderPaymentsTable();}"><span class="f-sum-lbl">⏳ En attente</span><strong class="f-sum-val" style="color:#d97706;">${unpaidRows.length}</strong></div>
       <div class="f-summary-card" style="border-left:3px solid #2563eb;"><span class="f-sum-lbl">🔗 Liées à un BC</span><strong class="f-sum-val" style="color:#2563eb;">${linkedRows.length}</strong></div>
       <div class="f-summary-card" style="border-left:3px solid #dc2626;"><span class="f-sum-lbl">⚠️ Sans BC liée</span><strong class="f-sum-val" style="color:#dc2626;">${unlinkedRows.length}</strong></div>
+      <div class="f-summary-card" style="border-left:3px solid #7c3aed;cursor:pointer;" onclick="if($('paymentFilterStatus')){$('paymentFilterStatus').value=($('paymentFilterStatus').value==='excluded'?'all':'excluded');window.renderPaymentsTable();}" title="Cliquer pour filtrer les DP Cas spécial / Hors calcul"><span class="f-sum-lbl">🚫 Cas spéciaux (Hors calcul)</span><strong class="f-sum-val" style="color:#7c3aed;">${excludedAll.length} <small style="font-size:10.5px;font-weight:600;opacity:0.85;">(${formatMoney(excludedAmt, 'DZD')})</small></strong></div>
     `;
+  },
+
+  toggleDpExcluded(dpId) {
+    const dp = (state.payments || []).find(p => p.id === dpId);
+    if (!dp) return;
+    dp.excluded = !Boolean(dp.excluded || dp.isSpecialCase);
+    dp.isSpecialCase = dp.excluded;
+    if (dp.excluded && !dp.excludedReason) dp.excludedReason = 'Cas spécial (Hors calcul)';
+    dp.updatedAt = nowIso();
+    if (dp.excluded && typeof this.reconcileAfterDpRemoved === 'function') {
+      this.reconcileAfterDpRemoved(dp);
+    } else if (!dp.excluded && typeof this.cascadeDpStatusToLinkedBcs === 'function') {
+      this.cascadeDpStatusToLinkedBcs(dp);
+    }
+    if (window.LogicalMatchEngine) window.LogicalMatchEngine.invalidate();
+    saveState();
+    if (window.bcBridge) {
+      if (typeof window.bcBridge.syncPaymentsToServer === 'function') window.bcBridge.syncPaymentsToServer();
+      if (typeof window.bcBridge.syncBcToServer === 'function') window.bcBridge.syncBcToServer();
+    }
+    renderApp();
+    showToast(dp.excluded ? `🚫 DP ${dp.paymentRef || ''} marquée "Cas spécial" (exclue des calculs).` : `↩️ DP ${dp.paymentRef || ''} réintégrée dans les calculs.`);
+  },
+
+  bulkToggleDpExcluded(ids) {
+    if (!Array.isArray(ids) || !ids.length) return;
+    const targets = (state.payments || []).filter(p => ids.includes(p.id));
+    if (!targets.length) return;
+    const allAlreadyExcluded = targets.every(p => p.excluded || p.isSpecialCase);
+    const nextState = !allAlreadyExcluded;
+    targets.forEach(dp => {
+      dp.excluded = nextState;
+      dp.isSpecialCase = nextState;
+      if (nextState && !dp.excludedReason) dp.excludedReason = 'Cas spécial (Hors calcul)';
+      dp.updatedAt = nowIso();
+      if (nextState && typeof this.reconcileAfterDpRemoved === 'function') this.reconcileAfterDpRemoved(dp);
+      else if (!nextState && typeof this.cascadeDpStatusToLinkedBcs === 'function') this.cascadeDpStatusToLinkedBcs(dp);
+    });
+    if (window.LogicalMatchEngine) window.LogicalMatchEngine.invalidate();
+    saveState();
+    if (window.bcBridge) {
+      if (typeof window.bcBridge.syncPaymentsToServer === 'function') window.bcBridge.syncPaymentsToServer();
+      if (typeof window.bcBridge.syncBcToServer === 'function') window.bcBridge.syncBcToServer();
+    }
+    renderApp();
+    showToast(nextState ? `🚫 ${targets.length} DP marquée(s) "Cas spécial (Hors calcul)".` : `↩️ ${targets.length} DP réintégrée(s) dans les calculs.`);
+  },
+
+  bulkDeleteDps(ids) {
+    if (!Array.isArray(ids) || !ids.length) return;
+    if (!confirm(`Supprimer définitivement ${ids.length} Demande(s) de Paiement sélectionnée(s) ?`)) return;
+    const idSet = new Set(ids);
+    const removed = (state.payments || []).filter(p => idSet.has(p.id));
+    state.payments = (state.payments || []).filter(p => !idSet.has(p.id));
+    removed.forEach(dp => {
+      if (typeof this.reconcileAfterDpRemoved === 'function') this.reconcileAfterDpRemoved(dp);
+      if (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+        const apiId = encodeURIComponent(dp._id || dp.id);
+        fetch(`/api/payments/${apiId}`, { method: 'DELETE' }).catch(() => {});
+      }
+    });
+    if (window.selectedPaymentIds) window.selectedPaymentIds.clear();
+    if (window.LogicalMatchEngine) window.LogicalMatchEngine.invalidate();
+    saveState();
+    if (window.bcBridge && typeof window.bcBridge.syncBcToServer === 'function') window.bcBridge.syncBcToServer();
+    renderApp();
+    showToast(`🗑️ ${removed.length} Demande(s) de Paiement supprimée(s).`);
+  },
+
+  runManualDpDedupe() {
+    const before = (state.payments || []).length;
+    state.payments = deduplicatePaymentsList(state.payments || []);
+    const after = state.payments.length;
+    const removed = Math.max(0, before - after);
+    this.autoLinkBcsAndDps();
+    if (window.LogicalMatchEngine) window.LogicalMatchEngine.invalidate();
+    saveState();
+    if (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+      fetch('/api/payments/dedupe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+      if (window.bcBridge && typeof window.bcBridge.syncPaymentsToServer === 'function') window.bcBridge.syncPaymentsToServer();
+    }
+    renderApp();
+    showToast(removed > 0 ? `🧹 ${removed} doublon(s) DP supprimé(s) (${after} DP uniques conservées) !` : `✓ Aucun doublon détecté (${after} DP uniques).`);
   },
 
   updateDpBulkBar(visibleRows) {
@@ -14011,6 +14207,16 @@ const ApproNextGen = window.ApproNextGen = {
         if (window.bcBridge && typeof window.bcBridge.syncBcToServer === 'function') window.bcBridge.syncBcToServer();
         renderApp();
         showToast(linked > 0 ? `🧠 ${linked} DP sélectionnée(s) rapprochée(s) automatiquement !` : 'Aucun candidat IA ≥45% pour les DP sélectionnées.');
+      } else if (e.target.closest('#bulkExcludeDpBtn')) {
+        const ids = Array.from(window.selectedPaymentIds || []);
+        if (!ids.length) return;
+        this.bulkToggleDpExcluded(ids);
+        window.selectedPaymentIds.clear();
+        this.updateDpBulkBar();
+      } else if (e.target.closest('#bulkDeleteDpBtn')) {
+        const ids = Array.from(window.selectedPaymentIds || []);
+        if (!ids.length) return;
+        this.bulkDeleteDps(ids);
       } else if (e.target.closest('#bulkClearDpSelectionBtn')) {
         window.selectedPaymentIds.clear();
         window.renderPaymentsTable();
@@ -14030,16 +14236,19 @@ const ApproNextGen = window.ApproNextGen = {
       window.selectedPaymentIds = window.selectedPaymentIds || new Set();
 
       tbody.innerHTML = rows.length ? rows.map(row => {
+        const isExcluded = Boolean(row.excluded || row.isSpecialCase);
         const isPaid = isDpPaidStatus(row);
         const isSelected = window.selectedPaymentIds.has(row.id);
         const assocBcs = this.findAssociatedBcsForDp(row);
-        const stPill = isPaid
-          ? '<span class="status-pill ok" style="cursor:pointer;" onclick="ApproNextGen.toggleSingleDpPaid(\'' + row.id + '\')" title="Cliquer pour basculer En attente">✓ Payé</span>'
-          : (row.status === 'annule'
-            ? '<span class="status-pill danger">✕ Annulé</span>'
-            : (row.status === 'programme'
-              ? '<span class="status-pill warn" style="cursor:pointer;" onclick="ApproNextGen.toggleSingleDpPaid(\'' + row.id + '\')" title="Cliquer pour marquer Payé">📅 Programmé</span>'
-              : '<span class="status-pill warn" style="cursor:pointer;" onclick="ApproNextGen.toggleSingleDpPaid(\'' + row.id + '\')" title="Cliquer pour marquer Payé">⏳ En attente</span>'));
+        const stPill = isExcluded
+          ? `<span class="status-pill" style="background:rgba(124,58,237,0.14);color:#6d28d9;border:1px solid rgba(124,58,237,0.35);font-weight:700;cursor:pointer;" onclick="ApproNextGen.toggleDpExcluded('${row.id}')" title="DP exclue des calculs (Cas spécial) — Cliquer pour réintégrer">🚫 Cas spécial (Hors calcul)</span>`
+          : (isPaid
+            ? '<span class="status-pill ok" style="cursor:pointer;" onclick="ApproNextGen.toggleSingleDpPaid(\'' + row.id + '\')" title="Cliquer pour basculer En attente">✓ Payé</span>'
+            : (row.status === 'annule'
+              ? '<span class="status-pill danger">✕ Annulé</span>'
+              : (row.status === 'programme'
+                ? '<span class="status-pill warn" style="cursor:pointer;" onclick="ApproNextGen.toggleSingleDpPaid(\'' + row.id + '\')" title="Cliquer pour marquer Payé">📅 Programmé</span>'
+                : '<span class="status-pill warn" style="cursor:pointer;" onclick="ApproNextGen.toggleSingleDpPaid(\'' + row.id + '\')" title="Cliquer pour marquer Payé">⏳ En attente</span>')));
 
         let linkingBadge = '';
         if (row.isDirect) {
@@ -14066,7 +14275,7 @@ const ApproNextGen = window.ApproNextGen = {
         const objText = row.natureExpense || row.notes || '—';
         const modeTxt = row.mode ? (row.mode.charAt(0).toUpperCase() + row.mode.slice(1)) : 'Virement';
 
-        return `<tr class="${isSelected ? 'selected-row' : ''}">
+        return `<tr class="${isSelected ? 'selected-row' : ''}" style="${isExcluded ? 'opacity:0.72;background:rgba(124,58,237,0.04);' : ''}">
           <td style="text-align:center;"><input type="checkbox" class="dp-select-checkbox" data-id="${escapeHtml(row.id)}" ${isSelected ? 'checked' : ''} style="cursor:pointer;width:15px;height:15px;" /></td>
           <td><strong>${escapeHtml(row.paymentRef || '—')}</strong></td>
           <td>${stPill}</td>
@@ -14075,12 +14284,13 @@ const ApproNextGen = window.ApproNextGen = {
           <td class="cell-ellipsis" style="max-width:175px;" title="${escapeHtml(objText)}">${escapeHtml(objText)}</td>
           <td style="white-space:nowrap;">${escapeHtml(formatDate(row.requestDate))}</td>
           <td style="white-space:nowrap;">${row.paidDate ? escapeHtml(formatDate(row.paidDate)) : '<span class="muted">—</span>'}</td>
-          <td style="white-space:nowrap;text-align:right;"><strong>${escapeHtml(formatMoney(row.amount, 'DZD'))}</strong></td>
+          <td style="white-space:nowrap;text-align:right;"><strong style="${isExcluded ? 'text-decoration:line-through;color:#64748b;' : ''}">${escapeHtml(formatMoney(row.amount, 'DZD'))}</strong></td>
           <td title="${escapeHtml(row.transactionRef || '')}"><span class="badge bg-light text-dark">${escapeHtml(modeTxt)}</span></td>
           <td><span class="delay-pill ${delayTone}">${totalCycle} j</span></td>
           <td><div class="table-actions icon-actions" style="display:flex;gap:3px;align-items:center;flex-wrap:nowrap;">
             <button class="btn btn-xs ${isPaid ? 'btn-ghost' : 'btn-success'}" type="button" style="${isPaid ? 'padding:2px 6px;' : 'background:#059669;color:#fff;border:none;padding:2px 6px;'}" onclick="ApproNextGen.toggleSingleDpPaid('${row.id}')" title="${isPaid ? 'Remettre en attente' : 'Marquer Payé (+ BC associés)'}">${isPaid ? '↺' : '✓'}</button>
             <button class="btn btn-soft btn-xs" type="button" style="padding:2px 6px;" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Lier aux Bons de Commande">🔗</button>
+            <button class="btn btn-xs" type="button" style="padding:2px 6px;background:${isExcluded ? 'rgba(16,185,129,0.14)' : 'rgba(124,58,237,0.12)'};color:${isExcluded ? '#059669' : '#6d28d9'};border:1px solid ${isExcluded ? 'rgba(16,185,129,0.35)' : 'rgba(124,58,237,0.3)'};" onclick="ApproNextGen.toggleDpExcluded('${row.id}')" title="${isExcluded ? 'Réintégrer cette DP dans les calculs' : 'Cas spécial : Exclure cette DP des calculs'}">${isExcluded ? '↩️' : '🚫'}</button>
             ${typeof iconActionButton === 'function' ? `${iconActionButton('edit', 'edit-payment', row.id, 'Modifier DP')}${iconActionButton('delete', 'delete-payment', row.id, 'Supprimer DP')}` : ''}
           </div></td>
         </tr>`;
@@ -16091,9 +16301,7 @@ if (document.readyState === 'loading') {
           window.state.bcRecords = serverBcs;
 
           if (rawPayments && rawPayments.length > 0) {
-            var payMap = new Map();
-            var unkeyedPays = [];
-            rawPayments.forEach(function(sp) {
+            var remappedRawPayments = rawPayments.map(function(sp) {
               var normSp = typeof window.normalizePayment === 'function'
                 ? window.normalizePayment(Object.assign({}, sp, { _id: sp._id ? String(sp._id) : undefined, id: String(sp._id || sp.id || '') }))
                 : Object.assign({}, sp, { id: String(sp._id || sp.id || '') });
@@ -16116,18 +16324,14 @@ if (document.readyState === 'loading') {
                 normSp.linkedBcIds = remappedIds;
                 normSp.bcId = remappedIds[0] || '';
               }
-              var pk = String(normSp.paymentRef || '').trim().toUpperCase() || normSp.id;
-              if (!pk) { unkeyedPays.push(normSp); return; }
-              if (payMap.has(pk)) {
-                var prevP = payMap.get(pk);
-                var prevTs = Date.parse(prevP.updatedAt || '') || 0;
-                var nextTs = Date.parse(normSp.updatedAt || '') || 0;
-                if (nextTs >= prevTs) payMap.set(pk, normSp);
-              } else {
-                payMap.set(pk, normSp);
-              }
+              return normSp;
             });
-            window.state.payments = Array.from(payMap.values()).concat(unkeyedPays);
+            window.state.payments = typeof window.deduplicatePaymentsList === 'function'
+              ? window.deduplicatePaymentsList(remappedRawPayments)
+              : remappedRawPayments;
+            if (rawPayments.length > window.state.payments.length) {
+              apiRequest('POST', '/api/payments/dedupe', {}).catch(function() {});
+            }
           } else if (rawPayments && rawPayments.length === 0 && serverBcs.length > 0 && Array.isArray(window.state.payments) && window.state.payments.length > 0) {
             if (window.ApproNextGen && typeof window.ApproNextGen._dedupAndNormalizePayments === 'function') {
               window.state.payments = window.ApproNextGen._dedupAndNormalizePayments(window.state.payments);
