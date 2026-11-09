@@ -252,15 +252,42 @@ async function startServer() {
     console.warn('[STARTUP] Cleanup notice:', cleanErr.message);
   }
 
-  // ─── BC & Payment Startup Verification (Respects manual_empty, Zero Ghost Reseed) ───
+  // ─── BC, Payment & Stock Startup Verification (One-time Clean Reset + Respects manual_empty) ───
   const BcRecord = require('./models/BcRecord');
   const Payment = require('./models/Payment');
   Setting.schema.set('strict', false);
 
   try {
-    const globalSetting = await Setting.findOne({ key: 'global' }).lean();
+    let globalSetting = await Setting.findOne({ key: 'global' }).lean();
+    const CLEAN_RESET_TOKEN = 'reset_2026_11_10_stock_bc_dp';
+
+    if (!globalSetting || globalSetting.cleanResetToken !== CLEAN_RESET_TOKEN) {
+      const [delBc, delDp, delArt, delMov] = await Promise.all([
+        BcRecord.deleteMany({}),
+        Payment.deleteMany({}),
+        Article.deleteMany({}),
+        Movement.deleteMany({})
+      ]);
+      await Setting.findOneAndUpdate(
+        { key: 'global' },
+        {
+          $set: {
+            cleanResetToken: CLEAN_RESET_TOKEN,
+            bcDatasetVersion: 'manual_empty',
+            dpDatasetVersion: 'manual_empty',
+            stockDatasetVersion: 'manual_empty',
+            cleanResetAt: new Date()
+          }
+        },
+        { upsert: true, strict: false }
+      );
+      globalSetting = await Setting.findOne({ key: 'global' }).lean();
+      console.log(`[CLEAN-RESET] Wiped Stock (${delArt.deletedCount} articles, ${delMov.deletedCount} movements), BC (${delBc.deletedCount}), DP (${delDp.deletedCount}). Users & Settings/Tags preserved.`);
+    }
+
     const bcCount = await BcRecord.countDocuments();
     const isManualEmpty = Boolean(globalSetting && globalSetting.bcDatasetVersion === 'manual_empty');
+    const isDpManualEmpty = Boolean(globalSetting && globalSetting.dpDatasetVersion === 'manual_empty');
 
     if (isManualEmpty) {
       console.log(`[SEED] BC auto-seed skipped (bcDatasetVersion: manual_empty, current count: ${bcCount})`);
@@ -308,7 +335,9 @@ async function startServer() {
     }
 
     const payCount = await Payment.countDocuments();
-    if (payCount === 0) {
+    if (isDpManualEmpty) {
+      console.log(`[SEED] Payment auto-seed skipped (dpDatasetVersion: manual_empty, current count: ${payCount})`);
+    } else if (payCount === 0) {
       const payCandidates = [
         path.join(__dirname, 'data', 'extracted_dps_linked.json'),
         path.join(__dirname, '..', 'data', 'extracted_dps_linked.json'),

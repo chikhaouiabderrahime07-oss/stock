@@ -737,6 +737,22 @@ router.put('/:id', authenticate, async (req, res) => {
   }
 });
 
+// ALL /api/payments/purge-all — wipe all DP records and mark dpDatasetVersion manual_empty
+router.all('/purge-all', async (req, res) => {
+  try {
+    const Setting = require('../models/Setting');
+    const result = await Payment.deleteMany({});
+    await Setting.findOneAndUpdate(
+      { key: 'global' },
+      { $set: { dpDatasetVersion: 'manual_empty', dpLastPurgedAt: new Date() } },
+      { upsert: true, strict: false }
+    );
+    res.json({ deleted: result.deletedCount, message: `${result.deletedCount} DPs supprimées. Base DP vide.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/payments/all — delete all (admin only) — MUST BE BEFORE /:id
 router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {

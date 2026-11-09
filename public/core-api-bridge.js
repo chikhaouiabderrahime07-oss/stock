@@ -98,21 +98,16 @@
       };
 
       var serverArticles = Array.isArray(articlesRes.articles) ? articlesRes.articles.map(mapId) : [];
-      var localArticles = DB.data.articles || [];
-
-      // ═══ MERGE STRATEGY: Never lose data ═══
-      // If server has data → merge (server wins on conflicts by code)
-      // If server is empty but local has data → PUSH local to server
-      // If both empty → nothing to do
-
-      if (serverArticles.length > 0) {
-        DB.data.articles = _mergeByField(localArticles, serverArticles, 'code');
-        console.log('[BRIDGE] Merged articles: local=' + localArticles.length + ' server=' + serverArticles.length + ' → ' + DB.data.articles.length);
-      } else if (localArticles.length > 0) {
-        console.log('[BRIDGE] Server empty, keeping ' + localArticles.length + ' local articles and pushing to server...');
-        DB.data.articles = localArticles;
-        _pushArticlesToServer(localArticles);
+      var cleanResetToken = 'reset_2026_11_10_stock_bc_dp';
+      if (localStorage.getItem('erp_clean_reset_token') !== cleanResetToken) {
+        DB.data.articles = [];
+        DB.data.stockMovements = [];
+        try { localStorage.setItem('erp_clean_reset_token', cleanResetToken); } catch (e) {}
       }
+
+      // Server is authoritative for stock articles (never resurrect wiped articles from localStorage)
+      DB.data.articles = serverArticles;
+      console.log('[BRIDGE] Loaded articles from server: ' + DB.data.articles.length);
 
       // Normalize article site values: convert site IDs to site names & sanitize corrupted strings
       var allArticles = DB.data.articles || [];
@@ -217,9 +212,7 @@
       }
 
       var serverMovements = Array.isArray(movementsRes.movements) ? movementsRes.movements.map(mapId) : [];
-      if (serverMovements.length > 0) {
-        DB.data.stockMovements = _mergeByField(DB.data.stockMovements || [], serverMovements, 'id');
-      }
+      DB.data.stockMovements = serverMovements;
 
       _originalSave();
       _serverDataLoaded = true;

@@ -1,4 +1,4 @@
-const SUIVI_DATA_VERSION = 'v2026_11_dp_fix';
+const SUIVI_DATA_VERSION = 'v2026_11_10_clean_zero_all';
 const STORAGE_KEYS = ['suivi_linked_v30', 'suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
 const LEGACY_STORAGE_KEYS = ['suivi_compact_v20', 'suivi_local_v12', 'suivi_local_v11'];
 const SESSION_KEYS = ['suivi_linked_session_v30', 'suivi_compact_session_v20', 'suivi_local_session_v12', 'suivi_local_session_v11'];
@@ -576,17 +576,23 @@ function loadState() {
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || (parsed.version && parsed.version !== SUIVI_DATA_VERSION)) {
-      console.warn('[app.js] Cache version mismatch or legacy data detected. Discarding stale cache.');
-      try { localStorage.removeItem(STORAGE_KEYS[0]); } catch (e) {}
-      if (preload) {
-        if (Array.isArray(preload.bcRecords) && preload.bcRecords.length > 0) {
-          base.bcRecords = preload.bcRecords.map(normalizeBcRecord);
-        }
-        if (Array.isArray(preload.payments) && preload.payments.length > 0) {
-          base.payments = deduplicatePaymentsList(preload.payments);
-        }
-      }
-      return base;
+      console.warn('[app.js] Clean slate version upgrade: resetting BC, DP & Stock while preserving Users & Tags/Settings.');
+      const preserved = {
+        ...base,
+        settings: { ...base.settings, ...(parsed?.settings || {}), theme: (parsed?.settings?.theme === 'dark') ? 'dark' : 'light' },
+        users: Array.isArray(parsed?.users) && parsed.users.length ? parsed.users : base.users,
+        suppliers: Array.isArray(parsed?.suppliers) ? parsed.suppliers : base.suppliers,
+        requesters: Array.isArray(parsed?.requesters) ? parsed.requesters : base.requesters,
+        holidays: Array.isArray(parsed?.holidays) ? parsed.holidays : base.holidays,
+        bcRecords: [],
+        payments: [],
+        stockItems: [],
+        stockLogs: []
+      };
+      try {
+        localStorage.setItem(STORAGE_KEYS[0], JSON.stringify({ version: SUIVI_DATA_VERSION, ...preserved }));
+      } catch (e) {}
+      return preserved;
     }
     let loadedBcs = Array.isArray(parsed.bcRecords) ? parsed.bcRecords.map(normalizeBcRecord) : [];
     let loadedPayments = Array.isArray(parsed.payments) ? deduplicatePaymentsList(parsed.payments) : [];
@@ -7368,19 +7374,43 @@ window.LogicalMatchEngine = {
   },
 
   normalizeEntity(raw) {
-    if (!raw) return { clean: '', tokens: [], acronym: '' };
+    if (!raw) return { clean: '', compact: '', skeleton: '', tokens: [], skelTokens: [], acronym: '' };
     const stopForms = new Set([
       'sarl', 'eurl', 'spa', 'snc', 'ets', 'etablissement', 'etablissements',
-      'ste', 'societe', 'groupe', 'entreprise', 'ent', 'mr', 'mme', 'mlle',
-      'dr', 'freres', 'fils', 'cie', 'co', 'algerie', 'dz', 'biskra'
+      'ste', 'societe', 'groupe', 'entreprise', 'ent', 'agence', 'compagnie', 'company',
+      'mr', 'mme', 'mlle', 'dr', 'freres', 'fils', 'cie', 'co', 'algerie', 'dz', 'biskra',
+      'pour', 'les', 'des', 'aux', 'commerce', 'generale', 'general', 'service', 'services'
     ]);
+    const aliasMap = {
+      mohammed: 'mohamed', mohamad: 'mohamed', mhamed: 'mohamed', med: 'mohamed',
+      abdelkader: 'abdelkader', abdelkadar: 'abdelkader', aek: 'abdelkader',
+      kherif: 'cherif', kharif: 'cherif', charif: 'cherif', cherif: 'cherif',
+      hassen: 'hacen', hassan: 'hacen', hacene: 'hacen', hacen: 'hacen',
+      megueddem: 'meguedem', meguedem: 'meguedem', megdem: 'meguedem',
+      ennakaa: 'nakaa', elnakaa: 'nakaa', nakaa: 'nakaa', naka: 'nakaa',
+      mtc: 'maghreb truck'
+    };
     const ascii = String(raw).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/\bel[\s-]+/g, ' ')
       .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    const allWords = ascii.split(' ').filter(Boolean);
-    const tokens = allWords.filter(w => w.length >= 2 && !stopForms.has(w));
-    const core = tokens.length > 0 ? tokens : allWords.filter(w => w.length >= 2);
+    const expandedWords = [];
+    ascii.split(' ').filter(Boolean).forEach(w => {
+      const mapped = aliasMap[w] || w;
+      mapped.split(' ').filter(Boolean).forEach(mw => expandedWords.push(mw));
+    });
+    const tokens = expandedWords.filter(w => w.length >= 2 && !stopForms.has(w));
+    const core = tokens.length > 0 ? tokens : expandedWords.filter(w => w.length >= 2);
+    const toSkel = w => w.replace(/([a-z])\1+/g, '$1').replace(/ou/g, 'u').replace(/kh/g, 'ch').replace(/ph/g, 'f');
+    const skelTokens = core.map(toSkel);
     const acronym = core.length >= 2 ? core.map(w => w[0]).join('') : '';
-    return { clean: core.join(' '), compact: core.join(''), tokens: core, acronym };
+    return {
+      clean: core.join(' '),
+      compact: core.join(''),
+      skeleton: skelTokens.join(''),
+      tokens: core,
+      skelTokens,
+      acronym
+    };
   },
 
   levenshtein(a, b) {
@@ -7406,44 +7436,57 @@ window.LogicalMatchEngine = {
     const a = this.normalizeEntity(bcSup);
     const b = this.normalizeEntity(dpBen);
     if (!a.compact || !b.compact) return { sim: 0, tag: '' };
-    if (a.compact === b.compact) return { sim: 1.0, tag: 'Fournisseur exact' };
+    if (a.compact === b.compact || (a.skeleton.length >= 4 && a.skeleton === b.skeleton)) {
+      return { sim: 1.0, tag: 'Fournisseur exact' };
+    }
     if ((a.tokens.length === 1 && a.compact.length >= 2 && a.compact === b.acronym) ||
         (b.tokens.length === 1 && b.compact.length >= 2 && b.compact === a.acronym)) {
-      return { sim: 0.90, tag: 'Acronyme fournisseur' };
+      return { sim: 0.92, tag: 'Acronyme fournisseur' };
     }
-    if (a.compact.length >= 4 && b.compact.length >= 4 && (a.compact.includes(b.compact) || b.compact.includes(a.compact))) {
-      return { sim: 0.92, tag: 'Fournisseur concordant' };
+    if (a.compact.length >= 4 && b.compact.length >= 4 &&
+        (a.compact.includes(b.compact) || b.compact.includes(a.compact) ||
+         a.skeleton.includes(b.skeleton) || b.skeleton.includes(a.skeleton))) {
+      return { sim: 0.94, tag: 'Fournisseur concordant' };
     }
     let matched = 0;
-    for (const ta of a.tokens) {
-      const hit = b.tokens.some(tb => {
-        if (ta === tb) return true;
-        if (ta.length >= 4 && tb.length >= 4 && (ta.startsWith(tb) || tb.startsWith(ta))) return true;
-        const maxDist = Math.min(ta.length, tb.length) >= 7 ? 2 : (Math.min(ta.length, tb.length) >= 4 ? 1 : 0);
-        return maxDist > 0 && this.levenshtein(ta, tb) <= maxDist;
+    for (let i = 0; i < a.tokens.length; i++) {
+      const ta = a.tokens[i];
+      const sa = a.skelTokens[i] || ta;
+      const hit = b.tokens.some((tb, j) => {
+        const sb = b.skelTokens[j] || tb;
+        if (ta === tb || sa === sb) return true;
+        if (ta.length >= 4 && tb.length >= 4 && (ta.startsWith(tb) || tb.startsWith(ta) || sa.startsWith(sb) || sb.startsWith(sa))) return true;
+        const minLen = Math.min(sa.length, sb.length);
+        const maxDist = minLen >= 7 ? 2 : (minLen >= 4 ? 1 : 0);
+        return maxDist > 0 && (this.levenshtein(ta, tb) <= maxDist || this.levenshtein(sa, sb) <= maxDist);
       });
       if (hit) matched++;
     }
     const denom = Math.max(1, Math.min(a.tokens.length, b.tokens.length));
-    const union = Math.max(1, new Set([...a.tokens, ...b.tokens]).size);
-    const sim = (matched / denom) * 0.7 + (matched / union) * 0.3;
-    return { sim: Math.min(0.95, sim), tag: sim >= 0.75 ? 'Fournisseur proche' : (sim >= 0.45 ? 'Fournisseur partiel' : '') };
+    const union = Math.max(1, new Set([...a.skelTokens, ...b.skelTokens]).size);
+    const sim = (matched / denom) * 0.72 + (matched / union) * 0.28;
+    return { sim: Math.min(0.96, sim), tag: sim >= 0.75 ? 'Fournisseur proche' : (sim >= 0.45 ? 'Fournisseur partiel' : '') };
   },
 
   extractBcNumbers(dp) {
     const raw = [
-      dp.bcRef, dp.paymentRef, dp.referenceDocs, dp.natureExpense,
+      dp.bcRef, dp.referenceDocs, dp.natureExpense,
       dp.notes, dp.description, dp.objet, dp.sourceFile
     ].filter(Boolean).join(' | ');
     const nums = new Set();
-    const listMatches = raw.matchAll(/\bB\.?C\s*(?:N[°o]?)?\s*[-:#]?\s*(\d{1,4}(?:\s*(?:\/|,|&|\+|\bet\b)\s*\d{1,4})*)/gi);
-    for (const m of listMatches) {
-      const chunk = m[1] || '';
-      const sub = chunk.match(/\d{1,4}/g) || [];
-      sub.forEach(s => {
-        const n = parseInt(s, 10);
-        if (n > 0 && n < 2000) nums.add(n);
-      });
+    const patterns = [
+      /\bB\.?\s*C\.?\s*(?:N[°oº]?)?\s*[-:#]?\s*(\d{1,4}(?:\s*(?:\/|,|&|\+|\bet\b|-)\s*\d{1,4})*)/gi,
+      /\bBON\s+DE\s+COMMANDE\s*(?:N[°oº]?)?\s*[-:#]?\s*(\d{1,4}(?:\s*(?:\/|,|&|\+|\bet\b)\s*\d{1,4})*)/gi
+    ];
+    for (const pat of patterns) {
+      for (const m of raw.matchAll(pat)) {
+        const chunk = (m[1] || '').replace(/\/\s*202[4-9]\b/g, '');
+        const sub = chunk.match(/\d{1,4}/g) || [];
+        sub.forEach(s => {
+          const n = parseInt(s, 10);
+          if (n > 0 && n < 2000) nums.add(n);
+        });
+      }
     }
     for (const m of raw.matchAll(/\b(\d{1,4})\s*\/\s*DG\s*\/\s*202[4-9]\b/gi)) {
       const n = parseInt(m[1], 10);
@@ -7458,30 +7501,45 @@ window.LogicalMatchEngine = {
     if (dpAmt <= 0 || (ttc <= 0 && ht <= 0)) return { pts: 0, tag: '', diff: Math.abs(dpAmt - ttc), basisAmt: ttc };
     const diffTtc = ttc > 0 ? Math.abs(dpAmt - ttc) : Infinity;
     const diffHt = ht > 0 ? Math.abs(dpAmt - ht) : Infinity;
-    if (diffTtc <= 5) return { pts: 48, tag: 'Montant TTC exact', diff: diffTtc, basisAmt: ttc };
-    if (diffHt <= 5) return { pts: 45, tag: 'Montant HT exact', diff: diffHt, basisAmt: ht };
-    if (ht > 0) {
-      const tva19 = ht * 1.19;
-      const tva09 = ht * 1.09;
-      if (Math.abs(dpAmt - tva19) <= Math.max(10, dpAmt * 0.003)) return { pts: 44, tag: 'HT + TVA 19%', diff: Math.abs(dpAmt - tva19), basisAmt: tva19 };
-      if (Math.abs(dpAmt - tva09) <= Math.max(10, dpAmt * 0.003)) return { pts: 44, tag: 'HT + TVA 9%', diff: Math.abs(dpAmt - tva09), basisAmt: tva09 };
+    if (diffTtc <= 5) return { pts: 50, tag: 'Montant TTC exact', diff: diffTtc, basisAmt: ttc };
+    if (diffHt <= 5) return { pts: 47, tag: 'Montant HT exact', diff: diffHt, basisAmt: ht };
+    if (diffTtc <= 50 || (ttc > 0 && diffTtc / ttc <= 0.0015)) {
+      return { pts: 46, tag: 'Montant TTC quasi-exact', diff: diffTtc, basisAmt: ttc };
     }
-    if (ttc > 0 && Math.abs(dpAmt - ttc * 1.01) <= Math.max(15, ttc * 0.0025)) {
-      return { pts: 43, tag: 'TTC + Timbre 1%', diff: Math.abs(dpAmt - ttc * 1.01), basisAmt: ttc };
+    const baseForTva = ht > 0 ? ht : ttc;
+    if (baseForTva > 0) {
+      for (const rate of [1.19, 1.09]) {
+        const withTva = baseForTva * rate;
+        const withoutTva = (ttc > 0 ? ttc : baseForTva) / rate;
+        const pctLbl = rate === 1.19 ? '19%' : '9%';
+        if (Math.abs(dpAmt - withTva) <= Math.max(12, dpAmt * 0.003)) {
+          return { pts: 45, tag: `HT + TVA ${pctLbl}`, diff: Math.abs(dpAmt - withTva), basisAmt: withTva };
+        }
+        if (Math.abs(dpAmt - withoutTva) <= Math.max(12, dpAmt * 0.003)) {
+          return { pts: 45, tag: `TTC hors TVA ${pctLbl}`, diff: Math.abs(dpAmt - withoutTva), basisAmt: withoutTva };
+        }
+      }
+    }
+    if (ttc > 0) {
+      const timbre1 = Math.min(2500, Math.max(5, ttc * 0.01));
+      if (Math.abs(dpAmt - (ttc + timbre1)) <= Math.max(20, ttc * 0.003) ||
+          Math.abs(dpAmt - (ttc - timbre1)) <= Math.max(20, ttc * 0.003)) {
+        return { pts: 44, tag: 'TTC ± Timbre fiscal', diff: Math.abs(dpAmt - ttc), basisAmt: ttc };
+      }
     }
     const bestBasis = diffHt < diffTtc ? ht : ttc;
     const bestDiff = Math.min(diffTtc, diffHt);
     const rel = bestBasis > 0 ? bestDiff / bestBasis : 1;
-    if (rel <= 0.01) return { pts: 38, tag: 'Montant ±1%', diff: bestDiff, basisAmt: bestBasis };
+    if (rel <= 0.01) return { pts: 39, tag: 'Montant ±1%', diff: bestDiff, basisAmt: bestBasis };
     if (ttc > 0) {
       for (const r of [0.95, 0.90]) {
         if (Math.abs(dpAmt - ttc * r) <= Math.max(15, ttc * 0.005)) {
-          return { pts: 35, tag: `Retenue garantie (${Math.round(r * 100)}%)`, diff: Math.abs(dpAmt - ttc * r), basisAmt: ttc };
+          return { pts: 38, tag: `Retenue garantie (${Math.round(r * 100)}%)`, diff: Math.abs(dpAmt - ttc * r), basisAmt: ttc };
         }
       }
-      for (const r of [0.30, 0.50, 0.70, 0.80]) {
-        if (Math.abs(dpAmt - ttc * r) <= Math.max(15, ttc * 0.006)) {
-          return { pts: 30, tag: `Acompte / Tranche (${Math.round(r * 100)}%)`, diff: Math.abs(dpAmt - ttc * r), basisAmt: ttc };
+      for (const r of [0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80]) {
+        if (Math.abs(dpAmt - ttc * r) <= Math.max(15, ttc * 0.005)) {
+          return { pts: 33, tag: `Acompte / Tranche (${Math.round(r * 100)}%)`, diff: Math.abs(dpAmt - ttc * r), basisAmt: ttc };
         }
       }
     }
@@ -7496,26 +7554,35 @@ window.LogicalMatchEngine = {
     const tags = [];
     const bcDateStr = bc.date || bc.requestDate || '';
     const dpDateStr = dp.requestDate || dp.paidDate || '';
+    let diffDays = null;
     if (bcDateStr && dpDateStr) {
-      const diffDays = Math.round((new Date(dpDateStr) - new Date(bcDateStr)) / 86400000);
+      diffDays = Math.round((new Date(dpDateStr) - new Date(bcDateStr)) / 86400000);
       if (!isNaN(diffDays)) {
-        if (diffDays >= -2 && diffDays <= 45) { pts += 10; tags.push(`Délai ${Math.max(0, diffDays)}j`); }
-        else if (diffDays >= -7 && diffDays <= 150) { pts += 5; }
-        else if (diffDays < -30) { pts -= 12; }
+        if (diffDays >= 0 && diffDays <= 15) { pts += 14; tags.push(`Délai optimal ${diffDays}j`); }
+        else if (diffDays > 15 && diffDays <= 60) { pts += 10; tags.push(`Délai ${diffDays}j`); }
+        else if (diffDays >= -3 && diffDays < 0) { pts += 8; tags.push('Dates simultanées'); }
+        else if (diffDays > 60 && diffDays <= 160) { pts += 5; }
+        else if (diffDays < -15) { pts -= 18; }
       }
     }
-    const stopCtx = new Set(['achat', 'fourniture', 'prestation', 'travaux', 'facture', 'reglement', 'paiement', 'commande', 'pour', 'dans', 'avec', 'biskra', 'douroub']);
+    const stopCtx = new Set(['achat', 'fourniture', 'prestation', 'travaux', 'facture', 'reglement', 'paiement', 'commande', 'pour', 'dans', 'avec', 'biskra', 'douroub', 'service']);
     const bcTxt = [bc.description, bc.remarques, bc.vehicleRegistration, ...(bc.lineItems || []).map(l => l.description || '')].filter(Boolean).join(' ')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const dpTxt = [dp.natureExpense, dp.notes, dp.referenceDocs, dp.objet].filter(Boolean).join(' ')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const bcPlates = new Set((bcTxt.match(/\b\d{3,6}[-\s]\d{3}[-\s]\d{2}\b/g) || []).map(s => s.replace(/\s+/g, '-')));
+    const dpPlates = (dpTxt.match(/\b\d{3,6}[-\s]\d{3}[-\s]\d{2}\b/g) || []).map(s => s.replace(/\s+/g, '-'));
+    if (dpPlates.some(p => bcPlates.has(p))) {
+      pts += 24;
+      tags.push('🎯 Matricule camion commun');
+    }
     const bcWords = new Set((bcTxt.match(/[a-z0-9]{4,}/g) || []).filter(w => !stopCtx.has(w)));
     const dpWords = (dpTxt.match(/[a-z0-9]{4,}/g) || []).filter(w => !stopCtx.has(w));
     let overlap = 0;
     dpWords.forEach(w => { if (bcWords.has(w)) overlap++; });
-    if (overlap >= 2) { pts += 10; tags.push('Objet concordant'); }
-    else if (overlap === 1) { pts += 5; }
-    return { pts, tags };
+    if (overlap >= 2) { pts += 12; tags.push('Objet & articles concordants'); }
+    else if (overlap === 1) { pts += 6; }
+    return { pts, tags, diffDays };
   },
 
   findMultiBcCombo(pool, dpAmt, maxK = 6) {
@@ -7620,7 +7687,10 @@ window.LogicalMatchEngine = {
     if (this._cache && this._cacheKey === key) return this._cache;
 
     const unlinkedBcs = bcs.filter(b => b.ref && getLinkedDpsForBc(b).length === 0 && !b.dpRef && !isBcActuallyPaid(b));
-    const unlinkedDps = dps.filter(d => !d.excluded && !d.isSpecialCase && !d.isDirect && (!Array.isArray(d.linkedBcIds) || d.linkedBcIds.length === 0) && !d.bcId);
+    const unlinkedDps = dps
+      .filter(d => !d.excluded && !d.isSpecialCase && !d.isDirect && (!Array.isArray(d.linkedBcIds) || d.linkedBcIds.length === 0) && !d.bcId)
+      .slice()
+      .sort((a, b) => String(a.requestDate || '').localeCompare(String(b.requestDate || '')));
 
     const byBcId = new Map();
     const byDpId = new Map();
@@ -7630,6 +7700,25 @@ window.LogicalMatchEngine = {
     unlinkedBcs.forEach(b => {
       const m = String(b.ref || '').match(/(\d{1,4})/);
       if (m) bcByNum.set(parseInt(m[1], 10), b);
+    });
+
+    // Pre-detect Multi-DP -> 1 BC split payments (2 or 3 DPs of same supplier summing to 1 BC)
+    const splitDpMatches = new Map();
+    unlinkedBcs.forEach(bc => {
+      const bcAmt = Number(bc.amountTTC || bc.amount || 0);
+      if (bcAmt <= 0) return;
+      const supDps = unlinkedDps.filter(d => Number(d.amount || 0) > 0 && Number(d.amount || 0) < bcAmt - 1 && !this.isPairIgnored(d, bc, `${d.id}::${bc.id}`) && this.scoreSupplier(bc.supplierName, d.beneficiary).sim >= 0.55);
+      if (supDps.length < 2) return;
+      const tol = Math.max(15, bcAmt * 0.005);
+      for (let i = 0; i < supDps.length; i++) {
+        for (let j = i + 1; j < supDps.length; j++) {
+          const sum2 = Number(supDps[i].amount || 0) + Number(supDps[j].amount || 0);
+          if (Math.abs(sum2 - bcAmt) <= tol) {
+            [supDps[i], supDps[j]].forEach(d => splitDpMatches.set(`${d.id}::${bc.id}`, { bc, dps: [supDps[i], supDps[j]], totalDpAmt: sum2, bcAmt }));
+            return;
+          }
+        }
+      }
     });
 
     unlinkedDps.forEach(dp => {
@@ -7668,6 +7757,19 @@ window.LogicalMatchEngine = {
       }
 
       unlinkedBcs.forEach(bc => {
+        const splitHit = splitDpMatches.get(`${dp.id}::${bc.id}`);
+        if (splitHit) {
+          const otherRefs = splitHit.dps.filter(x => x.id !== dp.id).map(x => x.paymentRef).join(' + ');
+          const sc = {
+            key: `${dp.id}::${bc.id}`, dp, bc, bcs: [bc], isMulti: false,
+            totalBcAmt: splitHit.bcAmt, diff: Math.abs(splitHit.totalDpAmt - splitHit.bcAmt), score: 92,
+            reasons: [`🧩 Tranche Multi-DP (avec DP ${otherRefs})`, 'Somme DPs = Montant BC']
+          };
+          dpCands.push(sc);
+          if (!byBcId.has(bc.id)) byBcId.set(bc.id, []);
+          byBcId.get(bc.id).push(sc);
+          return;
+        }
         const cand = this.scoreSinglePair(bc, dp, dpNums);
         if (cand && !this.isPairIgnored(dp, bc, cand.key)) {
           dpCands.push(cand);
@@ -7685,9 +7787,19 @@ window.LogicalMatchEngine = {
 
       dpCands.sort((a, b) => b.score - a.score || a.diff - b.diff);
       byDpId.set(dp.id, dpCands);
-      if (dpCands.length > 0 && dpCands[0].score >= 45) {
-        suggestions.push(dpCands[0]);
+    });
+
+    const assignedSingleBcIds = new Set();
+    unlinkedDps.forEach(dp => {
+      const dpCands = byDpId.get(dp.id) || [];
+      if (!dpCands.length) return;
+      const topScore = dpCands[0].score;
+      if (topScore < 45) return;
+      let chosen = dpCands.find(c => !c.isMulti && !assignedSingleBcIds.has(c.bc.id) && c.score >= topScore - 4) || dpCands[0];
+      if (!chosen.isMulti && chosen.bc && !splitDpMatches.has(chosen.key)) {
+        assignedSingleBcIds.add(chosen.bc.id);
       }
+      suggestions.push(chosen);
     });
 
     byBcId.forEach(list => list.sort((a, b) => b.score - a.score || a.diff - b.diff));
@@ -8877,7 +8989,7 @@ window.normalizeBcRecord = function(row = {}) {
   if (state.requesters) {
     state.requesters = state.requesters.map(r => typeof r === "string" ? { id: "req_" + Math.random().toString(36).substr(2, 6), name: r } : r);
   }
-  const SUIVI_DATA_VERSION = 'v2026_11_dp_fix';
+  const SUIVI_DATA_VERSION = 'v2026_11_10_clean_zero_all';
   try {
     localStorage.removeItem('suivi_reset_v15');
     localStorage.removeItem('suivi_compact_v20');
@@ -11600,6 +11712,72 @@ window.openGdsStockScanner = function() {
     });
   }
 
+  // Wire Purge All DPs button
+  const purgeDpBtn = document.getElementById('purgeAllDpsBtn');
+  if (purgeDpBtn && !purgeDpBtn._hasPurgeListener) {
+    purgeDpBtn._hasPurgeListener = true;
+    purgeDpBtn.addEventListener('click', async () => {
+      if (!confirm('Êtes-vous sûr de vouloir vider TOUTES les Demandes de Paiement (DP) ?\n\nCette action remet la base DP à 0 (Utilisateurs & Tags conservés).')) return;
+      if (typeof window !== 'undefined' && window.bcBridge && typeof window.bcBridge.cancelPendingSync === 'function') {
+        window.bcBridge.cancelPendingSync();
+      }
+      if (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+        try { await fetch('/api/payments/purge-all', { method: 'POST' }).catch(() => {}); } catch (_) {}
+      }
+      state.payments = [];
+      if (window.selectedPaymentIds) window.selectedPaymentIds.clear();
+      (state.bcRecords || []).forEach(b => {
+        b.dpRef = '';
+        b.paymentRef = '';
+        b.paymentPaidDate = '';
+        if (b.status === 'livre_paye') b.status = 'livre';
+        else if (b.status === 'paye') b.status = (b.goodsReceivedDate || b.serviceDoneDate) ? 'livre' : 'transmis';
+        b.paymentStatus = '';
+      });
+      if (window.LogicalMatchEngine) window.LogicalMatchEngine.invalidate();
+      if (typeof saveState === 'function') saveState();
+      if (window.bcBridge && typeof window.bcBridge.syncBcToServer === 'function') window.bcBridge.syncBcToServer();
+      renderApp();
+      showToast('Base DP entièrement vidée à 0.');
+    });
+  }
+
+  // Wire Reset Clean Slate (Stock + BC + DP = 0, Users & Tags preserved)
+  const resetCleanBtn = document.getElementById('resetCleanSlateBtn');
+  if (resetCleanBtn && !resetCleanBtn._hasResetListener) {
+    resetCleanBtn._hasResetListener = true;
+    resetCleanBtn.addEventListener('click', async () => {
+      if (!confirm('Réinitialiser TOUTE la base (Stock, Bons de Commande & Demandes de Paiement) à 0 ?\n\n✓ Les Utilisateurs et les Tags/Paramètres seront 100% conservés.')) return;
+      if (typeof window !== 'undefined' && window.bcBridge && typeof window.bcBridge.cancelPendingSync === 'function') {
+        window.bcBridge.cancelPendingSync();
+      }
+      if (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+        try { await fetch('/api/bc/reset-clean-slate', { method: 'POST' }).catch(() => {}); } catch (_) {}
+      }
+      state.bcRecords = [];
+      state.payments = [];
+      state.stockItems = [];
+      state.stockLogs = [];
+      if (window.selectedFollowupBcIds) window.selectedFollowupBcIds.clear();
+      if (window.selectedPaymentIds) window.selectedPaymentIds.clear();
+      try {
+        const gdsRaw = localStorage.getItem('erp_douroub_db');
+        if (gdsRaw) {
+          const gdsParsed = JSON.parse(gdsRaw);
+          if (gdsParsed) {
+            gdsParsed.articles = [];
+            gdsParsed.stockMovements = [];
+            localStorage.setItem('erp_douroub_db', JSON.stringify(gdsParsed));
+          }
+        }
+      } catch (_) {}
+      if (window.LogicalMatchEngine) window.LogicalMatchEngine.invalidate();
+      if (typeof saveState === 'function') saveState();
+      renderApp();
+      showToast('Stock, BC et DP remis à 0 (Utilisateurs & Tags conservés) !');
+    });
+  }
+
 
 // === BULK SELECTION & BULK ACTIONS LOGIC ===
 if (typeof window !== 'undefined') {
@@ -12806,38 +12984,9 @@ const ApproNextGen = window.ApproNextGen = {
     tools.insertAdjacentElement('afterbegin', group);
   },
 
-  // 1. Auto-load pre-scanned 364 BCs & 148 DPs if state is missing them
+  // 1. Respect clean zero state — only hydrate if PRELOAD_DATA explicitly contains items
   loadScannedDataIfEmpty() {
     this.ensureDataHydrated();
-    // If running in file:/// protocol or PRELOAD_DATA is available, use preloaded dataset directly without CORS fetch
-    if (typeof window !== 'undefined' && window.PRELOAD_DATA && Array.isArray(window.PRELOAD_DATA.payments)) {
-      if (!state.payments || state.payments.length === 0) {
-        state.payments = this._dedupAndNormalizePayments(window.PRELOAD_DATA.payments);
-        this.autoLinkBcsAndDps();
-        if (typeof saveState === 'function') saveState();
-        if (typeof renderApp === 'function') renderApp();
-      }
-      return;
-    }
-
-    if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') {
-      return;
-    }
-
-    if (typeof fetch !== 'function') return;
-    fetch('../data/extracted_dps_linked.json')
-      .then(r => r.json())
-      .then(dps => {
-        if (dps && Array.isArray(dps) && dps.length > 0) {
-          if (!state.payments || state.payments.length === 0) {
-            state.payments = this._dedupAndNormalizePayments(dps);
-            this.autoLinkBcsAndDps();
-            saveState();
-            renderApp();
-          }
-        }
-      })
-      .catch(() => {});
   },
 
   applyPaidDpToBc(b, dp) {
@@ -13057,11 +13206,13 @@ const ApproNextGen = window.ApproNextGen = {
       dp.delayStatus = maxTotalDelay < 15 ? 'rapide' : (maxTotalDelay <= 30 ? 'normal' : 'retard');
     };
 
+    const claimedBcIds = new Set();
+    const unlinkedQueue = [];
+
     state.payments.forEach(dp => {
       if (dp.excluded || dp.isSpecialCase) return;
       const existingBcs = resolveExistingLinkedBcs(dp);
 
-      // 0A. Preserve explicit manual link, manual unlink, or manual direct classification
       if (dp.manualLink || dp.isDirect) {
         if (dp.isDirect) {
           dp.linkedBcIds = [];
@@ -13080,6 +13231,7 @@ const ApproNextGen = window.ApproNextGen = {
           dp.linkedBcIds = existingBcs.map(b => b.id);
           dp.linkedBcRefs = existingBcs.map(b => b.ref);
           dp.bcId = existingBcs[0].id;
+          existingBcs.forEach(b => claimedBcIds.add(b.id));
           syncDelayMetricsFromBcs(dp, existingBcs);
         } else {
           dp.linkedBcIds = [];
@@ -13089,105 +13241,93 @@ const ApproNextGen = window.ApproNextGen = {
         return;
       }
 
-      // 0B. Preserve existing valid server/persisted links without heuristic overwrite
       if (existingBcs.length > 0) {
         dp.isDirect = false;
         dp.linkedBcIds = existingBcs.map(b => b.id);
         dp.linkedBcRefs = existingBcs.map(b => b.ref);
         dp.bcId = existingBcs[0].id;
+        existingBcs.forEach(b => claimedBcIds.add(b.id));
         syncDelayMetricsFromBcs(dp, existingBcs);
         return;
       }
 
+      unlinkedQueue.push(dp);
+    });
+
+    unlinkedQueue.sort((a, b) => String(a.requestDate || '').localeCompare(String(b.requestDate || '')));
+
+    unlinkedQueue.forEach(dp => {
       const docs = dp.referenceDocs || '';
       const src = dp.sourceFile || '';
       const ben = dp.beneficiary || '';
       const nat = dp.natureExpense || '';
-      const fullText = `${ben} ${docs} ${src} ${nat} ${dp.paymentRef || ''}`;
-
+      const fullText = `${ben} ${docs} ${src} ${nat}`;
+      const eng = window.LogicalMatchEngine;
       let matchedBcs = [];
 
       const isIgnoredCand = (cand) => Boolean(
-        cand && window.LogicalMatchEngine && typeof window.LogicalMatchEngine.isPairIgnored === 'function' &&
-        window.LogicalMatchEngine.isPairIgnored(dp, cand, `${dp.id}::${cand.id}`)
+        cand && eng && typeof eng.isPairIgnored === 'function' &&
+        eng.isPairIgnored(dp, cand, `${dp.id}::${cand.id}`)
       );
 
-      // Strategy 1: Explicit BC regex matching (BC N°XX, BC XX, BC-XX, XX/DG/2026, BC #XX)
-      const bcMatches = [
-        ...fullText.matchAll(/BC\s*(?:N[°o]?)?\s*(\d+)/gi),
-        ...fullText.matchAll(/BC\s*[-_#]\s*(\d+)/gi),
-        ...fullText.matchAll(/(\d{1,4})\s*\/\s*DG\s*\/\s*202[56]/gi)
-      ];
-      for (const m of bcMatches) {
-        const num = parseInt(m[1], 10);
+      // Strategy 1: Explicit BC numbers cited in DP documents/notes (never DP paymentRef)
+      const explicitNums = eng && typeof eng.extractBcNumbers === 'function' ? eng.extractBcNumbers(dp) : [];
+      explicitNums.forEach(num => {
         const cand = bcByNum.get(num);
         if (cand && !isIgnoredCand(cand) && !matchedBcs.some(b => b.id === cand.id)) {
-          matchedBcs.push(cand);
-        }
-      }
-
-      // Strategy 2: Ref number match with tokenized supplier verification
-      if (matchedBcs.length === 0) {
-        const dpNumMatch = String(dp.paymentRef || '').match(/(\d+)/);
-        if (dpNumMatch) {
-          const num = parseInt(dpNumMatch[1], 10);
-          const cand = bcByNum.get(num);
-          if (cand && !isIgnoredCand(cand)) {
-            const sim = calcSupplierSimilarity(cand.supplierName, ben);
-            if (sim >= 0.4) {
-              matchedBcs.push(cand);
-            }
+          const supSim = eng ? eng.scoreSupplier(cand.supplierName, ben).sim : calcSupplierSimilarity(cand.supplierName, ben);
+          if (supSim >= 0.25 || !cand.supplierName || docs.toUpperCase().includes('BC')) {
+            matchedBcs.push(cand);
           }
         }
-      }
+      });
 
-      // Strategy 3: Advanced Fuzzy Supplier Matching + Financial Concordance (Exact, Subset Sum Multi-BC, Advance Partial, Stamp Duty)
+      // Strategy 2: Multi-BC Exact Sum or High-Confidence Single BC via LogicalMatchEngine
       if (matchedBcs.length === 0 && dp.amount > 0) {
-        const candBcs = state.bcRecords.filter(b => !isIgnoredCand(b) && calcSupplierSimilarity(b.supplierName, ben) >= 0.4);
-        if (candBcs.length > 0) {
-          // 3A. Exact or Subset Sum multi-BC match
-          const combo = findBcSubsetSumCombination(candBcs, dp.amount, 8, 2.0);
-          if (combo && combo.length > 0) {
-            matchedBcs.push(...combo);
-          } else {
-            // 3B. Partial advance payment (50% or 30%)
-            const partial = candBcs.find(b => {
-              const ttc = b.amountTTC || b.amount || 0;
-              return Math.abs(ttc * 0.5 - dp.amount) < 2.0 || Math.abs(ttc * 0.3 - dp.amount) < 2.0;
-            });
-            if (partial) {
-              matchedBcs.push(partial);
-            } else {
-              // 3C. Stamp duty tolerance (Timbre fiscal up to 2500 DZD or within 5%)
-              const stampMatch = candBcs.find(b => {
-                const ttc = b.amountTTC || b.amount || 0;
-                return Math.abs(ttc - dp.amount) <= 2500 && Math.abs(ttc - dp.amount) / dp.amount < 0.05;
-              });
-              if (stampMatch) matchedBcs.push(stampMatch);
-            }
+        const unclaimedPool = state.bcRecords.filter(b => b.id && !claimedBcIds.has(b.id) && !isIgnoredCand(b));
+        const supPool = unclaimedPool.filter(b => {
+          const sim = eng ? eng.scoreSupplier(b.supplierName, ben).sim : calcSupplierSimilarity(b.supplierName, ben);
+          return sim >= 0.48;
+        });
+
+        if (eng && typeof eng.findMultiBcCombo === 'function' && supPool.length >= 2) {
+          const combo = eng.findMultiBcCombo(supPool, Number(dp.amount), 6);
+          if (combo && combo.bcs && combo.bcs.length >= 2) {
+            matchedBcs.push(...combo.bcs);
+          }
+        }
+
+        if (matchedBcs.length === 0 && eng && typeof eng.scoreSinglePair === 'function') {
+          const scored = [];
+          unclaimedPool.forEach(bc => {
+            const c = eng.scoreSinglePair(bc, dp, explicitNums);
+            if (c && c.score >= 82) scored.push(c);
+          });
+          scored.sort((a, b) => b.score - a.score || a.diff - b.diff);
+          if (scored.length > 0) {
+            matchedBcs.push(scored[0].bc);
           }
         }
       }
 
-      // Strategy 4: If BCs matched, synchronize and compute turnaround delays
       if (matchedBcs.length > 0) {
         dp.isDirect = false;
         dp.directCategory = '';
         dp.linkedBcIds = matchedBcs.map(b => b.id);
         dp.linkedBcRefs = matchedBcs.map(b => b.ref);
         dp.bcId = matchedBcs[0].id;
+        matchedBcs.forEach(b => claimedBcIds.add(b.id));
         syncDelayMetricsFromBcs(dp, matchedBcs);
         return;
       }
 
-      // Strategy 5: Direct Payment Auto-Detection & Categorization
+      // Strategy 3: Direct Payment Auto-Detection & Categorization
       for (const tax of DIRECT_PAYMENT_TAXONOMY) {
         if (tax.pattern.test(fullText)) {
           dp.isDirect = true;
           dp.directCategory = tax.category;
           dp.linkedBcIds = [];
           dp.linkedBcRefs = [];
-
           const reqD = dp.requestDate ? new Date(dp.requestDate) : null;
           const paidD = dp.paidDate ? new Date(dp.paidDate) : reqD;
           if (reqD && paidD && !isNaN(reqD) && !isNaN(paidD)) {
@@ -13203,11 +13343,11 @@ const ApproNextGen = window.ApproNextGen = {
         }
       }
 
-      // Default for unlinked regular expenditures
       dp.isDirect = false;
       dp.linkedBcIds = dp.linkedBcIds || [];
       dp.linkedBcRefs = dp.linkedBcRefs || [];
     });
+    if (window.LogicalMatchEngine) window.LogicalMatchEngine.invalidate();
   },
 
   // 2. Inject scanner banners on "Suivi BC" and "Paiements"
@@ -13327,6 +13467,9 @@ const ApproNextGen = window.ApproNextGen = {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ bcRecords: payload, records: payload, fromFolderScan: true })
             }).catch(() => {});
+          }
+          if (window.bcBridge && typeof window.bcBridge.syncPaymentsToServer === 'function' && (state.payments || []).length > 0) {
+            window.bcBridge.syncPaymentsToServer();
           }
           renderApp();
           showToast(`Scan terminé : ${addedCount} nouveaux, ${updatedCount} actualisés (${recordsMap.size} au total) !`);
@@ -13528,12 +13671,14 @@ const ApproNextGen = window.ApproNextGen = {
           state.payments = deduplicatePaymentsList(Array.from(dpsMap.values()));
           this.autoLinkBcsAndDps();
           saveState();
-          if (window.bcBridge && typeof window.bcBridge.syncPaymentsToServer === 'function') {
-            window.bcBridge.syncPaymentsToServer();
+          if (window.bcBridge) {
+            if (typeof window.bcBridge.syncPaymentsToServer === 'function') window.bcBridge.syncPaymentsToServer();
+            if (typeof window.bcBridge.syncBcToServer === 'function') window.bcBridge.syncBcToServer();
           }
           renderApp();
           showToast(`${state.payments.length} Demandes de Paiement uniques indexées (${addedCount} nouvelles, ${updatedCount} mises à jour) !`);
         });
+        if (event && event.target) event.target.value = '';
         return;
       }
 
@@ -16332,11 +16477,9 @@ if (document.readyState === 'loading') {
             if (rawPayments.length > window.state.payments.length) {
               apiRequest('POST', '/api/payments/dedupe', {}).catch(function() {});
             }
-          } else if (rawPayments && rawPayments.length === 0 && serverBcs.length > 0 && Array.isArray(window.state.payments) && window.state.payments.length > 0) {
-            if (window.ApproNextGen && typeof window.ApproNextGen._dedupAndNormalizePayments === 'function') {
-              window.state.payments = window.ApproNextGen._dedupAndNormalizePayments(window.state.payments);
-            }
-            shouldBootstrapPayments = true;
+          } else if (Array.isArray(rawPayments) && rawPayments.length === 0) {
+            window.state.payments = [];
+            shouldBootstrapPayments = false;
           }
 
           if (serverBcs.length === 0) {

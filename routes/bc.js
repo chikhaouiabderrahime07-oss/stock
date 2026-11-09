@@ -411,6 +411,44 @@ router.all('/purge-all', async (req, res) => {
   }
 });
 
+// ALL /api/bc/reset-clean-slate — wipe Stock (Article + Movement), BC, and DP while preserving Users & Settings/Tags
+router.all('/reset-clean-slate', async (req, res) => {
+  try {
+    const Payment = require('../models/Payment');
+    const Article = require('../models/Article');
+    const Movement = require('../models/Movement');
+    const [delBc, delDp, delArt, delMov] = await Promise.all([
+      BcRecord.deleteMany({}),
+      Payment.deleteMany({}),
+      Article.deleteMany({}),
+      Movement.deleteMany({})
+    ]);
+    await Setting.findOneAndUpdate(
+      { key: 'global' },
+      {
+        $set: {
+          cleanResetToken: 'reset_2026_11_10_stock_bc_dp',
+          bcDatasetVersion: 'manual_empty',
+          dpDatasetVersion: 'manual_empty',
+          stockDatasetVersion: 'manual_empty',
+          cleanResetAt: new Date()
+        }
+      },
+      { upsert: true, strict: false }
+    );
+    res.json({
+      success: true,
+      deletedBc: delBc.deletedCount || 0,
+      deletedDp: delDp.deletedCount || 0,
+      deletedArticles: delArt.deletedCount || 0,
+      deletedMovements: delMov.deletedCount || 0,
+      message: 'Stock, BC et DP réinitialisés à 0 (Utilisateurs et Tags/Paramètres conservés).'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/bc/all — delete all (admin only) — MUST BE BEFORE /:id
 router.delete('/all', authenticate, authorize('superadmin', 'admin', 'directeur'), async (req, res) => {
   try {
