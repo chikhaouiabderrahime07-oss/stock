@@ -1967,13 +1967,56 @@ function deleteBc(id) {
   if (typeof updateFollowupBulkBar === 'function') updateFollowupBulkBar();
   showToast('Ligne BC supprimée.');
 }
+window._formLinkedBcIds = [];
+window.renderPaymentFormBcChips = function() {
+  const wrap = $('paymentMultiBcChips');
+  const sumEl = $('paymentMultiBcSummary');
+  if (!wrap) return;
+  const ids = Array.from(new Set((window._formLinkedBcIds || []).filter(Boolean)));
+  window._formLinkedBcIds = ids;
+  const bcs = ids.map(id => findBcById(id)).filter(Boolean);
+  const totalAmt = bcs.reduce((s, b) => s + Number(b.amountTTC || b.amount || 0), 0);
+  if (sumEl) {
+    sumEl.textContent = bcs.length > 0
+      ? `${bcs.length} BC(s) rattaché(s) · Total : ${formatMoney(totalAmt, 'DZD')}`
+      : 'Aucun BC rattaché (sélectionnez un ou plusieurs BCs ci-dessous)';
+  }
+  wrap.innerHTML = bcs.length > 0
+    ? bcs.map(b => `<span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;font-size:11.5px;font-weight:700;">
+        <span>✓ ${escapeHtml(b.ref)} · ${escapeHtml((b.supplierName || '').slice(0, 20))} (${formatMoney(b.amountTTC || b.amount, 'DZD')})</span>
+        <button type="button" onclick="window.removeBcFromPaymentForm('${escapeHtml(b.id)}')" style="border:none;background:transparent;color:#dc2626;font-weight:900;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;" title="Retirer ce BC">&times;</button>
+      </span>`).join('')
+    : '<span class="muted" style="font-size:11.5px;">Choisissez un BC dans la liste déroulante pour l\'ajouter (vous pouvez en ajouter plusieurs).</span>';
+};
+window.addBcToPaymentForm = function(bcId) {
+  if (!bcId) return;
+  const bc = findBcById(bcId);
+  if (!bc) return;
+  window._formLinkedBcIds = Array.from(new Set([...(window._formLinkedBcIds || []), bc.id]));
+  if ($('paymentBeneficiary') && !$('paymentBeneficiary').value.trim()) {
+    $('paymentBeneficiary').value = bc.supplierName || '';
+  }
+  if ($('paymentBcId')) $('paymentBcId').value = '';
+  window.renderPaymentFormBcChips();
+};
+window.removeBcFromPaymentForm = function(bcId) {
+  window._formLinkedBcIds = (window._formLinkedBcIds || []).filter(id => id !== bcId);
+  window.renderPaymentFormBcChips();
+};
+window.clearBcsFromPaymentForm = function() {
+  window._formLinkedBcIds = [];
+  if ($('paymentBcId')) $('paymentBcId').value = '';
+  window.renderPaymentFormBcChips();
+};
+
 function preparePaymentForBc(id) {
   const row = findBcById(id);
   if (!row) return;
   setActiveTab('payments');
   if (typeof switchPaymentsSubview === 'function') switchPaymentsSubview('form');
   resetPaymentForm();
-  if ($('paymentBcId')) $('paymentBcId').value = row.id;
+  window._formLinkedBcIds = [row.id];
+  window.renderPaymentFormBcChips();
   if ($('paymentBeneficiary')) $('paymentBeneficiary').value = row.supplierName || '';
   if ($('paymentAmount')) $('paymentAmount').value = row.amountTTC || row.amount || '';
   if ($('paymentNotes')) $('paymentNotes').value = row.description || row.comments || '';
@@ -1988,43 +2031,46 @@ function resetPaymentForm() {
   if ($('paymentStatus')) $('paymentStatus').value = 'en_attente';
   if ($('paymentMode')) $('paymentMode').value = 'virement';
   if ($('paymentExcluded')) $('paymentExcluded').checked = false;
+  window._formLinkedBcIds = [];
+  window.renderPaymentFormBcChips();
 }
 function submitPaymentForm(e) {
   e.preventDefault();
   const existing = findPaymentById($('paymentId').value);
-  const chosenBcId = $('paymentBcId') ? $('paymentBcId').value : '';
-  const bc = chosenBcId ? findBcById(chosenBcId) : null;
+  const selectBcId = $('paymentBcId') ? $('paymentBcId').value : '';
+  if (selectBcId && !(window._formLinkedBcIds || []).includes(selectBcId)) {
+    window._formLinkedBcIds = [...(window._formLinkedBcIds || []), selectBcId];
+  }
+  const nextLinkedIds = Array.from(new Set((window._formLinkedBcIds || []).filter(Boolean)));
+  const firstBc = nextLinkedIds.length ? findBcById(nextLinkedIds[0]) : null;
   const st = $('paymentStatus').value;
   const isPaidNow = (st === 'paye' || st === 'paid');
-  const prevIds = Array.isArray(existing?.linkedBcIds) ? existing.linkedBcIds.filter(Boolean) : [];
-  let nextLinkedIds = prevIds;
-  if (chosenBcId) {
-    nextLinkedIds = prevIds.length > 1
-      ? Array.from(new Set([chosenBcId, ...prevIds]))
-      : [chosenBcId];
-  } else if (existing && prevIds.length <= 1) {
-    nextLinkedIds = [];
-  }
+  const prevIds = Array.from(new Set([
+    ...(Array.isArray(existing?.linkedBcIds) ? existing.linkedBcIds.filter(Boolean) : []),
+    ...(existing?.bcId ? [existing.bcId] : []),
+    ...(existing && window.ApproNextGen && typeof window.ApproNextGen.findAssociatedBcsForDp === 'function' ? window.ApproNextGen.findAssociatedBcsForDp(existing).map(b => b.id) : [])
+  ]));
   const nextLinkedRefs = nextLinkedIds.map(id => findBcById(id)?.ref).filter(Boolean);
   const isExcludedNow = Boolean($('paymentExcluded')?.checked);
   const payload = normalizePayment({
     ...(existing || {}),
     id: existing?.id || $('paymentId').value || uid('pay'),
-    bcId: chosenBcId || nextLinkedIds[0] || '',
+    bcId: nextLinkedIds[0] || '',
     linkedBcIds: nextLinkedIds,
     linkedBcRefs: nextLinkedRefs,
-    beneficiary: ($('paymentBeneficiary')?.value || '').trim() || bc?.supplierName || existing?.beneficiary || '',
+    isDirect: nextLinkedIds.length > 0 ? false : Boolean(existing?.isDirect),
+    beneficiary: ($('paymentBeneficiary')?.value || '').trim() || firstBc?.supplierName || existing?.beneficiary || '',
     paymentRef: $('paymentRef').value.trim(),
     requestDate: $('paymentRequestDate').value || todayYmd(),
     paidDate: isPaidNow ? ($('paymentPaidDate').value || todayYmd()) : $('paymentPaidDate').value,
-    amount: parseFlexibleNumber($('paymentAmount').value || bc?.amountTTC || 0),
+    amount: parseFlexibleNumber($('paymentAmount').value || firstBc?.amountTTC || 0),
     mode: $('paymentMode').value,
     transactionRef: $('paymentTransactionRef').value.trim(),
     status: st,
     excluded: isExcludedNow,
     isSpecialCase: isExcludedNow,
     notes: $('paymentNotes').value.trim(),
-    manualLink: Boolean(chosenBcId || existing?.manualLink || (existing && !chosenBcId && prevIds.length > 0)),
+    manualLink: Boolean(nextLinkedIds.length > 0 || existing?.manualLink || prevIds.length > 0),
     updatedAt: nowIso(),
   });
   const idx = state.payments.findIndex((row) => row.id === payload.id);
@@ -2106,7 +2152,16 @@ function editPayment(id) {
   const card = $('paymentFormCard');
   if (card) card.style.display = 'block';
   $('paymentId').value = row.id;
-  if ($('paymentBcId')) $('paymentBcId').value = row.bcId || (row.linkedBcIds && row.linkedBcIds[0]) || '';
+  const assocIds = (window.ApproNextGen && typeof window.ApproNextGen.findAssociatedBcsForDp === 'function')
+    ? window.ApproNextGen.findAssociatedBcsForDp(row).map(b => b.id)
+    : [];
+  window._formLinkedBcIds = Array.from(new Set([
+    ...(Array.isArray(row.linkedBcIds) ? row.linkedBcIds : []),
+    ...(row.bcId ? [row.bcId] : []),
+    ...assocIds
+  ].filter(Boolean)));
+  if ($('paymentBcId')) $('paymentBcId').value = '';
+  window.renderPaymentFormBcChips();
   if ($('paymentBeneficiary')) $('paymentBeneficiary').value = row.beneficiary || '';
   $('paymentRef').value = row.paymentRef || '';
   $('paymentRequestDate').value = row.requestDate || '';
@@ -3998,21 +4053,28 @@ function injectSortableHeaders() {
       if (th) makeSortableHeader(th, 'followup', tuple[0], tuple[1]);
     });
   }
-  const paymentHeaders = $$('#page-payments thead th');
-  if (paymentHeaders.length && !paymentHeaders[0].querySelector('.th-sort-btn')) {
+  const paymentHeaders = $$('#paymentsTable thead th');
+  if (paymentHeaders.length >= 12) {
     const map = {
-      0: ['paymentRef', 'Réf paiement'],
-      1: ['bcRef', 'BC'],
-      2: ['supplier', 'Fournisseur'],
-      3: ['requestDate', 'Date demande'],
-      4: ['paidDate', 'Date paiement'],
-      5: ['amount', 'Montant'],
-      6: ['mode', 'Mode'],
-      8: ['delay', 'Délai'],
+      1: ['paymentRef', 'Réf DP'],
+      2: ['status', 'Statut DP'],
+      3: ['bcRef', 'Liaison BC'],
+      4: ['supplier', 'Fournisseur / Bénéficiaire'],
+      5: ['nature', 'Objet / Nature'],
+      6: ['requestDate', 'Date DP'],
+      7: ['paidDate', 'Date Paiement'],
+      8: ['amount', 'Montant'],
+      9: ['mode', 'Mode'],
+      10: ['delay', 'Délai'],
     };
-    Object.entries(map).forEach(([index, tuple]) => {
-      const th = paymentHeaders[Number(index)];
-      if (th) makeSortableHeader(th, 'payments', tuple[0], tuple[1]);
+    paymentHeaders.forEach((th, idx) => {
+      if (idx === 0) {
+        th.innerHTML = '<input type="checkbox" id="selectAllPayments" title="Tout sélectionner" style="cursor:pointer;width:15px;height:15px;" />';
+      } else if (map[idx]) {
+        makeSortableHeader(th, 'payments', map[idx][0], map[idx][1]);
+      } else if (idx === 11) {
+        th.textContent = 'Actions';
+      }
     });
   }
   const stockItemHeaders = $$('#page-stock .table-shell.tight-space thead th');
@@ -9662,11 +9724,35 @@ window.renderFollowupTable = function() {
 // 7.5 Override injectSortableHeaders to match new columns
 const _baseInjectSortableHeaders = window.injectSortableHeaders;
 window.injectSortableHeaders = function() {
-  // First, do base for payments and stock
   if (typeof _baseInjectSortableHeaders === 'function') {
     _baseInjectSortableHeaders();
   }
-  
+
+  const paymentHeaders = document.querySelectorAll('#paymentsTable thead th');
+  if (paymentHeaders.length >= 12) {
+    const pMap = {
+      1: ['paymentRef', 'Réf DP'],
+      2: ['status', 'Statut DP'],
+      3: ['bcRef', 'Liaison BC'],
+      4: ['supplier', 'Fournisseur / Bénéficiaire'],
+      5: ['nature', 'Objet / Nature'],
+      6: ['requestDate', 'Date DP'],
+      7: ['paidDate', 'Date Paiement'],
+      8: ['amount', 'Montant'],
+      9: ['mode', 'Mode'],
+      10: ['delay', 'Délai']
+    };
+    paymentHeaders.forEach((th, idx) => {
+      if (idx === 0) {
+        th.innerHTML = '<input type="checkbox" id="selectAllPayments" title="Tout sélectionner" style="cursor:pointer; width:15px; height:15px;" />';
+      } else if (pMap[idx]) {
+        th.innerHTML = `<button type="button" class="th-sort-btn" data-sort-group="payments" data-sort-field="${pMap[idx][0]}"><span>${escapeHtml(pMap[idx][1])}</span><span class="th-sort-indicator" aria-hidden="true">↕</span></button>`;
+      } else if (idx === 11) {
+        th.textContent = 'Actions';
+      }
+    });
+  }
+
   // Now explicitly override followup headers (scoped to #followupTable)
   const followupHeaders = document.querySelectorAll('#followupTable thead th');
   if (followupHeaders.length) {
@@ -9683,8 +9769,7 @@ window.injectSortableHeaders = function() {
       10: ['status', 'Statut BC'],
       11: ['goodsReceivedDate', 'Réalisation']
     };
-    
-    // Clear old sort buttons if any, then apply correct ones
+
     followupHeaders.forEach((th, idx) => {
       if (idx === 0) {
         th.innerHTML = '<input type="checkbox" id="selectAllFollowupBcs" title="Tout sélectionner" style="cursor:pointer; width:16px; height:16px;" />';
@@ -14398,19 +14483,24 @@ const ApproNextGen = window.ApproNextGen = {
         let linkingBadge = '';
         if (row.isDirect) {
           const catLbl = row.directCategory ? ` (${escapeHtml(row.directCategory)})` : '';
-          linkingBadge = `<span class="dp-badge-direct" title="Dépense directe sans BC${catLbl}">⚡ Sans BC</span>`;
-        } else if (assocBcs.length > 1) {
-          const refsStr = assocBcs.map(b => b.ref).join(', ');
-          linkingBadge = `<span class="dp-badge-multi" style="cursor:pointer;" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Liée à ${assocBcs.length} BCs : ${escapeHtml(refsStr)}">📦 Lot (${assocBcs.length} BCs)</span>`;
-        } else if (assocBcs.length === 1) {
-          linkingBadge = `<span class="dp-badge-linked" style="cursor:pointer;" onclick="window.openBcDetailModal && window.openBcDetailModal('${assocBcs[0].id}')" title="Ouvrir ${escapeHtml(assocBcs[0].ref)}">✓ ${escapeHtml(assocBcs[0].ref)}</span>`;
+          linkingBadge = `<span class="dp-badge-direct" style="cursor:pointer;" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Dépense directe sans BC${catLbl} — Cliquer pour rectifier ou lier des BCs">⚡ Sans BC ✏️</span>`;
+        } else if (assocBcs.length >= 1) {
+          const refsStr = assocBcs.map(b => b.ref).join(' + ');
+          const shortRefs = assocBcs.length === 1
+            ? `✓ ${escapeHtml(assocBcs[0].ref)}`
+            : `📦 ${escapeHtml(assocBcs.slice(0, 2).map(b => b.ref.replace(/\/DG\/202\d/i, '')).join(' + '))}${assocBcs.length > 2 ? ` +${assocBcs.length - 2}` : ''} (${assocBcs.length} BCs)`;
+          const cls = assocBcs.length > 1 ? 'dp-badge-multi' : 'dp-badge-linked';
+          linkingBadge = `<div style="display:inline-flex;align-items:center;gap:4px;flex-wrap:nowrap;">
+            <span class="${cls}" style="cursor:pointer;" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Rattachée à : ${escapeHtml(refsStr)} — Cliquer pour rectifier / ajouter ou retirer plusieurs BCs">${shortRefs} ✏️</span>
+            <button type="button" class="btn btn-xs btn-ghost" style="padding:1px 5px;font-size:11px;" onclick="event.stopPropagation();window.openBcDetailModal && window.openBcDetailModal('${assocBcs[0].id}')" title="Voir détails ${escapeHtml(assocBcs[0].ref)}">👁️</button>
+          </div>`;
         } else {
           const topAi = window.LogicalMatchEngine ? window.LogicalMatchEngine.getLogicalBcCandidatesForDp(row)[0] : null;
           if (topAi && topAi.score >= 45) {
             const cRef = topAi.bcs.map(b => b.ref).join('+');
-            linkingBadge = `<button type="button" class="bc-ai-suggest-chip" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Suggestion IA : ${escapeHtml(cRef)} (${topAi.score}%)">🤖 ${escapeHtml(cRef.length > 14 ? cRef.slice(0, 13) + '…' : cRef)} (${topAi.score}%)</button>`;
+            linkingBadge = `<button type="button" class="bc-ai-suggest-chip" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Suggestion IA : ${escapeHtml(cRef)} (${topAi.score}%) — Cliquer pour lier 1 ou plusieurs BCs">🤖 ${escapeHtml(cRef.length > 16 ? cRef.slice(0, 15) + '…' : cRef)} (${topAi.score}%)</button>`;
           } else {
-            linkingBadge = `<span class="dp-badge-pending" style="cursor:pointer;" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Cliquer pour lier à un BC">⚠️ À lier</span>`;
+            linkingBadge = `<span class="dp-badge-pending" style="cursor:pointer;" onclick="ApproNextGen.openLinkingModal('${row.id}')" title="Cliquer pour attacher 1 ou plusieurs BCs">⚠️ À lier (+BC)</span>`;
           }
         }
 
@@ -14461,25 +14551,38 @@ const ApproNextGen = window.ApproNextGen = {
       document.body.appendChild(modal);
     }
 
-    const currentLinkedIds = new Set(dp.linkedBcIds || []);
-    const matchingSupplier = (dp.beneficiary || '').toLowerCase();
+    const assocIds = this.findAssociatedBcsForDp(dp).map(b => b.id);
+    const currentLinkedIds = new Set([
+      ...(Array.isArray(dp.linkedBcIds) ? dp.linkedBcIds : []),
+      ...(dp.bcId ? [dp.bcId] : []),
+      ...assocIds
+    ].filter(Boolean));
+    const aiCands = (window.LogicalMatchEngine && typeof window.LogicalMatchEngine.getLogicalBcCandidatesForDp === 'function')
+      ? window.LogicalMatchEngine.getLogicalBcCandidatesForDp(dp)
+      : [];
+    const aiSuggestedBcIds = new Set();
+    aiCands.slice(0, 4).forEach(c => (c.bcs || []).forEach(b => { if (b && b.id) aiSuggestedBcIds.add(b.id); }));
 
-    // Filter relevant BCs (sort matching supplier to top)
-    const sortedBcs = [...state.bcRecords].sort((a, b) => {
-      const aMatch = a.supplierName?.toLowerCase().includes(matchingSupplier);
-      const bMatch = b.supplierName?.toLowerCase().includes(matchingSupplier);
-      if (aMatch && !bMatch) return -1;
-      if (!aMatch && bMatch) return 1;
+    const sortedBcs = [...(state.bcRecords || [])].sort((a, b) => {
+      const aLinked = currentLinkedIds.has(a.id) ? 1 : 0;
+      const bLinked = currentLinkedIds.has(b.id) ? 1 : 0;
+      if (aLinked !== bLinked) return bLinked - aLinked;
+      const aAi = aiSuggestedBcIds.has(a.id) ? 1 : 0;
+      const bAi = aiSuggestedBcIds.has(b.id) ? 1 : 0;
+      if (aAi !== bAi) return bAi - aAi;
+      const aSim = window.LogicalMatchEngine ? window.LogicalMatchEngine.scoreSupplier(a.supplierName, dp.beneficiary).sim : 0;
+      const bSim = window.LogicalMatchEngine ? window.LogicalMatchEngine.scoreSupplier(b.supplierName, dp.beneficiary).sim : 0;
+      if (Math.abs(aSim - bSim) > 0.15) return bSim - aSim;
       return String(b.date || '').localeCompare(String(a.date || ''));
     });
 
     modal.innerHTML = `
-      <div class="modal modal-card" style="max-width:820px;">
+      <div class="modal modal-card" style="max-width:860px;">
         <div class="modal-header">
-          <h3>🔗 Liaison Demande de Paiement & Bons de Commande</h3>
+          <h3>🔗 Rattacher / Rectifier les Bons de Commande (Multi-BC)</h3>
           <button class="btn-ghost" type="button" onclick="document.getElementById('dpLinkingModal').classList.add('hidden')">&times;</button>
         </div>
-        <div class="modal-body" style="padding:1.25rem;">
+        <div class="modal-body" style="padding:1.15rem;">
           <div class="linking-card">
             <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
               <div>
@@ -14496,22 +14599,20 @@ const ApproNextGen = window.ApproNextGen = {
             </div>
           </div>
 
-          <!-- Checkbox for Direct DP without BC -->
-          <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;">
+          <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:0.65rem 0.9rem;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
             <div>
-              <label style="cursor:pointer;font-weight:700;color:#6b21a8;display:flex;align-items:center;gap:0.5rem;margin:0;">
+              <label style="cursor:pointer;font-weight:700;color:#6b21a8;display:flex;align-items:center;gap:0.5rem;margin:0;font-size:0.83rem;">
                 <input type="checkbox" id="dpIsDirectCheck" ${dp.isDirect ? 'checked' : ''} onchange="ApproNextGen.onToggleDirectDp(this.checked)">
-                <span>Dépense directe sans Bon de Commande (ex: Sonelgaz, Impôts, Baladiya, Assurance, Notaire)</span>
+                <span>Dépense directe sans Bon de Commande (Sonelgaz, Impôts, Baladiya, Assurance...)</span>
               </label>
-              <div style="font-size:0.75rem;color:#9333ea;margin-top:2px;">Cochez cette option si cette dépense ne fait l'objet d'aucun bon de commande.</div>
             </div>
-            <button class="btn btn-soft btn-xs" type="button" onclick="ApproNextGen.autoSuggestLinks('${dp.id}')">
-              🤖 Auto-Détecter
-            </button>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-soft btn-xs" type="button" onclick="ApproNextGen.autoSuggestLinks('${dp.id}')">🤖 Auto-Détecter IA</button>
+              <button class="btn btn-ghost btn-xs" type="button" style="color:#dc2626;" onclick="ApproNextGen.onToggleDirectDp(true);document.getElementById('dpIsDirectCheck').checked=false;ApproNextGen.updateLinkingCalc();">✕ Tout décocher</button>
+            </div>
           </div>
 
-          <!-- Live Balance Meter -->
-          <div class="linking-calc-meter" id="linkingCalcMeter">
+          <div class="linking-calc-meter" id="linkingCalcMeter" data-dp-amount="${Number(dp.amount || 0)}">
             <div>
               <span style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;">Montant DP</span>
               <div class="calc-meter-val">${formatMoney(dp.amount, 'DZD')}</div>
@@ -14526,20 +14627,22 @@ const ApproNextGen = window.ApproNextGen = {
             </div>
           </div>
 
-          <!-- BC Search & Selection Table -->
+          <div id="linkingActiveBcsBar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding:6px 8px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;min-height:30px;align-items:center;"></div>
+
           <div style="margin-bottom:0.5rem;display:flex;gap:0.5rem;">
-            <input type="search" id="linkingBcSearch" class="field" placeholder="Filtrer réf BC, fournisseur, montant..." style="margin:0;width:100%;" oninput="ApproNextGen.filterLinkingBcs(this.value)">
+            <input type="search" id="linkingBcSearch" class="field" placeholder="Rechercher et cocher 1, 2, 3... BCs (réf BC, fournisseur, montant, objet)..." style="margin:0;width:100%;" oninput="ApproNextGen.filterLinkingBcs(this.value)">
           </div>
 
           <div class="bc-selection-list" id="bcSelectionList">
             ${sortedBcs.map(bc => {
               const isChecked = currentLinkedIds.has(bc.id);
+              const isAi = aiSuggestedBcIds.has(bc.id);
               return `
-                <div class="bc-selection-row ${isChecked ? 'selected' : ''}" data-id="${bc.id}" data-amount="${bc.amountTTC || bc.amount || 0}" onclick="ApproNextGen.toggleBcSelection('${bc.id}')">
+                <div class="bc-selection-row ${isChecked ? 'selected' : ''}" data-id="${bc.id}" data-ref="${escapeHtml(bc.ref || '')}" data-amount="${bc.amountTTC || bc.amount || 0}" onclick="ApproNextGen.toggleBcSelection('${bc.id}')">
                   <input type="checkbox" class="bc-select-chk" value="${bc.id}" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation();ApproNextGen.toggleBcSelection('${bc.id}');">
                   <div style="flex-grow:1;">
-                    <div style="display:flex;justify-content:space-between;font-weight:700;">
-                      <span>${escapeHtml(bc.ref)} <span style="font-weight:400;color:#64748b;">(${formatDate(bc.date)})</span></span>
+                    <div style="display:flex;justify-content:space-between;font-weight:700;align-items:center;">
+                      <span>${escapeHtml(bc.ref)} <span style="font-weight:400;color:#64748b;">(${formatDate(bc.date)})</span> ${isChecked ? '<span class="badge bg-primary text-white" style="font-size:10px;margin-left:4px;">📌 Rattaché</span>' : (isAi ? '<span class="badge" style="background:#ede9fe;color:#6d28d9;font-size:10px;margin-left:4px;">🤖 Suggéré IA</span>' : '')}</span>
                       <span style="color:#0f172a;">${formatMoney(bc.amountTTC || bc.amount, 'DZD')}</span>
                     </div>
                     <div style="font-size:0.75rem;color:#475569;">
@@ -14551,11 +14654,14 @@ const ApproNextGen = window.ApproNextGen = {
             }).join('')}
           </div>
         </div>
-        <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:0.6rem;padding:0.75rem 1.25rem;">
-          <button class="btn btn-ghost" type="button" onclick="document.getElementById('dpLinkingModal').classList.add('hidden')">Annuler</button>
-          <button class="btn btn-primary" type="button" onclick="ApproNextGen.saveLinking('${dp.id}')">
-            💾 Enregistrer la Liaison
-          </button>
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;padding:0.75rem 1.25rem;">
+          <span style="font-size:11.5px;color:#64748b;">💡 Cochez autant de BCs que nécessaire pour cette DP.</span>
+          <div style="display:flex;gap:0.6rem;">
+            <button class="btn btn-ghost" type="button" onclick="document.getElementById('dpLinkingModal').classList.add('hidden')">Annuler</button>
+            <button class="btn btn-primary" type="button" onclick="ApproNextGen.saveLinking('${dp.id}')">
+              💾 Enregistrer la Liaison Multi-BC
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -14572,7 +14678,6 @@ const ApproNextGen = window.ApproNextGen = {
     if (chk.checked) row.classList.add('selected');
     else row.classList.remove('selected');
 
-    // If direct is checked, uncheck it
     const directChk = document.getElementById('dpIsDirectCheck');
     if (directChk && directChk.checked) directChk.checked = false;
 
@@ -14594,13 +14699,16 @@ const ApproNextGen = window.ApproNextGen = {
     const totalSelected = checkedRows.reduce((sum, r) => sum + (parseFloat(r.getAttribute('data-amount')) || 0), 0);
 
     const isDirect = document.getElementById('dpIsDirectCheck')?.checked;
-    const dpValEl = document.querySelector('.linking-calc-meter .calc-meter-val');
-    const target = targetAmt || (dpValEl ? parseFloat(dpValEl.textContent.replace(/[^0-9.]/g, '')) : 0);
+    const meterEl = document.getElementById('linkingCalcMeter');
+    const target = (typeof targetAmt === 'number' && !isNaN(targetAmt))
+      ? targetAmt
+      : (meterEl ? parseFloat(meterEl.getAttribute('data-dp-amount')) || 0 : 0);
 
     const selEl = document.getElementById('linkingSelectedTotal');
     const diffEl = document.getElementById('linkingDiffVal');
+    const barEl = document.getElementById('linkingActiveBcsBar');
 
-    if (selEl) selEl.textContent = isDirect ? '0,00 DZD (Sans BC)' : formatMoney(totalSelected, 'DZD');
+    if (selEl) selEl.textContent = isDirect ? '0,00 DZD (Sans BC)' : `${formatMoney(totalSelected, 'DZD')} (${checkedRows.length} BC${checkedRows.length > 1 ? 's' : ''})`;
     if (diffEl) {
       if (isDirect) {
         diffEl.textContent = 'Dépense Directe';
@@ -14608,8 +14716,22 @@ const ApproNextGen = window.ApproNextGen = {
       } else {
         const diff = target - totalSelected;
         diffEl.textContent = formatMoney(diff, 'DZD');
-        diffEl.className = `calc-meter-val calc-meter-diff ${Math.abs(diff) < 1 ? 'ok' : 'diff'}`;
+        diffEl.className = `calc-meter-val calc-meter-diff ${Math.abs(diff) <= 5 ? 'ok' : 'diff'}`;
       }
+    }
+    if (barEl) {
+      barEl.innerHTML = checkedRows.length > 0
+        ? `<strong style="font-size:11.5px;color:#1e40af;margin-right:4px;">BCs sélectionnés (${checkedRows.length}) :</strong>` +
+          checkedRows.map(r => {
+            const id = r.getAttribute('data-id');
+            const ref = r.getAttribute('data-ref') || 'BC';
+            const amt = parseFloat(r.getAttribute('data-amount')) || 0;
+            return `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;font-size:11px;font-weight:700;">
+              <span>✓ ${escapeHtml(ref)} (${formatMoney(amt, 'DZD')})</span>
+              <button type="button" onclick="ApproNextGen.toggleBcSelection('${escapeHtml(id)}')" style="border:none;background:transparent;color:#dc2626;font-weight:900;cursor:pointer;padding:0 2px;font-size:12px;line-height:1;" title="Décocher ce BC">&times;</button>
+            </span>`;
+          }).join('')
+        : `<span style="font-size:11.5px;color:#64748b;">Aucun BC coché — cliquez sur un ou plusieurs BCs dans la liste ci-dessous pour les rattacher.</span>`;
     }
   },
 

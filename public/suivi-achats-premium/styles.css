@@ -9445,7 +9445,21 @@ body[data-theme='dark'] #supplierMultiSelectList .multi-select-item {
   color: #f8fafc !important;
 }
 
+/* === PAYMENTS DP TABLE COLUMN ALIGNMENT FIX === */
+#paymentsTable th:nth-child(1),
+#paymentsTable td:nth-child(1),
+#followupTable th:nth-child(1),
+#followupTable td:nth-child(1) {
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  text-align: center !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
 
-
-
+#paymentsTable th:nth-child(9),
+#paymentsTable td:nth-child(9) {
+  text-align: right !important;
+}
 

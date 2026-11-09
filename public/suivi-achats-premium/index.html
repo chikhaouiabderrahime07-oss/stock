@@ -603,7 +603,18 @@
               <div class="panel-title-row"><h3>Enregistrement / Modification Demande de Paiement (DP)</h3><span class="panel-tag">Trésorerie</span></div>
               <form id="paymentForm" class="dense-form two-cols">
                 <input type="hidden" id="paymentId" />
-                <label class="field"><span>BC liée (optionnel)</span><select id="paymentBcId"></select></label>
+                <div class="field wide" style="grid-column:1 / -1;background:rgba(37,99,235,0.04);border:1px solid rgba(37,99,235,0.18);border-radius:10px;padding:10px 12px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                    <span style="font-weight:700;font-size:12px;color:var(--text);">🔗 Bon(s) de Commande rattaché(s) (1 ou plusieurs BCs)</span>
+                    <span id="paymentMultiBcSummary" style="font-size:11.5px;font-weight:700;color:#2563eb;">Aucun BC rattaché</span>
+                  </div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                    <select id="paymentBcId" style="flex:1;min-width:220px;" onchange="window.addBcToPaymentForm && window.addBcToPaymentForm(this.value)"></select>
+                    <button type="button" class="btn btn-soft btn-compact" onclick="window.addBcToPaymentForm && window.addBcToPaymentForm(document.getElementById('paymentBcId').value)">➕ Ajouter BC</button>
+                    <button type="button" class="btn btn-Ghost btn-compact" style="border:1px solid rgba(220,38,38,0.25);color:#dc2626;" onclick="window.clearBcsFromPaymentForm && window.clearBcsFromPaymentForm()">✕ Vider BCs</button>
+                  </div>
+                  <div id="paymentMultiBcChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:24px;align-items:center;"></div>
+                </div>
                 <label class="field"><span>Bénéficiaire / Fournisseur</span><input id="paymentBeneficiary" type="text" list="suppliersList" placeholder="Fournisseur / Bénéficiaire" /></label>
                 <label class="field"><span>Réf paiement / DP</span><input id="paymentRef" type="text" placeholder="Ex: 157/2026" /></label>
                 <label class="field"><span>Montant (DZD)</span><input id="paymentAmount" type="text" inputmode="decimal" placeholder="0,00" /></label>
