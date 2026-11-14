@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Paramètres Généraux — ERP Douroub v6</title>
+<link rel="stylesheet" href="/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#0f172a;color:#1e293b;min-height:100vh;display:flex;flex-direction:column;}
+.gs-header{background:linear-gradient(90deg,#1e293b,#1e1b4b);color:#fff;padding:16px 28px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 16px rgba(0,0,0,0.4);flex-shrink:0;}
+.gs-logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.gs-header h1{font-size:1.1rem;font-weight:800;line-height:1.2;}
+.gs-header small{font-size:0.75rem;opacity:0.6;display:block;}
+.gs-header-right{margin-left:auto;display:flex;gap:10px;align-items:center;}
+.hbtn{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;gap:6px;text-decoration:none;transition:0.2s;}
+.hbtn:hover{background:rgba(255,255,255,0.2);}
+.gs-layout{display:flex;flex:1;min-height:0;background:#f1f5f9;}
+.gs-sidebar{width:210px;background:#fff;border-right:1px solid #e2e8f0;padding:16px 0;flex-shrink:0;overflow-y:auto;}
+.gs-nav{display:flex;align-items:center;gap:10px;padding:11px 18px;font-size:0.87rem;font-weight:500;color:#64748b;cursor:pointer;border-left:3px solid transparent;transition:0.15s;text-decoration:none;}
+.gs-nav:hover{background:#f8fafc;color:#1e293b;}
+.gs-nav.active{background:#eff6ff;color:#2563eb;border-left-color:#2563eb;font-weight:700;}
+.gs-nav i{width:16px;text-align:center;font-size:0.85rem;}
+.gs-content{flex:1;overflow-y:auto;padding:28px;}
+.gs-tab{display:none;animation:fadeUp 0.2s;}
+.gs-tab.active{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card{background:#fff;border-radius:14px;padding:24px;margin-bottom:20px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+.card-title{font-size:0.95rem;font-weight:700;color:#1e293b;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+.card-title i{color:#2563eb;}
+.form-group{margin-bottom:14px;}
+.form-label{display:block;font-size:0.78rem;font-weight:600;color:#64748b;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.03em;}
+.form-control{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.88rem;font-family:inherit;color:#1e293b;transition:0.15s;}
+.form-control:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.08);}
+select.form-control{cursor:pointer;}
+textarea.form-control{resize:vertical;min-height:70px;}
+.row{display:flex;gap:14px;}.col{flex:1;}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:0.73rem;font-weight:600;}
+.b-blue{background:#dbeafe;color:#1d4ed8;}.b-green{background:#dcfce7;color:#15803d;}
+.b-purple{background:#ede9fe;color:#6d28d9;}.b-orange{background:#ffedd5;color:#c2410c;}
+.b-gray{background:#f1f5f9;color:#475569;}.b-red{background:#fee2e2;color:#dc2626;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:0.84rem;font-weight:600;cursor:pointer;border:none;transition:0.15s;font-family:inherit;}
+.btn-primary{background:#2563eb;color:#fff;}.btn-primary:hover{background:#1d4ed8;}
+.btn-success{background:#10b981;color:#fff;}.btn-success:hover{background:#059669;}
+.btn-danger{background:#ef4444;color:#fff;}.btn-danger:hover{background:#dc2626;}
+.btn-secondary{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}.btn-secondary:hover{background:#e2e8f0;}
+.btn-sm{padding:5px 11px;font-size:0.76rem;}
+.btn-icon{padding:6px 10px;}
+.table{width:100%;border-collapse:collapse;}
+.table th{background:#f8fafc;padding:9px 12px;text-align:left;font-size:0.74rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid #e2e8f0;}
+.table td{padding:11px 12px;border-bottom:1px solid #f1f5f9;font-size:0.86rem;vertical-align:middle;}
+.table tr:last-child td{border-bottom:none;}
+.table tr:hover td{background:#fafbff;}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin-bottom:20px;}
+.stat{background:#fff;border-radius:12px;padding:18px;text-align:center;border:1px solid #e2e8f0;}
+.stat-num{font-size:1.8rem;font-weight:800;color:#2563eb;}
+.stat-lbl{font-size:0.75rem;color:#64748b;font-weight:500;margin-top:3px;}
+.alert{padding:11px 14px;border-radius:9px;font-size:0.85rem;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.alert-info{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;}
+.alert-warn{background:#fffbeb;color:#b45309;border:1px solid #fde68a;}
+.alert-danger{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+.tags-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;min-height:42px;cursor:text;background:#fff;}
+.tag{display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1d4ed8;border-radius:6px;padding:3px 9px;font-size:0.8rem;font-weight:500;}
+.tag button{background:none;border:none;cursor:pointer;color:#2563eb;font-size:0.9rem;line-height:1;padding:0 2px;}
+.tag-input{border:none;outline:none;font-size:0.85rem;min-width:80px;flex:1;font-family:inherit;}
+.logo-box{width:100px;height:70px;border:2px dashed #e2e8f0;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:#f8fafc;transition:0.2s;}
+.logo-box:hover{border-color:#2563eb;background:#eff6ff;}
+.logo-box img{width:100%;height:100%;object-fit:contain;}
+.logo-box .logo-placeholder{font-size:0.72rem;color:#94a3b8;text-align:center;padding:8px;}
+.autosave-indicator{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:#10b981;padding:4px 10px;border-radius:6px;background:#f0fdf4;border:1px solid #bbf7d0;opacity:0;transition:opacity 0.4s;}
+.autosave-indicator.show{opacity:1;}
+.modal-bg{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal-box{background:#fff;border-radius:16px;padding:28px;max-width:500px;width:94%;max-height:88vh;overflow-y:auto;}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.modal-head h3{font-size:1rem;font-weight:700;}
+.modal-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#94a3b8;}
+#gsToast{position:fixed;bottom:20px;right:20px;z-index:99999;opacity:0;transition:opacity 0.3s;pointer-events:none;}
+#gsToast.show{opacity:1;}
+.toast-inner{padding:11px 18px;border-radius:10px;font-size:0.86rem;font-weight:500;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,0.25);}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.section-header h2{font-size:1.05rem;font-weight:800;color:#1e293b;}
+.divz{border:none;border-top:1px solid #f1f5f9;margin:14px 0;}
+input[type="file"]{display:none;}
+</style>
+</head>
+<body>
+<header class="gs-header">
+  <div class="gs-logo"><i class="fas fa-sliders"></i></div>
+  <div>
+    <h1>Paramètres Généraux</h1>
+    <small id="gsCurrentUser">Chargement...</small>
+  </div>
+  <div class="gs-header-right">
+    <div class="autosave-indicator" id="autosaveIndicator"><i class="fas fa-check-circle"></i> Sauvegardé</div>
+    <a href="/" class="hbtn"><i class="fas fa-boxes"></i> Stock</a>
+    <a href="/suivi-achats-premium/" class="hbtn"><i class="fas fa-file-contract"></i> BC</a>
+    <button class="hbtn" onclick="gsLogout()"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
+  </div>
+</header>
+
+<div class="gs-layout">
+  <aside class="gs-sidebar">
+    <a class="gs-nav active" data-tab="company" onclick="gsTab('company')"><i class="fas fa-building"></i> Entreprise</a>
+    <a class="gs-nav" data-tab="users" onclick="gsTab('users')"><i class="fas fa-users"></i> Utilisateurs</a>
+    <a class="gs-nav" data-tab="lists" onclick="gsTab('lists')"><i class="fas fa-list-ul"></i> Listes & Référentiels</a>
+    <a class="gs-nav" data-tab="backup" onclick="gsTab('backup')"><i class="fas fa-database"></i> Sauvegarde</a>
+    <a class="gs-nav" data-tab="database" onclick="gsTab('database')"><i class="fas fa-server"></i> Base de Données</a>
+  </aside>
+
+  <main class="gs-content">
+
+    <!-- ENTREPRISE TAB -->
+    <div id="gsTab-company" class="gs-tab active">
+      <div class="section-header"><h2><i class="fas fa-building" style="color:#2563eb;margin-right:8px;"></i>Identité de l'Entreprise</h2></div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-id-card"></i> Informations Générales</div>
+        <div class="row">
+          <div class="col">
+            <div class="form-group"><label class="form-label">Nom de l'entreprise</label>
+              <input type="text" id="f_companyName" class="form-control" placeholder="SPA DOUROUB ELDJAZAIR" oninput="gsAutosave()"></div>
+          </div>
+          <div class="col">
+            <div class="form-group"><label class="form-label">Secteur / Activité</label>
+              <input type="text" id="f_sector" class="form-control" placeholder="Transport, Industrie..." oninput="gsAutosave()"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-group"><label class="form-label">Adresse</label>
+              <input type="text" id="f_address" class="form-control" placeholder="Adresse complète..." oninput="gsAutosave()"></div>
+          </div>
+          <div class="col">
+            <div class="form-group"><label class="form-label">Téléphone</label>
+              <input type="text" id="f_phone" class="form-control" placeholder="+213..." oninput="gsAutosave()"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-group"><label class="form-label">Email</label>
+              <input type="email" id="f_email" class="form-control" placeholder="contact@..." oninput="gsAutosave()"></div>
+          </div>
+          <div class="col">
+            <div class="form-group"><label class="form-label">Site web</label>
+              <input type="text" id="f_website" class="form-control" placeholder="https://..." oninput="gsAutosave()"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-image"></i> Logos</div>
+        <div class="row" style="gap:24px;align-items:flex-start;">
+          <div>
+            <div class="form-label" style="margin-bottom:8px;">Logo Gauche</div>
+            <div class="logo-box" onclick="document.getElementById('logoLeftInput').click()" id="logoLeftBox">
+              <div class="logo-placeholder"><i class="fas fa-upload" style="display:block;font-size:1.2rem;margin-bottom:4px;"></i>Cliquer<br>pour uploader</div>
+            </div>
+            <input type="file" id="logoLeftInput" accept="image/*" onchange="gsUploadLogo('left',this)">
+            <button class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="gsDeleteLogo('left')"><i class="fas fa-trash"></i> Supprimer</button>
+          </div>
+          <div>
+            <div class="form-label" style="margin-bottom:8px;">Logo Droit</div>
+            <div class="logo-box" onclick="document.getElementById('logoRightInput').click()" id="logoRightBox">
+              <div class="logo-placeholder"><i class="fas fa-upload" style="display:block;font-size:1.2rem;margin-bottom:4px;"></i>Cliquer<br>pour uploader</div>
+            </div>
+            <input type="file" id="logoRightInput" accept="image/*" onchange="gsUploadLogo('right',this)">
+            <button class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="gsDeleteLogo('right')"><i class="fas fa-trash"></i> Supprimer</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-toggle-on"></i> Options du Système</div>
+        <div class="row">
+          <div class="col">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:0.88rem;">
+              <input type="checkbox" id="f_gdsEnabled" onchange="gsAutosave()"> Activer le module GDS (Scanner stock)
+            </label>
+          </div>
+          <div class="col">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:0.88rem;">
+              <input type="checkbox" id="f_lowStockAlert" onchange="gsAutosave()"> Alertes stock bas actives
+            </label>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px;">
+          <div class="col">
+            <div class="form-group"><label class="form-label">Site / Dépôt par défaut</label>
+              <input type="text" id="f_defaultSite" class="form-control" placeholder="Dépôt Central" oninput="gsAutosave()"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- USERS TAB -->
+    <div id="gsTab-users" class="gs-tab">
+      <div class="section-header">
+        <h2><i class="fas fa-users" style="color:#2563eb;margin-right:8px;"></i>Gestion des Utilisateurs</h2>
+        <button class="btn btn-primary" onclick="gsOpenUser()"><i class="fas fa-plus"></i> Nouvel Utilisateur</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="table" id="gsUsersTable">
+          <thead><tr><th>Nom</th><th>Login</th><th>Rôle</th><th>Service</th><th>Module</th><th>Actions</th></tr></thead>
+          <tbody id="gsUsersTbody"><tr><td colspan="6" style="text-align:center;padding:28px;color:#94a3b8;">Chargement...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LISTS TAB -->
+    <div id="gsTab-lists" class="gs-tab">
+      <div class="section-header"><h2><i class="fas fa-list-ul" style="color:#2563eb;margin-right:8px;"></i>Listes & Référentiels</h2></div>
+      <div class="alert alert-info"><i class="fas fa-info-circle"></i> Modifiez les listes ci-dessous. Les changements se synchronisent automatiquement dans les deux applications.</div>
+
+      <div class="card">
+        <div class="card-title"><i class="fas fa-tags"></i> Catégories d'Articles</div>
+        <div id="tags_articleCategories" class="tags-wrap" onclick="document.getElementById('tagInput_articleCategories').focus()"></div>
+        <input class="tag-input" id="tagInput_articleCategories" placeholder="Ajouter une catégorie et appuyer sur Entrée..." onkeydown="gsTagKeydown(event,'articleCategories')">
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fas fa-ruler"></i> Unités de Mesure</div>
+        <div id="tags_units" class="tags-wrap" onclick="document.getElementById('tagInput_units').focus()"></div>
+        <input class="tag-input" id="tagInput_units" placeholder="Ajouter une unité..." onkeydown="gsTagKeydown(event,'units')">
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fas fa-sitemap"></i> Départements</div>
+        <div id="tags_departments" class="tags-wrap" onclick="document.getElementById('tagInput_departments').focus()"></div>
+        <input class="tag-input" id="tagInput_departments" placeholder="Ajouter un département..." onkeydown="gsTagKeydown(event,'departments')">
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fas fa-users-gear"></i> Services</div>
+        <div id="tags_services" class="tags-wrap" onclick="document.getElementById('tagInput_services').focus()"></div>
+        <input class="tag-input" id="tagInput_services" placeholder="Ajouter un service..." onkeydown="gsTagKeydown(event,'services')">
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fas fa-user-friends"></i> Bénéficiaires</div>
+        <div id="tags_beneficiaries" class="tags-wrap" onclick="document.getElementById('tagInput_beneficiaries').focus()"></div>
+        <input class="tag-input" id="tagInput_beneficiaries" placeholder="Ajouter un bénéficiaire..." onkeydown="gsTagKeydown(event,'beneficiaries')">
+      </div>
+    </div>
+
+    <!-- BACKUP TAB -->
+    <div id="gsTab-backup" class="gs-tab">
+      <div class="section-header"><h2><i class="fas fa-database" style="color:#2563eb;margin-right:8px;"></i>Sauvegarde MongoDB</h2></div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-clock"></i> Planification Automatique</div>
+        <div class="alert alert-info"><i class="fas fa-info-circle"></i> Sauvegarde automatique <strong>chaque jour à 00h00 (heure Algérie)</strong>. Données exportées en JSON horodaté.</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="btn btn-success" onclick="gsTriggerBackup()" id="backupBtn"><i class="fas fa-play"></i> Déclencher une sauvegarde manuelle</button>
+          <span id="backupStatus" style="font-size:0.82rem;color:#64748b;"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-history"></i> Historique des Sauvegardes <span id="backupCountBadge" class="badge b-blue" style="margin-left:6px;"></span></div>
+        <div id="gsBackupList"><p style="color:#94a3b8;font-size:0.85rem;">Chargement...</p></div>
+      </div>
+    </div>
+
+    <!-- DATABASE TAB -->
+    <div id="gsTab-database" class="gs-tab">
+      <div class="section-header"><h2><i class="fas fa-server" style="color:#2563eb;margin-right:8px;"></i>Base de Données MongoDB</h2></div>
+      <div class="stat-grid" id="gsDbStats">
+        <div class="stat"><div class="stat-num" id="gsStat_articles">—</div><div class="stat-lbl">Articles</div></div>
+        <div class="stat"><div class="stat-num" id="gsStat_bc">—</div><div class="stat-lbl">Bons de Commande</div></div>
+        <div class="stat"><div class="stat-num" id="gsStat_payments">—</div><div class="stat-lbl">Paiements</div></div>
+        <div class="stat"><div class="stat-num" id="gsStat_users">—</div><div class="stat-lbl">Utilisateurs</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-trash-alt" style="color:#ef4444;"></i> Zone Dangereuse</div>
+        <div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Ces actions sont <strong>irréversibles</strong>. Les données seront définitivement supprimées de MongoDB.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-danger" onclick="gsClear('bc')"><i class="fas fa-trash"></i> Vider les BC</button>
+          <button class="btn btn-danger" onclick="gsClear('payments')"><i class="fas fa-trash"></i> Vider les Paiements</button>
+          <button class="btn btn-danger" onclick="gsClear('articles')"><i class="fas fa-trash"></i> Vider les Articles</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- USER MODAL -->
+<div id="userModal" class="modal-bg">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="userModalTitle">Créer un utilisateur</h3>
+      <button class="modal-close" onclick="gsCloseUser()">&times;</button>
+    </div>
+    <input type="hidden" id="u_id">
+    <div class="form-group"><label class="form-label">Nom complet <span style="color:#ef4444;">*</span></label>
+      <input type="text" id="u_name" class="form-control" placeholder="Prénom NOM"></div>
+    <div class="row">
+      <div class="col"><div class="form-group"><label class="form-label">Identifiant (login)</label>
+        <input type="text" id="u_username" class="form-control" placeholder="identifiant"></div></div>
+      <div class="col"><div class="form-group"><label class="form-label">Mot de passe</label>
+        <input type="password" id="u_password" class="form-control" placeholder="Laisser vide = inchangé"></div></div>
+    </div>
+    <div class="row">
+      <div class="col"><div class="form-group"><label class="form-label">Rôle</label>
+        <select id="u_role" class="form-control">
+          <option value="normal">Utilisateur</option>
+          <option value="magasinier">Magasinier</option>
+          <option value="gds">GDS</option>
+          <option value="chef_section">Chef de Section</option>
+          <option value="admin">Admin</option>
+          <option value="directeur">Directeur</option>
+          <option value="superadmin">Super Admin</option>
+        </select></div></div>
+      <div class="col"><div class="form-group"><label class="form-label">Module par défaut</label>
+        <select id="u_defaultModule" class="form-control">
+          <option value="stock">Stock & Magasin</option>
+          <option value="bc">Bons de Commande</option>
+          <option value="both">Les deux (picker admin)</option>
+        </select></div></div>
+    </div>
+    <div class="row">
+      <div class="col"><div class="form-group"><label class="form-label">Service</label>
+        <input type="text" id="u_service" class="form-control" placeholder="Maintenance..."></div></div>
+      <div class="col"><div class="form-group"><label class="form-label">Département</label>
+        <input type="text" id="u_department" class="form-control" placeholder="Direction..."></div></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-bottom:18px;">
+      <input type="checkbox" id="u_canDeduct"> Peut déduire le stock (GDS)
+    </label>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn btn-secondary" onclick="gsCloseUser()">Annuler</button>
+      <button class="btn btn-primary" onclick="gsSaveUser()"><i class="fas fa-save"></i> Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="gsToast"><div class="toast-inner" id="gsToastInner"></div></div>
+
+<script>
+const JWT = localStorage.getItem('erp_jwt_token') || '';
+if (!JWT) window.location.href = '/';
+
+let gsSettings = {};
+let gsUsers = [];
+let gsTagData = { articleCategories:[], units:[], departments:[], services:[], beneficiaries:[] };
+let saveTimer = null;
+
+function H(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function hdrs(){ return {'Content-Type':'application/json','Authorization':'Bearer '+JWT}; }
+
+function toast(msg, type){
+  const el = document.getElementById('gsToastInner');
+  const wrap = document.getElementById('gsToast');
+  el.textContent = msg;
+  el.style.background = type==='error'?'#dc2626':type==='success'?'#10b981':'#1e293b';
+  wrap.classList.add('show');
+  setTimeout(()=>wrap.classList.remove('show'),3200);
+}
+
+function gsTab(tab){
+  document.querySelectorAll('.gs-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.gs-nav').forEach(a=>a.classList.remove('active'));
+  document.getElementById('gsTab-'+tab).classList.add('active');
+  document.querySelector('[data-tab="'+tab+'"]').classList.add('active');
+  if(tab==='users') gsLoadUsers();
+  if(tab==='backup') gsLoadBackups();
+  if(tab==='database') gsLoadStats();
+}
+
+function gsLogout(){
+  localStorage.removeItem('erp_jwt_token');
+  localStorage.removeItem('erp_currentUser');
+  window.location.href='/';
+}
+
+// ========== AUTOSAVE ==========
+function gsAutosave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{ gsFlushSave(); }, 1200);
+}
+
+async function gsFlushSave(){
+  const payload = {
+    companyName: document.getElementById('f_companyName').value.trim(),
+    sector: document.getElementById('f_sector').value.trim(),
+    address: document.getElementById('f_address').value.trim(),
+    phone: document.getElementById('f_phone').value.trim(),
+    email: document.getElementById('f_email').value.trim(),
+    website: document.getElementById('f_website').value.trim(),
+    gdsEnabled: document.getElementById('f_gdsEnabled').checked,
+    lowStockAlertEnabled: document.getElementById('f_lowStockAlert').checked,
+    defaultSite: document.getElementById('f_defaultSite').value.trim(),
+    articleCategories: gsTagData.articleCategories,
+    units: gsTagData.units,
+    departments: gsTagData.departments,
+    services: gsTagData.services,
+    beneficiaries: gsTagData.beneficiaries
+  };
+  try {
+    const r = await fetch('/api/settings', {method:'PUT',headers:hdrs(),body:JSON.stringify(payload)});
+    if(r.ok){
+      const ind = document.getElementById('autosaveIndicator');
+      ind.classList.add('show');
+      setTimeout(()=>ind.classList.remove('show'),2000);
+    }
+  } catch(e){}
+}
+
+// ========== LOAD SETTINGS ==========
+async function gsLoadSettings(){
+  try {
+    const r = await fetch('/api/settings', {headers:hdrs()});
+    if(!r.ok) return;
+    const data = await r.json();
+    const s = data.settings || {};
+    gsSettings = s;
+    document.getElementById('f_companyName').value = s.companyName || '';
+    document.getElementById('f_sector').value = s.sector || '';
+    document.getElementById('f_address').value = s.address || '';
+    document.getElementById('f_phone').value = s.phone || '';
+    document.getElementById('f_email').value = s.email || '';
+    document.getElementById('f_website').value = s.website || '';
+    document.getElementById('f_gdsEnabled').checked = !!s.gdsEnabled;
+    document.getElementById('f_lowStockAlert').checked = s.lowStockAlertEnabled !== false;
+    document.getElementById('f_defaultSite').value = s.defaultSite || '';
+
+    // Logos
+    if(s.companyLogoLeft) gsShowLogo('left', s.companyLogoLeft);
+    if(s.companyLogoRight) gsShowLogo('right', s.companyLogoRight);
+
+    // Tags
+    const tagFields = ['articleCategories','units','departments','services','beneficiaries'];
+    tagFields.forEach(f => {
+      gsTagData[f] = Array.isArray(s[f]) ? [...s[f]] : [];
+      gsRenderTags(f);
+    });
+  } catch(e){}
+}
+
+// ========== LOGOS ==========
+function gsShowLogo(side, src){
+  const box = document.getElementById('logo'+side.charAt(0).toUpperCase()+side.slice(1)+'Box');
+  if(!box) return;
+  box.innerHTML = `<img src="${src}" alt="logo">`;
+}
+
+function gsUploadLogo(side, input){
+  if(!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    const base64 = e.target.result;
+    gsShowLogo(side, base64);
+    try {
+      const r = await fetch('/api/settings/logo/'+side, {method:'PUT',headers:hdrs(),body:JSON.stringify({image:base64})});
+      if(r.ok) toast('Logo mis à jour !','success');
+    } catch(err){ toast('Erreur upload logo','error'); }
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+async function gsDeleteLogo(side){
+  const box = document.getElementById('logo'+side.charAt(0).toUpperCase()+side.slice(1)+'Box');
+  if(box) box.innerHTML = '<div class="logo-placeholder"><i class="fas fa-upload" style="display:block;font-size:1.2rem;margin-bottom:4px;"></i>Cliquer<br>pour uploader</div>';
+  try {
+    await fetch('/api/settings/logo/'+side, {method:'DELETE',headers:hdrs()});
+    toast('Logo supprimé','success');
+  } catch(e){}
+}
+
+// ========== TAGS ==========
+function gsRenderTags(field){
+  const wrap = document.getElementById('tags_'+field);
+  if(!wrap) return;
+  const tags = gsTagData[field] || [];
+  const existing = wrap.querySelectorAll('.tag');
+  existing.forEach(t=>t.remove());
+  tags.forEach((val,i)=>{
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.innerHTML = H(val)+`<button type="button" onclick="gsRemoveTag('${field}',${i})">&times;</button>`;
+    wrap.insertBefore(tag, wrap.querySelector('.tag-input') || wrap.firstChild);
+  });
+}
+
+function gsTagKeydown(e, field){
+  if(e.key === 'Enter' || e.key === ','){
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,$/, '');
+    if(val && !gsTagData[field].includes(val)){
+      gsTagData[field].push(val);
+      e.target.value = '';
+      gsRenderTags(field);
+      gsAutosave();
+    }
+  }
+}
+
+function gsRemoveTag(field, idx){
+  gsTagData[field].splice(idx,1);
+  gsRenderTags(field);
+  gsAutosave();
+}
+
+// ========== USERS ==========
+const RL = {superadmin:'badge b-purple',admin:'badge b-blue',directeur:'badge b-blue',magasinier:'badge b-green',gds:'badge b-green',chef_section:'badge b-orange',normal:'badge b-gray'};
+const RN = {superadmin:'Super Admin',admin:'Admin',directeur:'Directeur',magasinier:'Magasinier',gds:'GDS',chef_section:'Chef Section',normal:'Utilisateur',mag:'Magasinier'};
+const MN = {stock:'Stock',bc:'BC',both:'Les deux'};
+
+async function gsLoadUsers(){
+  try {
+    const r = await fetch('/api/auth/users',{headers:hdrs()});
+    if(!r.ok){ document.getElementById('gsUsersTbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:#ef4444;padding:20px;">Accès refusé</td></tr>'; return; }
+    const data = await r.json();
+    gsUsers = data.users || [];
+    const tbody = document.getElementById('gsUsersTbody');
+    if(!gsUsers.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px;">Aucun utilisateur</td></tr>'; return; }
+    tbody.innerHTML = gsUsers.map(u=>`
+      <tr>
+        <td><strong>${H(u.name||u.username)}</strong></td>
+        <td><code style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:0.78rem;">${H(u.username||'')}</code></td>
+        <td><span class="${RL[u.role]||'badge b-gray'}">${RN[u.role]||u.role}</span></td>
+        <td style="color:#64748b;">${H(u.service||u.department||'—')}</td>
+        <td><span class="badge b-blue">${MN[u.defaultModule]||'Stock'}</span></td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-sm btn-icon" onclick="gsOpenUser('${u._id||u.id}')"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="gsDeleteUser('${u._id||u.id}','${H(u.name||u.username)}')"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>`).join('');
+  } catch(e){ document.getElementById('gsUsersTbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:#ef4444;padding:20px;">Erreur</td></tr>'; }
+}
+
+function gsOpenUser(id){
+  const u = id ? gsUsers.find(x=>(x._id||x.id)===id) : null;
+  document.getElementById('userModalTitle').textContent = u ? 'Modifier l\'utilisateur' : 'Créer un utilisateur';
+  document.getElementById('u_id').value = id||'';
+  document.getElementById('u_name').value = u?u.name||'':'';
+  document.getElementById('u_username').value = u?u.username||'':'';
+  document.getElementById('u_username')[u?'setAttribute':'removeAttribute']('readonly','readonly');
+  document.getElementById('u_password').value = '';
+  document.getElementById('u_role').value = u?u.role||'normal':'normal';
+  document.getElementById('u_defaultModule').value = u?u.defaultModule||'stock':'stock';
+  document.getElementById('u_service').value = u?u.service||'':'';
+  document.getElementById('u_department').value = u?u.department||'':'';
+  document.getElementById('u_canDeduct').checked = u?!!u.canDeductStock:false;
+  document.getElementById('userModal').classList.add('open');
+}
+
+function gsCloseUser(){ document.getElementById('userModal').classList.remove('open'); }
+
+async function gsSaveUser(){
+  const id = document.getElementById('u_id').value;
+  const name = document.getElementById('u_name').value.trim();
+  const username = document.getElementById('u_username').value.trim();
+  const password = document.getElementById('u_password').value;
+  if(!name){ toast('Le nom est obligatoire','error'); return; }
+  const payload = {
+    name, role:document.getElementById('u_role').value,
+    defaultModule:document.getElementById('u_defaultModule').value,
+    service:document.getElementById('u_service').value.trim(),
+    department:document.getElementById('u_department').value.trim(),
+    canDeductStock:document.getElementById('u_canDeduct').checked
+  };
+  if(password) payload.password = password;
+  try {
+    let r;
+    if(id){
+      r = await fetch('/api/auth/users/'+id,{method:'PUT',headers:hdrs(),body:JSON.stringify(payload)});
+    } else {
+      if(!username){ toast('L\'identifiant est obligatoire','error'); return; }
+      if(!password){ toast('Le mot de passe est obligatoire','error'); return; }
+      payload.username = username;
+      r = await fetch('/api/auth/register',{method:'POST',headers:hdrs(),body:JSON.stringify(payload)});
+    }
+    if(r.ok){ toast(id?'Utilisateur mis à jour !':'Utilisateur créé !','success'); gsCloseUser(); gsLoadUsers(); }
+    else { const err=await r.json().catch(()=>({}))); toast(err.error||'Erreur','error'); }
+  } catch(e){ toast('Erreur réseau','error'); }
+}
+
+async function gsDeleteUser(id, name){
+  if(!confirm('Supprimer "'+name+'" ? Action irréversible.')) return;
+  try {
+    const r = await fetch('/api/auth/users/'+id,{method:'DELETE',headers:hdrs()});
+    if(r.ok){ toast('Utilisateur supprimé','success'); gsLoadUsers(); }
+    else { const err=await r.json().catch(()=>({}))); toast(err.error||'Erreur','error'); }
+  } catch(e){ toast('Erreur réseau','error'); }
+}
+
+// ========== BACKUP ==========
+async function gsTriggerBackup(){
+  const btn = document.getElementById('backupBtn');
+  const status = document.getElementById('backupStatus');
+  btn.disabled = true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> En cours...';
+  status.textContent = '';
+  try {
+    const r = await fetch('/api/backup',{method:'POST',headers:hdrs()});
+    if(r.ok){ toast('Sauvegarde effectuée !','success'); status.textContent='✅ Dernière sauvegarde : '+new Date().toLocaleString('fr-DZ'); gsLoadBackups(); }
+    else { toast('Erreur sauvegarde','error'); }
+  } catch(e){ toast('Erreur réseau','error'); }
+  btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> Déclencher une sauvegarde manuelle';
+}
+
+async function gsLoadBackups(){
+  try {
+    const r = await fetch('/api/backup',{headers:hdrs()});
+    if(!r.ok){ document.getElementById('gsBackupList').innerHTML='<p style="color:#94a3b8;font-size:0.85rem;">Aucune donnée disponible</p>'; return; }
+    const data = await r.json();
+    const list = data.backups||data.files||[];
+    const badge = document.getElementById('backupCountBadge');
+    if(badge) badge.textContent = list.length;
+    if(!list.length){ document.getElementById('gsBackupList').innerHTML='<p style="color:#94a3b8;font-size:0.85rem;">Aucune sauvegarde disponible</p>'; return; }
+    document.getElementById('gsBackupList').innerHTML = list.map(f=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9;">
+        <div><i class="fas fa-file-zipper" style="color:#2563eb;margin-right:8px;"></i><span style="font-size:0.85rem;font-weight:500;">${H(f.filename||f.name||f)}</span></div>
+        <span style="font-size:0.76rem;color:#94a3b8;">${f.date?new Date(f.date).toLocaleString('fr-DZ'):''}</span>
+      </div>`).join('');
+  } catch(e){ document.getElementById('gsBackupList').innerHTML='<p style="color:#ef4444;font-size:0.85rem;">Erreur de chargement</p>'; }
+}
+
+// ========== DATABASE STATS ==========
+async function gsLoadStats(){
+  const hits = await Promise.allSettled([
+    fetch('/api/articles',{headers:hdrs()}),
+    fetch('/api/bc',{headers:hdrs()}),
+    fetch('/api/payments',{headers:hdrs()}),
+    fetch('/api/auth/users',{headers:hdrs()})
+  ]);
+  const ids = ['articles','bc','payments','users'];
+  const statIds = ['gsStat_articles','gsStat_bc','gsStat_payments','gsStat_users'];
+  const keys = ['articles','records','payments','users'];
+  for(let i=0;i<hits.length;i++){
+    if(hits[i].status==='fulfilled'&&hits[i].value.ok){
+      const d = await hits[i].value.json();
+      const arr = d[keys[i]]||d;
+      document.getElementById(statIds[i]).textContent = Array.isArray(arr)?arr.length:'—';
+    }
+  }
+}
+
+async function gsClear(col){
+  const labels={bc:'tous les Bons de Commande',payments:'tous les Paiements',articles:'tous les Articles'};
+  if(!confirm('⚠️ Supprimer '+labels[col]+' ?\n\nIRRÉVERSIBLE.')) return;
+  if(!confirm('Dernière confirmation — DÉFINITIVEMENT supprimer ?')) return;
+  const eps={bc:'/api/bc/all',payments:'/api/payments/all',articles:'/api/articles/all'};
+  try {
+    const r = await fetch(eps[col],{method:'DELETE',headers:hdrs()});
+    if(r.ok){ toast('Collection vidée !','success'); gsLoadStats(); }
+    else { const e=await r.json().catch(()=>({}))); toast(e.error||'Erreur','error'); }
+  } catch(e){ toast('Erreur réseau','error'); }
+}
+
+// ========== INIT ==========
+async function gsInit(){
+  try {
+    const r = await fetch('/api/auth/me',{headers:hdrs()});
+    if(!r.ok){ gsLogout(); return; }
+    const data = await r.json();
+    const u = data.user||data;
+    const role = (u.role||'').toLowerCase();
+    if(role!=='admin'&&role!=='superadmin'&&role!=='directeur'){ alert('Accès réservé aux administrateurs.'); window.location.href='/'; return; }
+    document.getElementById('gsCurrentUser').textContent = (u.name||u.username)+' — '+(role==='superadmin'?'Super Admin':role);
+  } catch(e){ gsLogout(); return; }
+  await gsLoadSettings();
+}
+document.addEventListener('DOMContentLoaded', gsInit);
+</script>
+</body>
+</html>

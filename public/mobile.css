@@ -1,0 +1,494 @@
+/* ============================================================
+   ERP DOUROUB — MOBILE RESPONSIVE & ADAPTIVE THEME v2.0
+    Seamless Light & Dark Mode on Phone + Fast GDS Scanner UI
+   ============================================================ */
+
+:root {
+    --gds-bg: #f8fafc;
+    --gds-header-bg: #ffffff;
+    --gds-card-bg: #ffffff;
+    --gds-subcard-bg: #f1f5f9;
+    --gds-input-bg: #f8fafc;
+    --gds-text: #0f172a;
+    --gds-muted: #64748b;
+    --gds-border: #e2e8f0;
+    --gds-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.08);
+}
+
+:root[data-theme='dark'],
+html[data-theme='dark'],
+body[data-theme='dark'],
+body.dark-mode,
+:root[data-theme='black'],
+html[data-theme='black'],
+body[data-theme='black'] {
+    --gds-bg: #0b1120;
+    --gds-header-bg: #0f172a;
+    --gds-card-bg: #1e293b;
+    --gds-subcard-bg: rgba(15, 23, 42, 0.65);
+    --gds-input-bg: #0f172a;
+    --gds-text: #f8fafc;
+    --gds-muted: #94a3b8;
+    --gds-border: rgba(255, 255, 255, 0.1);
+    --gds-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.55);
+}
+
+/* ── GDS SCANNER THEME-ADAPTIVE COMPONENTS ─────────────────── */
+.gds-scanner-shell {
+    background: var(--gds-bg) !important;
+    color: var(--gds-text) !important;
+}
+.gds-scanner-header {
+    background: var(--gds-header-bg) !important;
+    border-bottom: 1px solid var(--gds-border) !important;
+}
+.gds-scanner-footer {
+    background: var(--gds-header-bg) !important;
+    border-top: 1px solid var(--gds-border) !important;
+}
+.gds-icon-circle-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--gds-border);
+    background: var(--gds-subcard-bg);
+    color: var(--gds-text);
+    cursor: pointer;
+    font-size: 0.92rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+.gds-icon-circle-btn:hover {
+    border-color: var(--primary, #2563eb);
+    color: var(--primary, #2563eb);
+}
+.gds-mode-bar {
+    display: flex;
+    gap: 6px;
+    padding: 8px 14px;
+    background: var(--gds-header-bg);
+    border-bottom: 1px solid var(--gds-border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-shrink: 0;
+}
+.gds-mode-bar::-webkit-scrollbar { display: none; }
+.gds-mode-pill {
+    flex: 1 0 auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--gds-border);
+    background: var(--gds-subcard-bg);
+    color: var(--gds-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.gds-mode-pill.active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 3px 10px rgba(37, 99, 235, 0.3);
+}
+.gds-surface-card {
+    background: var(--gds-card-bg);
+    border: 1px solid var(--gds-border);
+    border-radius: 18px;
+    box-shadow: var(--gds-shadow);
+    color: var(--gds-text);
+}
+.gds-subcard {
+    background: var(--gds-subcard-bg);
+    border: 1px solid var(--gds-border);
+    border-radius: 12px;
+}
+.gds-input {
+    border-radius: 10px;
+    border: 1.5px solid var(--gds-border);
+    background: var(--gds-input-bg);
+    color: var(--gds-text);
+    font-size: 0.92rem;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+}
+.gds-input:focus {
+    border-color: var(--primary, #2563eb);
+}
+.gds-chip {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--gds-muted);
+    background: var(--gds-subcard-bg);
+    border: 1px solid var(--gds-border);
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+.gds-chip-btn {
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--gds-subcard-bg);
+    border: 1px solid var(--gds-border);
+    color: var(--gds-text);
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.gds-step-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    border: 1.5px solid var(--gds-border);
+    background: var(--gds-subcard-bg);
+    color: var(--gds-text);
+    font-size: 1.45rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.gds-quick-step-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #ffffff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.12s ease;
+}
+.gds-quick-step-btn:active { transform: scale(0.94); }
+.gds-step-minus { background: linear-gradient(135deg, #e11d48, #f43f5e); box-shadow: 0 3px 10px rgba(225, 29, 72, 0.28); }
+.gds-step-plus { background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 3px 10px rgba(16, 185, 129, 0.28); }
+.gds-secondary-btn {
+    padding: 11px 14px;
+    border-radius: 11px;
+    border: 1.5px solid var(--gds-border);
+    background: var(--gds-subcard-bg);
+    color: var(--gds-text);
+    cursor: pointer;
+    font-size: 0.84rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+.gds-cam-ctrl-btn {
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--gds-border);
+    background: var(--gds-card-bg);
+    color: var(--gds-text);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+#gdsCameraStream video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+}
+
+/* ── HAMBURGER BUTTON (THEME-ADAPTIVE) ────────────────────── */
+.mobile-menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1.5px solid var(--header-border, var(--border, #e2e8f0));
+    background: var(--surface-alt, #f1f5f9);
+    color: var(--header-text, var(--text, #0f172a));
+    font-size: 1rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+.mobile-menu-btn:hover {
+    background: var(--surface-hover, #e2e8f0);
+}
+
+/* ── BOTTOM NAV BAR (THEME-ADAPTIVE) ───────────────────────── */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9000;
+    background: var(--header-bg, var(--surface, #ffffff));
+    border-top: 1px solid var(--header-border, var(--border, #e2e8f0));
+    padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+    align-items: flex-end;
+    justify-content: space-around;
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08);
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+.mobile-bottom-nav .mob-nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #64748b);
+    font-size: 0.62rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 10px;
+    transition: color 0.2s ease;
+    min-width: 48px;
+}
+.mobile-bottom-nav .mob-nav-btn i { font-size: 1.2rem !important; margin: 0 !important; }
+.mobile-bottom-nav .mob-nav-btn:hover,
+.mobile-bottom-nav .mob-nav-btn.active { color: var(--primary, #2563eb); }
+.mobile-bottom-nav .mob-nav-btn.scan-fab-nav {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: #fff !important;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 18px rgba(37,99,235,0.5);
+    font-size: 0;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+}
+.mobile-bottom-nav .mob-nav-btn.scan-fab-nav i { font-size: 1.3rem !important; }
+
+@media (max-width: 768px) {
+    /* ── GLOBAL BODY ─────────────────────────────────────────── */
+    body {
+        overflow-x: hidden;
+        background: var(--bg) !important;
+        color: var(--text) !important;
+    }
+
+    /* ── HEADER (SINGLE-ROW ADAPTIVE) ────────────────────────── */
+    .header-bar {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 0 10px !important;
+        height: 54px !important;
+        min-height: 54px !important;
+        background: var(--header-bg) !important;
+        border-bottom: 1px solid var(--header-border) !important;
+    }
+    .header-left {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        gap: 8px !important;
+    }
+    .header-right {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        gap: 6px !important;
+    }
+
+    /* Hide desktop nav links in header */
+    #mainNav { display: none !important; }
+    .header-right #linkToAppro { display: none !important; }
+    .header-right .btn-gds-scan span { display: none; }
+    .header-right .btn-gds-scan { padding: 7px 10px !important; border-radius: 8px !important; font-size: 0.85rem !important; }
+
+    /* Show hamburger */
+    .mobile-menu-btn { display: flex !important; }
+
+    /* Slide-down mobile nav (THEME-ADAPTIVE) */
+    #mainNav.mobile-open {
+        display: flex !important;
+        flex-direction: column !important;
+        position: fixed !important;
+        top: 54px;
+        left: 0;
+        right: 0;
+        z-index: 8990;
+        background: var(--surface, #ffffff) !important;
+        border-bottom: 1px solid var(--border, #e2e8f0) !important;
+        padding: 10px 12px 16px;
+        gap: 4px;
+        box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.25));
+        max-height: calc(100vh - 54px);
+        overflow-y: auto;
+    }
+    #mainNav.mobile-open .nav-btn,
+    #mainNav.mobile-open .nav-link,
+    #mainNav.mobile-open button,
+    #mainNav.mobile-open a {
+        width: 100%;
+        text-align: left;
+        padding: 11px 14px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        color: var(--text) !important;
+    }
+
+    /* Brand text truncate */
+    .brand-text { font-size: 11px !important; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Clock hide on very small & keep theme button crisp */
+    .clock { display: none !important; }
+    .toggleTheme, #toggleTheme {
+        width: 36px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        padding: 0 !important;
+        border-radius: 10px !important;
+        background: var(--surface-alt) !important;
+        color: var(--header-text, var(--text)) !important;
+        border: 1px solid var(--border) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* ── MAIN LAYOUT ─────────────────────────────────────────── */
+    .app-layout { flex-direction: column !important; }
+    #mainContent {
+        margin: 0 !important;
+        padding: 10px 10px 80px 10px !important;
+        width: 100% !important;
+        min-height: calc(100vh - 54px);
+    }
+
+    /* ── SIDEBAR hidden on mobile ─────────────────────────────── */
+    .sidebar { display: none !important; }
+
+    /* ── BOTTOM NAV SHOW ─────────────────────────────────────── */
+    .mobile-bottom-nav { display: flex !important; }
+
+    /* FAB scanner — keep visible */
+    #fabGdsScanner {
+        bottom: 72px !important;
+        right: 16px !important;
+    }
+
+    /* ── CARDS & STAT GRIDS ──────────────────────────────────── */
+    .stats-grid,
+    .dashboard-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+    .cards-grid,
+    [class*="grid-"] {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+    .stat-card, .card, .info-card {
+        border-radius: 12px !important;
+        background: var(--surface) !important;
+        border-color: var(--border) !important;
+        color: var(--text) !important;
+    }
+
+    /* ── TABLES ──────────────────────────────────────────────── */
+    .table-wrapper,
+    .table-responsive,
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 10px;
+    }
+    table { min-width: 540px; font-size: 0.78rem !important; }
+    table th, table td { padding: 8px 10px !important; }
+    /* Hide low-priority columns on mobile */
+    table .col-hide-mobile { display: none !important; }
+
+    /* ── MODALS ──────────────────────────────────────────────── */
+    .modal-dialog,
+    .modal-content {
+        margin: 0 !important;
+        max-width: 100vw !important;
+        width: 100vw !important;
+        border-radius: 20px 20px 0 0 !important;
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+    .modal { align-items: flex-end !important; }
+
+    /* ── FORMS ───────────────────────────────────────────────── */
+    .form-row, .row {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    .form-row > .col,
+    .form-row > [class*="col-"] {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+    .form-control, .form-select, .btn {
+        font-size: 16px !important; /* prevents iOS zoom */
+    }
+
+    /* ── BUTTONS ─────────────────────────────────────────────── */
+    .btn-group-actions {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .btn-group-actions .btn { flex: 1 1 calc(50% - 6px); }
+
+    /* ── USER DROPDOWN ───────────────────────────────────────── */
+    .user-dropdown-menu,
+    #userDropdownMenu {
+        right: 0 !important;
+        left: auto !important;
+        min-width: min(280px, 90vw) !important;
+    }
+
+    /* ── NOTIFICATIONS ───────────────────────────────────────── */
+    .notifications-panel,
+    #notificationsPanel {
+        right: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        border-radius: 0 0 16px 16px !important;
+    }
+
+    /* ── HEADER USER BTN ──────────────────────────────────────── */
+    .header-user-btn span,
+    #userProfileBtn .user-name-text { display: none !important; }
+
+    /* ── GENERAL SETTINGS PAGE ───────────────────────────────── */
+    .gs-tabs { overflow-x: auto; flex-wrap: nowrap !important; }
+    .gs-tab { padding: 10px 14px !important; white-space: nowrap; font-size: 0.8rem !important; }
+    .gs-content { padding: 14px 10px !important; }
+}
+
+@media (max-width: 480px) {
+    table { min-width: 400px; font-size: 0.72rem !important; }
+    .brand-text { display: none !important; }
+    #mainContent { padding: 8px 8px 80px 8px !important; }
+}

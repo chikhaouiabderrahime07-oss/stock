@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: erp-douroub-v6
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: BACKUP_RETENTION_DAYS
+        value: "30"

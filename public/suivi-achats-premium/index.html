@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Suivi Achats, BC &amp; Paiements DP — Douroub</title>
+  <link rel="icon" type="image/svg+xml" href="abdo-logo.svg" />
+  <link rel="shortcut icon" type="image/svg+xml" href="abdo-logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/all.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+    </head>
+<body data-theme="light">
+  <div class="login-shell" id="loginScreen">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="ai-widget ai-widget-lg" id="loginAiWidget" style="margin-bottom:12px;">
+          <div class="ai-ring3"></div>
+          <div class="ai-orbit"></div>
+          <div class="ai-orbit ai-orbit-2"></div>
+          <div class="ai-core"></div>
+        </div>
+        <img src="assets/image2.png" alt="" style="height:44px;object-fit:contain;margin-bottom:8px;" onerror="if(!this.dataset.triedParent){this.dataset.triedParent='1';this.src='../ERP_Douroub_v5/assets/image2.png';}else{this.style.display='none';}">
+        <div>
+          <h1>Suivi Achats, BC &amp; Paiements DP</h1>
+          <p>SPA DOUROUB ELDJAZAIR — Pilotage exécutif &amp; ordonnancement.</p>
+        </div>
+      </div>
+      <div class="login-note">
+        <strong>Comptes locaux</strong>
+        <span>admin/admin · appro/appro123 · finance/finance123 · mag/mag123 · dg/dg123</span>
+      </div>
+      <form id="loginForm" class="login-form">
+        <label class="field"><span>Utilisateur</span><input id="loginUsername" type="text" required placeholder="admin"></label>
+        <label class="field"><span>Mot de passe</span><input id="loginPassword" type="password" required placeholder="••••••••"></label>
+        <button class="btn btn-primary btn-block" type="submit">Entrer</button>
+      </form>
+      <div class="login-credits-footer" style="text-align:center;margin-top:14px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--text-soft,#64748b);"><span style="color:var(--primary,#2563eb);font-weight:700;">ABDO INTELLIGENT SYSTEMS</span><br>Developed by <strong style="color:var(--text-main,#0f172a);">CHIKHAOUI ABDERRAHIME</strong></div>
+    </div>
+  </div>
+
+  <div class="app-shell hidden" id="appShell">
+    <!-- TWO-TIER COMMAND NAVIGATION BAR -->
+    <header class="sa-topbar sa-topbar-v3" id="appHeader">
+      <div class="sa-topbar-row1">
+        <div class="sa-brand">
+          <div class="ai-widget ai-widget-xs" id="headerAiWidget" style="display:inline-flex;vertical-align:middle;cursor:pointer;" onclick="if(window.triggerAiAction) window.triggerAiAction(this);" title="AI Engine — ABDO INTELLIGENT SYSTEMS">
+            <div class="ai-ring3"></div>
+            <div class="ai-orbit"></div>
+            <div class="ai-orbit ai-orbit-2"></div>
+            <div class="ai-core"></div>
+          </div>
+          <img src="assets/image2.png" alt="" class="sa-brand-logo" onerror="if(!this.dataset.triedParent){this.dataset.triedParent='1';this.src='../ERP_Douroub_v5/assets/image2.png';}else{this.style.display='none';}" />
+          <div class="sa-brand-text-wrap">
+            <span class="sa-brand-text" id="appTitle">Suivi Achats, BC &amp; Paiements</span>
+            <span class="sa-brand-sub" id="appSubtitle">SPA DOUROUB ELDJAZAIR</span>
+          </div>
+          <div class="sa-topbar-credits" title="ABDO INTELLIGENT SYSTEMS — Developed by CHIKHAOUI ABDERRAHIME">
+            <i class="fas fa-shield-halved"></i>
+            <span class="credits-text">AIS · <strong>Chikhaoui Abderrahime</strong></span>
+          </div>
+        </div>
+
+        <!-- RIGHT UTILITY GROUP -->
+        <div class="sa-topbar-right topbar-tools">
+          <a href="/#stock" class="sa-nav-pill-link" id="linkToStock" onclick="try{localStorage.setItem('erp_active_module','stock');}catch(e){}" title="Stock &amp; Flotte"><i class="fas fa-boxes-stacked"></i> <span>Stock</span></a>
+          <a href="/#stock?scan_gds=1" class="sa-nav-pill-link sa-nav-pill-gds" id="linkToGdsScanner" onclick="try{localStorage.setItem('erp_active_module','stock');}catch(e){}" title="Scanner Mobile GDS &amp; Déduction Rapide"><i class="fas fa-qrcode"></i> <span>Scan GDS</span></a>
+          <a href="../index.html" class="sa-nav-pill-link" id="linkToPortalAppro" title="Portail Principal"><i class="fas fa-th-large"></i> <span>Portail</span></a>
+          <button class="sa-icon-btn" id="themeToggleBtn" type="button" title="Basculer Clair / Sombre"><i class="fas fa-circle-half-stroke"></i></button>
+          <select id="themeSelect" style="display:none;">
+            <option value="light">Clair</option>
+            <option value="dark">Sombre</option>
+          </select>
+          <div class="user-menu-wrapper sa-user-wrap">
+            <button class="user-avatar-btn sa-user-btn" id="userChipWrap" type="button" title="Mon profil" aria-label="Mon profil">
+              <span class="user-initials-badge sa-initials" id="currentUserLabel">AD</span>
+            </button>
+            <div class="user-dropdown user-dropdown-rich sa-user-card" id="userProfileCard">
+              <div class="udrop-header sa-ucard-head">
+                <div class="udrop-avatar-lg sa-ucard-avatar" id="ucardInitials">AD</div>
+                <div class="udrop-info">
+                  <strong id="ucardName">Administrateur</strong>
+                  <span id="ucardRole">R&#244;le</span>
+                  <span id="ucardService" class="udrop-service">Suivi Achats &amp; BC</span>
+                </div>
+              </div>
+              <div class="udrop-stats">
+                <a href="#" class="udrop-stat-chip" onclick="setActiveTab('followup');document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-file-invoice"></i><span id="udropBcCount">0</span><small>BC enregistr&#233;s</small></a>
+                <a href="#" class="udrop-stat-chip" onclick="setActiveTab('payments');document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-credit-card"></i><span id="udropDpPendingCount">0</span><small>DP en attente</small></a>
+                <a href="#" class="udrop-stat-chip" onclick="setActiveTab('smart-match');document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-brain"></i><span id="udropAiMatchCount">0</span><small>&#192; rapprocher</small></a>
+              </div>
+              <div class="dropdown-divider"></div>
+              <a href="#profil" onclick="if(window.App&&App.showUserSettings)App.showUserSettings();document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-id-card"></i> Mon Profil</a>
+              <a href="#parametres" onclick="if(window.App&&App.showSettings)App.showSettings();document.getElementById('userProfileCard').classList.remove('open');return false;"><i class="fas fa-cog"></i> Pr&#233;f&#233;rences</a>
+              <a href="/" class="udrop-achats-link"><i class="fas fa-boxes-stacked" style="color:var(--primary, #2563eb);"></i> Stock &amp; GDS ERP</a>
+              <a href="/general-settings.html" class="udrop-achats-link"><i class="fas fa-sliders" style="color:#7c3aed;"></i> Param&#232;tres G&#233;n&#233;raux</a>
+              <div class="dropdown-divider"></div>
+              <a href="#" id="logoutBtn" class="logout-link" onclick="if(typeof saLogout==='function')saLogout();return false;"><i class="fas fa-sign-out-alt"></i> D&#233;connexion</a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ROW 2: DEDICATED PRIMARY SECTIONS MENU BAR -->
+      <div class="sa-topbar-row2">
+        <nav class="sa-top-tabs tabbar" id="tabbar" role="navigation" aria-label="Sections principales">
+          <button class="sa-top-tab tab active" type="button" data-tab="followup" data-section="followup"><i class="fas fa-file-contract"></i><span class="tab-label">Bons de Commande</span><span class="sa-nav-badge" id="navBadgeBc">0</span></button>
+          <button class="sa-top-tab tab" type="button" data-tab="payments" data-section="payments"><i class="fas fa-credit-card"></i><span class="tab-label">Paiements DP</span><span class="sa-nav-badge" id="navBadgeDp">0</span></button>
+          <button class="sa-top-tab tab" type="button" data-tab="smart-match" data-section="smart-match"><i class="fas fa-brain"></i><span class="tab-label">Rapprochement IA</span><span class="sa-nav-badge sa-nav-badge-ai" id="navBadgeAi">0</span></button>
+          <button class="sa-top-tab tab" type="button" data-tab="finance" data-section="finance"><i class="fas fa-landmark"></i><span class="tab-label">Finances</span></button>
+          <button class="sa-top-tab tab" type="button" data-tab="reports" data-section="reports"><i class="fas fa-chart-line"></i><span class="tab-label">Rapports</span></button>
+          <button class="sa-top-tab tab" type="button" data-tab="kpi" data-section="kpi"><i class="fas fa-gauge-high"></i><span class="tab-label">KPI</span></button>
+          <button class="sa-top-tab tab" type="button" data-tab="fleet" data-section="fleet"><i class="fas fa-truck-moving"></i><span class="tab-label">Flotte &amp; Vidanges</span></button>
+          <button class="sa-top-tab tab" type="button" data-tab="settings" data-section="settings"><i class="fas fa-gear"></i><span class="tab-label">Paramètres</span></button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- BODY: CONTENT ONLY (MAX HORIZONTAL SPACE) -->
+    <div class="sa-body">
+      <!-- CONTENT AREA -->
+      <main class="sa-content workspace" style="width:100%;">
+      <section class="page" id="page-kpi">
+        <div class="page-header hero-panel">
+          <div>
+            <h2><i class="fas fa-gauge-high" style="color:var(--primary);margin-right:6px;font-size:16px;"></i>Pilotage KPI</h2>
+            <p>Tous les indicateurs majeurs et les graphiques interactifs sont regroupés ici.</p>
+          </div>
+          <div class="toolbar-actions wrap">
+            <button class="btn btn-soft" type="button" id="refreshDashboardBtn">Actualiser</button>
+            <button class="btn btn-primary" type="button" id="exportKpiBtn">Exporter KPI</button>
+          </div>
+        </div>
+        <div class="sa-period-bar-container">
+          <div class="sa-period-bar">
+            <span class="sa-period-label"><i class="fas fa-calendar-alt me-1"></i> PÉRIODE :</span>
+            <div class="sa-period-pills" id="kpiPeriodPills">
+              <button type="button" class="sa-period-pill" data-period="all">Tout l'historique</button>
+              <button type="button" class="sa-period-pill active" data-period="year">Année 2026</button>
+              <button type="button" class="sa-period-pill" data-period="quarter">Ce trimestre</button>
+              <button type="button" class="sa-period-pill" data-period="month">Ce mois</button>
+              <button type="button" class="sa-period-pill" data-period="30days">Derniers 30 jours</button>
+            </div>
+          </div>
+        </div>
+        <div class="kpi-filter-bar toolbar-row compact-toolbar filters-row filters-grid-compact" style="margin-bottom:1rem;">
+          <input id="kpiDateFrom" type="date" title="Date début KPI" />
+          <input id="kpiDateTo" type="date" title="Date fin KPI" />
+          <select id="kpiSupplierFilter"><option value="all">Tous fournisseurs</option></select>
+          <select id="kpiDeptFilter"><option value="all">Toutes structures</option></select>
+          <select id="kpiTypeFilter"><option value="all">Tous types</option><option value="achat">Achat</option><option value="service">Service</option></select>
+          <button class="btn btn-ghost" id="resetKpiFiltersBtn" type="button">Réinitialiser</button>
+        </div>
+        <div class="kpi-grid" id="kpiGrid"></div>
+        <div class="dashboard-grid">
+          <article class="panel panel-muted">
+            <div class="panel-title-row"><h3>Points d’attention</h3><span class="panel-tag">Auto</span></div>
+            <div id="focusList" class="list-block"></div>
+          </article>
+          <article class="panel panel-entry">
+            <div class="panel-title-row"><h3>Validation BC → DA</h3><span class="panel-tag">Suivi</span></div>
+            <div id="summaryList" class="summary-list"></div>
+          </article>
+        </div>
+        <div class="chart-grid" id="dashboardCharts"></div>
+      </section>
+
+      <section class="page active" id="page-followup">
+        <div class="page-header sa-compact-hero">
+          <div class="sa-hero-inline">
+            <h2><i class="fas fa-file-contract" style="color:var(--primary);margin-right:6px;font-size:15px;"></i>Bons de Commande</h2>
+            <p>Engagements fournisseurs, validation DA, rapprochement DP logique &amp; décaissement.</p>
+          </div>
+          <div class="sa-hero-quick-stats" id="followupHeroQuickStats"></div>
+        </div>
+
+        <!-- Shared Flex Row: Sub-tabs on left + Primary Action Buttons on right -->
+        <div class="sa-subnav-bar">
+          <div class="sa-pill-track" id="followupPillBar" role="tablist">
+            <button type="button" class="sa-pill-btn active" data-subview="register">
+              <i class="fas fa-table-list"></i> <span>Registre des BC</span>
+            </button>
+            <button type="button" class="sa-pill-btn" data-subview="validation">
+              <i class="fas fa-bolt"></i> <span>Validation DA</span>
+              <span class="sa-pill-badge" id="followupPendingDaBadge">0</span>
+            </button>
+            <button type="button" class="sa-pill-btn" data-subview="articles">
+              <i class="fas fa-boxes-stacked"></i> <span>📦 Suivi Articles &amp; Prix</span>
+              <span class="sa-pill-badge" id="followupArticlesCountBadge" style="background:#0284c7;color:#fff;">0</span>
+            </button>
+            <button type="button" class="sa-pill-btn" data-subview="vidanges">
+              <i class="fas fa-truck-pickup"></i> <span>🚛 Suivi Vidanges &amp; Flotte (MTC)</span>
+              <span class="sa-pill-badge" id="followupVidangesCountBadge" style="background:#059669;color:#fff;">0</span>
+            </button>
+            <button type="button" class="sa-pill-btn" data-subview="imports" id="toggleImportToolsBtn">
+              <i class="fas fa-file-import"></i> <span>Imports &amp; Lots</span>
+            </button>
+            <button type="button" class="sa-pill-btn" data-subview="analytics">
+              <i class="fas fa-chart-pie"></i> <span>Synthèse &amp; Délais</span>
+            </button>
+          </div>
+          <div class="toolbar-actions wrap sa-subnav-actions">
+            <button class="btn btn-primary btn-compact" type="button" id="btnOpenNewBcDrawer">
+              <i class="fas fa-plus-circle me-1"></i> + Nouveau BC
+            </button>
+            <button class="btn btn-soft btn-compact" type="button" id="exportFollowupBtn"><i class="fas fa-file-excel me-1"></i> Export Excel</button>
+            <button class="btn btn-soft btn-compact" type="button" id="exportFollowupCsvBtn"><i class="fas fa-file-csv me-1"></i> Export CSV</button>
+            <button class="btn btn-soft btn-compact" type="button" id="downloadTemplateBtn">Modèle</button>
+            <button class="btn btn-soft btn-compact" type="button" id="purgeAllBcsBtn" style="color:#ef4444;border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);" title="Effacer tous les BCs (remise à zéro)"><i class="fas fa-trash-can"></i> Vider BC</button>
+            <button class="btn btn-soft btn-compact" type="button" id="resetCleanSlateBtn" style="color:#dc2626;border-color:rgba(220,38,38,0.35);background:rgba(220,38,38,0.08);" title="Réinitialiser Stock, BC et DP à 0 (conserve Utilisateurs &amp; Tags)"><i class="fas fa-rotate-left"></i> Reset Stock/BC/DP</button>
+          </div>
+        </div>
+
+        <!-- Subview 3: Import tools (Excel import, manual bulk import) -->
+        <div id="subview-followup-imports" class="sa-subview">
+          <div id="importHealthBanner" class="health-banner hidden"></div>
+
+          <div class="followup-grid" id="followupImportGrid">
+            <article class="panel compact-panel glass-card">
+              <div class="panel-title-row"><h3>Import BC Excel</h3><span class="panel-tag">Multi</span></div>
+              <div class="import-grid">
+                <label class="field wide">
+                  <span>Fichiers BC (.xlsx / .xls)</span>
+                  <input id="bcImportInput" type="file" accept=".xlsx,.xls" multiple />
+                </label>
+                <label class="check-inline"><input id="bcImportUpdateExisting" type="checkbox" checked /> <span>Mettre à jour si la référence BC existe déjà</span></label>
+                <div class="inline-actions right"><button class="btn btn-primary" id="importBcBtn" type="button">Importer les BC</button></div>
+              </div>
+              <div class="help-note">Priorité au contenu réel de la feuille : <strong>FOURNISSEUR</strong>, <strong>BC N°</strong>, <strong>DATE</strong>, <strong>TOTAL TTC</strong>. Devise forcée en <strong>DZD</strong>.</div>
+              <div id="importResult" class="import-result muted">Aucun import lancé.</div>
+            </article>
+
+            <article class="panel compact-panel glass-card">
+              <div class="panel-title-row"><h3>Ajout multiple manuel</h3><span class="panel-tag">Lot</span></div>
+              <label class="field wide">
+                <span>Format : Réf BC ; Date ; Fournisseur ; Montant TTC ; Type ; Description ; Paiement ; Commentaire</span>
+                <textarea id="bulkBcInput" rows="6" placeholder="BC 101/DG/2026;2026-03-24;FOURNISSEUR A;150000;achat;Pièces;Virement;Urgent"></textarea>
+              </label>
+              <div class="toolbar-actions wrap">
+                <button class="btn btn-soft" id="fillBulkExampleBtn" type="button">Exemple</button>
+                <button class="btn btn-primary" id="importBulkBcBtn" type="button">Ajouter le lot</button>
+              </div>
+              <div id="bulkImportResult" class="import-result muted">Aucun lot traité.</div>
+            </article>
+          </div>
+        </div>
+
+        <!-- Slide-over Drawer for Nouveau Bon de Commande / Édition Rapide -->
+        <div id="bcSlideOverDrawer" class="bc-drawer-backdrop hidden">
+          <div class="bc-drawer-panel">
+            <div class="bc-drawer-head">
+              <div class="bc-drawer-head-info">
+                <span class="bc-drawer-badge"><i class="fas fa-file-invoice-dollar me-1"></i> Bon de Commande</span>
+                <h3 id="bcDrawerHeading">Nouveau Bon de Commande</h3>
+                <p id="bcDrawerSub">Saisie rapide, validation DA et conditions de règlement</p>
+              </div>
+              <button type="button" class="bc-drawer-close" id="closeBcDrawerBtn" title="Fermer (Échap)">✕</button>
+            </div>
+            <div class="bc-drawer-body">
+              <div id="bcDrawerStockAlert" class="hidden" style="margin-bottom:1rem;"></div>
+              <form id="followupForm" class="dense-form two-cols">
+                <input type="hidden" id="followupId" />
+                <label class="field">
+                  <span>Réf. BC</span>
+                  <input id="bcRef" type="text" placeholder="BC 1/DG/2026" />
+                </label>
+                <label class="field">
+                  <span>Réf. DA / suivi</span>
+                  <input id="bcDaRef" type="text" placeholder="DA 1/DG/2026" />
+                </label>
+                <label class="field">
+                  <span>Date BC</span>
+                  <input id="bcDate" type="date" />
+                </label>
+                <label class="field">
+                  <span>Fournisseur</span>
+                  <input id="bcSupplier" type="text" list="suppliersList" placeholder="Fournisseur" />
+                </label>
+                <label class="field">
+                  <span>Montant HT</span>
+                  <input id="bcAmountHT" type="text" inputmode="decimal" placeholder="0,00" />
+                </label>
+                <label class="field">
+                  <span>Montant TTC</span>
+                  <input id="bcAmount" type="text" inputmode="decimal" placeholder="0,00" />
+                </label>
+                <label class="field">
+                  <span>TVA</span>
+                  <input id="bcTVA" type="text" inputmode="decimal" placeholder="0,00" />
+                </label>
+                <label class="field">
+                  <span>Devise</span>
+                  <input id="bcCurrency" type="text" value="DZD" readonly />
+                </label>
+                <label class="field">
+                  <span>Type</span>
+                  <select id="bcType">
+                    <option value="achat">Achat</option>
+                    <option value="service">Service</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Structure demandeuse</span>
+                  <input id="bcDepartment" type="text" list="departmentsList" placeholder="Ex: Structure Transport" />
+                </label>
+                <label class="field">
+                  <span>Statut</span>
+                  <select id="bcStatus">
+                    <option value="transmis">Transmis</option>
+                    <option value="livre">Livré</option>
+                    <option value="paye">Payé</option>
+                    <option value="livre_paye">✓ Livré &amp; Payé</option>
+                    <option value="brouillon">Brouillon</option>
+                    <option value="partiel">Partiel</option>
+                    <option value="receptionne">Réceptionné</option>
+                    <option value="clos">Clôturé</option>
+                  </select>
+                </label>
+                <label class="field wide">
+                  <span>Objet / description</span>
+                  <input id="bcDescription" type="text" placeholder="Description courte" />
+                </label>
+                <div class="field wide" id="bcDrawerLineItemsBox" style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:0.75rem;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:6px;">
+                    <span style="font-weight:700;color:#0f172a;font-size:0.85rem;"><i class="fas fa-boxes-stacked text-primary me-1"></i> Articles du BC (Base de Prix &amp; Historique)</span>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                      <button type="button" class="btn btn-soft btn-compact" onclick="window.ArticlesPriceTracker && ArticlesPriceTracker.addBcFormLine('drawer')" style="font-size:0.78rem;padding:3px 10px;">+ Ajouter Article</button>
+                      <button type="button" class="btn btn-ghost btn-compact" onclick="window.ArticlesPriceTracker && ArticlesPriceTracker.syncTotalsFromLines('drawer')" style="font-size:0.75rem;padding:3px 8px;" title="Calculer Montant HT/TTC depuis les lignes">∑ Calculer Total</button>
+                    </div>
+                  </div>
+                  <div id="bcDrawerMtcNotice" class="hidden" style="background:#eff6ff;border:1px solid #93c5fd;color:#1e40af;border-radius:6px;padding:6px 10px;font-size:0.78rem;margin-bottom:6px;">
+                    <i class="fas fa-truck-moving me-1"></i> <strong>Maghreb Trucks Company détecté :</strong> Ce BC sera automatiquement suivi dans <em>🚛 Suivi Vidanges &amp; Flotte</em> via la Remarque (exclu de la base de prix des articles).
+                  </div>
+                  <div id="bcDrawerLinesContainer" style="display:flex;flex-direction:column;gap:6px;"></div>
+                </div>
+                <label class="field">
+                  <span>Date promise</span>
+                  <input id="bcPromisedDate" type="date" />
+                </label>
+                <label class="field">
+                  <span>Date réception marchandise</span>
+                  <input id="bcGoodsDate" type="date" />
+                </label>
+                <label class="field">
+                  <span>Date faite de service</span>
+                  <input id="bcServiceDate" type="date" />
+                </label>
+                <label class="field">
+                  <span>Demandeur</span>
+                  <input id="bcRequester" type="text" list="requestersList" placeholder="Nom / service" />
+                </label>
+                <label class="field">
+                  <span>Conditions paiement</span>
+                  <input id="bcPaymentTerms" type="text" placeholder="Chèque / virement / autre" />
+                </label>
+                <label class="field wide">
+                  <span>Commentaire / justification</span>
+                  <textarea id="bcComments" rows="3" placeholder="Expliquer un retard, une attente, une anomalie..."></textarea>
+                </label>
+                <label class="field wide">
+                  <span>Notes internes</span>
+                  <input id="bcNotes" type="text" placeholder="Observation interne" />
+                </label>
+                <div class="field wide" id="bcDrawerVidangeAssistantBox" style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:0.75rem;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+                    <span style="font-weight:700;color:#166534;font-size:0.83rem;"><i class="fas fa-oil-can me-1"></i> Assistant Remarque Vidange / Camion (Maghreb Trucks &amp; Parc)</span>
+                    <button type="button" class="btn btn-soft btn-compact" onclick="window.ArticlesPriceTracker && ArticlesPriceTracker.applyVidangeAssistant('drawer')" style="font-size:0.76rem;padding:2px 9px;background:#16a34a;color:#fff;border:none;">⚡ Insérer dans Remarque</button>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:6px;">
+                    <select id="bcAssistServiceDrawer" style="font-size:0.8rem;padding:4px 6px;border-radius:6px;border:1px solid #bbf7d0;">
+                      <option value="Vidange">Vidange</option>
+                      <option value="Vidange + Filtres">Vidange + Filtres</option>
+                      <option value="Révision">Révision</option>
+                      <option value="Plaquettes de frein">Plaquettes / Freins</option>
+                      <option value="Garnitures de frein">Garnitures de frein</option>
+                      <option value="Entretien">Entretien</option>
+                    </select>
+                    <input type="text" id="bcAssistKmDrawer" list="knownKmTiersList" placeholder="KM (ex: 50000)" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid #bbf7d0;" />
+                    <select id="bcAssistVehicleTypeDrawer" style="font-size:0.8rem;padding:4px 6px;border-radius:6px;border:1px solid #bbf7d0;">
+                      <option value="Tracteur">Tracteur</option>
+                      <option value="Camion">Camion</option>
+                      <option value="Fourgon">Fourgon</option>
+                      <option value="Véhicule">Véhicule</option>
+                    </select>
+                    <input type="text" id="bcAssistPlateDrawer" list="knownTruckPlatesList" placeholder="IMM (ex: 000112-525-07)" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid #bbf7d0;" />
+                  </div>
+                  <div id="bcDrawerRemarqueParsePreview" style="margin-top:6px;font-size:0.76rem;color:#15803d;"></div>
+                </div>
+                <label class="field wide">
+                  <span>Remarques BC</span>
+                  <textarea id="bcRemarques" rows="2" placeholder="Ex: vidange 50000 pour Tracteur IMM: 000112-525-07"></textarea>
+                </label>
+                <div class="bc-drawer-actions wide wrap">
+                  <button class="btn btn-primary" type="submit" data-mode="save"><i class="fas fa-check me-1"></i> Enregistrer</button>
+                  <button class="btn btn-success" type="submit" data-mode="validate"><i class="fas fa-stamp me-1"></i> Valider BC + DA</button>
+                  <button class="btn btn-ghost" type="button" id="resetFollowupBtn">Réinitialiser</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 1: Table & quick filters (default) -->
+        <div id="subview-followup-register" class="sa-subview active">
+          <article class="panel panel-muted sa-dense-panel">
+          <div class="toolbar-row compact-toolbar filters-row filters-grid-compact">
+            <input id="followupSearch" type="search" placeholder="Réf BC, DA, DP, fournisseur, article, commentaire..." />
+            <select id="followupValidationFilter">
+              <option value="all">DA : toutes</option>
+              <option value="validated">DA validées</option>
+              <option value="draft">DA à vérifier</option>
+            </select>
+            <select id="followupStatusFilter" title="Filtrer par statut BC, règlement DP ou suggestion IA">
+              <option value="all">Tous statuts</option>
+              <option value="livre_paye">✓ Livré &amp; Payé</option>
+              <option value="paye_all">✓ Tous les Payés (incl. Clôturé &amp; Livré)</option>
+              <option value="paye">Payé</option>
+              <option value="non_paye">⏳ Non payés (Créances dues)</option>
+              <option value="avec_dp">🔗 Avec DP liée</option>
+              <option value="sans_dp">⚠️ Sans DP liée (À rapprocher)</option>
+              <option value="ia_candidat">🤖 Avec DP logique suggérée (IA)</option>
+              <option value="anomalie">⚠️ À vérifier (Montant 0 / Sans fournisseur)</option>
+              <option value="livre">Livré / Réceptionné</option>
+              <option value="non_livre">Non livré (En attente réception)</option>
+              <option value="transmis">Transmis / En cours</option>
+              <option value="clos">Clôturé</option>
+            </select>
+            <select id="followupTypeFilter">
+              <option value="all">Tous types</option>
+              <option value="achat">Achat</option>
+              <option value="service">Service</option>
+            </select>
+            <select id="followupImportanceFilter" title="Priorité / Importance BC">
+              <option value="all">Priorité : toutes</option>
+              <option value="critical">🔴 Critique / Urgente (&gt; 1.5M DZD ou Panne)</option>
+              <option value="high">🟠 Stratégique / Haute (500k – 1.5M DZD)</option>
+              <option value="normal">🔵 Standard / Opérationnelle (&lt; 500k DZD)</option>
+            </select>
+            <select id="followupSupplierFilter" style="display:none;"><option value="all">Tous fournisseurs</option></select>
+            <div class="multi-select-container" id="supplierMultiSelectContainer">
+              <button type="button" class="multi-select-trigger" id="supplierMultiSelectBtn">
+                <span class="multi-select-label" id="supplierMultiSelectLabel">Fournisseurs : Tous</span>
+                <span class="multi-select-arrow" aria-hidden="true">▾</span>
+              </button>
+              <div class="multi-select-dropdown hidden" id="supplierMultiSelectDropdown">
+                <div class="multi-select-header">
+                  <input type="text" id="supplierMultiSelectSearch" class="multi-select-search" placeholder="Rechercher fournisseur..." />
+                  <div class="multi-select-quick-actions">
+                    <button type="button" id="supplierSelectAllBtn" class="btn-link">Tout cocher</button>
+                    <span>·</span>
+                    <button type="button" id="supplierClearAllBtn" class="btn-link">Tout décocher</button>
+                  </div>
+                </div>
+                <div class="multi-select-list" id="supplierMultiSelectList"></div>
+              </div>
+            </div>
+            <select id="followupRequesterFilter"><option value="all">Tous demandeurs</option></select>
+            <select id="followupDeptFilter"><option value="all">Toutes structures</option></select>
+            <input id="followupDateFrom" type="date" title="Date début" />
+            <input id="followupDateTo" type="date" title="Date fin" />
+            <select id="followupSortField">
+              <option value="date">Tri : date BC</option>
+              <option value="ref">Tri : référence BC</option>
+              <option value="supplier">Tri : fournisseur</option>
+              <option value="amount">Tri : montant TTC</option>
+              <option value="status">Tri : statut BC</option>
+              <option value="promisedDate">Tri : date promise</option>
+            </select>
+            <select id="followupSortDir">
+              <option value="desc">Décroissant</option>
+              <option value="asc">Croissant</option>
+            </select>
+            <button class="btn btn-primary" id="applyFollowupFiltersBtn" type="button" >
+              <i class="fas fa-search"></i> 🔍 Filtrer
+            </button>
+            <button class="btn btn-outline-primary" type="button" onclick="if(window.switchFollowupSubview){window.switchFollowupSubview('vidanges');}else if(window.FleetAnalyzer){FleetAnalyzer.openModal();}" style="font-weight:700;"><i class="fas fa-truck-pickup me-1"></i> Suivi Vidanges & Flotte</button>
+            <button class="btn btn-ghost" id="resetFollowupFiltersBtn" type="button">Réinitialiser filtres</button>
+          </div>
+                    <!-- Bulk Action Toolbar -->
+          <div id="followupBulkActionBar" class="bulk-action-bar" style="display:none; align-items:center; justify-content:space-between; padding:0.6rem 1rem; margin-bottom:0.75rem; background:linear-gradient(90deg, #1e293b, #0f172a); border:1px solid #38bdf8; border-radius:8px; color:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.25);">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              <span style="font-weight:700; color:#38bdf8; font-size:0.95rem;">
+                <i class="fas fa-check-square me-1"></i> <span id="followupSelectedCount">0</span> BC(s) sélectionné(s)
+              </span>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm" id="bulkCloseBcsBtn" style="font-weight:700; background:#0ea5e9; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-check-double me-1"></i> Clôturer sélection
+              </button>
+              <button type="button" class="btn btn-sm" id="bulkMarkLivrePayeBtn" style="font-weight:700; background:#10b981; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-money-check-alt me-1"></i> Marquer Livré &amp; Payé
+              </button>
+              <button type="button" class="btn btn-sm" id="bulkMarkLivreBtn" style="font-weight:700; background:#3b82f6; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-truck-loading me-1"></i> Marquer Livré
+              </button>
+              <button type="button" class="btn btn-sm" id="bulkDeleteBcsBtn" style="font-weight:700; background:#ef4444; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                <i class="fas fa-trash-alt me-1"></i> Supprimer
+              </button>
+              <button type="button" class="btn btn-sm btn-ghost" id="bulkDeselectAllBtn" style="color:#94a3b8; padding:6px 10px; cursor:pointer;">
+                Annuler
+              </button>
+            </div>
+          </div>
+          <div class="table-shell">
+            <table class="dense-table compact-table followup-table" id="followupTable">
+              <thead>
+                <tr>
+                  <th style="width:36px; text-align:center;"><input type="checkbox" id="selectAllFollowupBcs" title="Tout sélectionner" style="cursor:pointer; width:16px; height:16px;" /></th>
+                  <th>BC</th>
+                  <th>DA</th>
+                  <th>Date</th>
+                  <th>Fournisseur</th>
+                  <th>Demandeur</th>
+                  <th>Service / Département</th>
+                  <th>Type</th>
+                  <th>Montant HT</th>
+                  <th>Montant TTC</th>
+                  <th>Statut BC</th>
+                  <th>Réalisation</th>
+                  <th>Remarques</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="followupTableBody"></tbody>
+            </table>
+          </div>
+          <div class="table-meta-row">
+            <div id="followupCount" class="table-count muted">0 ligne</div>
+            <div id="followupPagination" class="pagination"></div>
+          </div>
+        </article>
+        </div>
+
+        <!-- Subview 2: Validation BC / DA & Summary -->
+        <div id="subview-followup-validation" class="sa-subview">
+          <article class="panel panel-entry">
+            <div class="panel-title-row">
+              <h3><i class="fas fa-bolt text-warning me-2"></i>Validation Exécutive des Demandes d'Achat (DA &rarr; BC)</h3>
+              <span class="panel-tag">Circuit d'Approbation</span>
+            </div>
+            <p style="color:var(--muted);font-size:0.86rem;margin-bottom:1rem;">
+              Examinez et validez les dossiers d'achat en attente de visa pour fluidifier la chaîne d'approvisionnement.
+            </p>
+            <div class="reports-summary-grid" style="margin-bottom:1.25rem;">
+              <div class="report-metric-card" style="border-left:4px solid #881337;">
+                <div class="report-metric-label">DA à vérifier</div>
+                <div class="report-metric-value text-danger" id="valCardDraftCount">0</div>
+                <div class="report-metric-hint">En attente de visa / DA provisoire</div>
+              </div>
+              <div class="report-metric-card" style="border-left:4px solid #10b981;">
+                <div class="report-metric-label">DA validées</div>
+                <div class="report-metric-value text-success" id="valCardValidatedCount">0</div>
+                <div class="report-metric-hint">Dossiers conformes et validés</div>
+              </div>
+              <div class="report-metric-card" style="border-left:4px solid #0284c7;">
+                <div class="report-metric-label">Taux d'approbation</div>
+                <div class="report-metric-value text-info" id="valCardValidationRate">0%</div>
+                <div class="report-metric-hint">Objectif cible &ge; 90%</div>
+              </div>
+              <div class="report-metric-card" style="border-left:4px solid #881337;">
+                <div class="report-metric-label">Délai moyen DA &rarr; BC</div>
+                <div class="report-metric-value" style="color:#881337;" id="valCardAvgLeadTime">0 j</div>
+                <div class="report-metric-hint">Délai de passage en commande</div>
+              </div>
+            </div>
+            <div class="toolbar-row compact-toolbar" style="margin-bottom:1rem;gap:10px;">
+              <button class="btn btn-primary" type="button" id="btnValidateAllDrafts">
+                <i class="fas fa-check-double me-1"></i> Valider toutes les DA filtrées
+              </button>
+              <button class="btn btn-soft" type="button" id="btnFilterOnlyDrafts">
+                <i class="fas fa-filter me-1"></i> Filtrer DA à vérifier dans le registre
+              </button>
+            </div>
+            <div class="table-shell">
+              <table class="dense-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Réf BC</th>
+                    <th>Réf DA</th>
+                    <th>Date BC</th>
+                    <th>Fournisseur</th>
+                    <th>Montant TTC</th>
+                    <th>Statut DA</th>
+                    <th>Action Express</th>
+                  </tr>
+                </thead>
+                <tbody id="followupValidationTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+
+        <!-- Subview 4: Statistical Breakdowns & Delays -->
+        <div id="subview-followup-analytics" class="sa-subview">
+          <div class="reports-breakdown-grid">
+            <article class="panel reports-card">
+              <div class="panel-title-row">
+                <h3><i class="fas fa-clock text-primary me-2"></i>Synthèse des Délais &amp; Performance</h3>
+                <span class="panel-tag">Délais</span>
+              </div>
+              <div id="followupDelaysBreakdown" class="reports-breakdown-content" style="padding:1rem;"></div>
+            </article>
+            <article class="panel reports-card">
+              <div class="panel-title-row">
+                <h3><i class="fas fa-chart-pie text-success me-2"></i>Répartition des BC par Statut</h3>
+                <span class="panel-tag">Statuts</span>
+              </div>
+              <div id="followupStatusBreakdown" class="reports-breakdown-content" style="padding:1rem;"></div>
+            </article>
+          </div>
+        </div>
+
+        <!-- Subview 5: Suivi Articles & Prix (Catalogue & Variations de Prix) -->
+        <div id="subview-followup-articles" class="sa-subview" style="display:none;">
+          <div id="articlesSuiviContainer"></div>
+        </div>
+
+        <!-- Subview 6: Suivi Vidanges & Flotte (Maghreb Trucks Company & Parc) -->
+        <div id="subview-followup-vidanges" class="sa-subview" style="display:none;">
+          <div id="vidangesSuiviContainer"></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-payments">
+        <div class="page-header sa-compact-hero">
+          <div class="sa-hero-inline">
+            <h2><i class="fas fa-credit-card" style="color:var(--primary);margin-right:6px;font-size:15px;"></i>Paiements &amp; Demandes de Paiement (DP)</h2>
+            <p>Ordonnancement trésorerie, sélection multi-DP avec règlement groupé des BC associés et rapprochement IA.</p>
+          </div>
+        </div>
+
+        <div class="sa-subnav-bar">
+          <div class="sa-pill-track" id="paymentsPillBar" role="tablist">
+            <button type="button" class="sa-pill-btn active" data-subview="register">
+              <i class="fas fa-credit-card"></i> <span>Registre des DP</span>
+            </button>
+            <button type="button" class="sa-pill-btn" data-subview="form">
+              <i class="fas fa-file-invoice-dollar"></i> <span>+ Nouvelle DP / Échéancier</span>
+            </button>
+          </div>
+          <div class="toolbar-actions wrap sa-subnav-actions">
+            <button class="btn btn-primary btn-compact" type="button" id="togglePaymentFormBtn" onclick="window.switchPaymentsSubview && window.switchPaymentsSubview('form');">
+              <i class="fas fa-plus-circle me-1"></i> + Nouvelle DP
+            </button>
+            <button class="btn btn-soft btn-compact" type="button" id="exportPaymentsBtn"><i class="fas fa-file-excel me-1"></i> Exporter DP</button>
+            <button class="btn btn-soft btn-compact" type="button" id="purgeAllDpsBtn" style="color:#ef4444;border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);" title="Effacer toutes les Demandes de Paiement (remise à zéro)"><i class="fas fa-trash-can"></i> Vider DP</button>
+          </div>
+        </div>
+
+        <div class="section-stack">
+          <!-- Subview 2: Nouvelle DP / Échéancier Form -->
+          <div id="subview-payments-form" class="sa-subview">
+            <article class="panel panel-entry" id="paymentFormCard" style="margin-bottom: 1rem;">
+              <div class="panel-title-row"><h3>Enregistrement / Modification Demande de Paiement (DP)</h3><span class="panel-tag">Trésorerie</span></div>
+              <form id="paymentForm" class="dense-form two-cols">
+                <input type="hidden" id="paymentId" />
+                <div class="field wide" style="grid-column:1 / -1;background:rgba(37,99,235,0.04);border:1px solid rgba(37,99,235,0.18);border-radius:10px;padding:10px 12px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                    <span style="font-weight:700;font-size:12px;color:var(--text);">🔗 Bon(s) de Commande rattaché(s) (1 ou plusieurs BCs)</span>
+                    <span id="paymentMultiBcSummary" style="font-size:11.5px;font-weight:700;color:#2563eb;">Aucun BC rattaché</span>
+                  </div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                    <select id="paymentBcId" style="flex:1;min-width:220px;" onchange="window.addBcToPaymentForm && window.addBcToPaymentForm(this.value)"></select>
+                    <button type="button" class="btn btn-soft btn-compact" onclick="window.addBcToPaymentForm && window.addBcToPaymentForm(document.getElementById('paymentBcId').value)">➕ Ajouter BC</button>
+                    <button type="button" class="btn btn-Ghost btn-compact" style="border:1px solid rgba(220,38,38,0.25);color:#dc2626;" onclick="window.clearBcsFromPaymentForm && window.clearBcsFromPaymentForm()">✕ Vider BCs</button>
+                  </div>
+                  <div id="paymentMultiBcChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:24px;align-items:center;"></div>
+                </div>
+                <label class="field"><span>Bénéficiaire / Fournisseur</span><input id="paymentBeneficiary" type="text" list="suppliersList" placeholder="Fournisseur / Bénéficiaire" /></label>
+                <label class="field"><span>Réf paiement / DP</span><input id="paymentRef" type="text" placeholder="Ex: 157/2026" /></label>
+                <label class="field"><span>Montant (DZD)</span><input id="paymentAmount" type="text" inputmode="decimal" placeholder="0,00" /></label>
+                <label class="field"><span>Date demande</span><input id="paymentRequestDate" type="date" /></label>
+                <label class="field"><span>Date paiement</span><input id="paymentPaidDate" type="date" /></label>
+                <label class="field"><span>Mode de règlement</span><select id="paymentMode"><option value="virement">Virement</option><option value="cheque">Chèque</option><option value="especes">Espèces</option><option value="autre">Autre</option></select></label>
+                <label class="field"><span>Réf chèque / virement</span><input id="paymentTransactionRef" type="text" placeholder="N° pièce / virement" /></label>
+                <label class="field"><span>Statut DP</span><select id="paymentStatus"><option value="en_attente">⏳ En attente</option><option value="programme">📅 Programmé / En cours</option><option value="paye">✓ Payé (+ met à jour BC lié)</option><option value="annule">✕ Annulé / Rejeté</option></select></label>
+                <label class="field"><span>Objet / Remarques</span><input id="paymentNotes" type="text" placeholder="Objet de la dépense / facture..." /></label>
+                <label class="field" style="display:flex;align-items:center;gap:8px;padding-top:22px;"><input type="checkbox" id="paymentExcluded" style="width:16px;height:16px;" /> <span>🚫 Cas spécial (Exclure du calcul)</span></label>
+                <div class="form-actions wide"><button class="btn btn-primary" type="submit">💾 Enregistrer la DP</button><button class="btn btn-ghost" type="button" id="resetPaymentBtn" onclick="window.switchPaymentsSubview && window.switchPaymentsSubview('register');">Fermer</button></div>
+              </form>
+            </article>
+          </div>
+
+          <!-- Subview 1: Registre des Paiements -->
+          <div id="subview-payments-register" class="sa-subview active">
+            <article class="panel panel-muted sa-dense-panel">
+              <div class="toolbar-row compact-toolbar filters-row filters-grid-compact" id="dpFiltersBar">
+                <input id="paymentSearch" type="search" placeholder="Réf DP, fournisseur, réf BC, objet, montant..." />
+                <select id="paymentFilterStatus" title="Statut DP">
+                  <option value="all">Tous statuts (Actifs)</option>
+                  <option value="all_with_excluded">Tous (Y compris Cas spéciaux)</option>
+                  <option value="paye">✓ Payé</option>
+                  <option value="non_paye">⏳ Non payé / En attente</option>
+                  <option value="en_cours">📅 En cours / Programmé</option>
+                  <option value="annule">✕ Annulé / Rejeté</option>
+                  <option value="excluded">🚫 Cas spécial / Hors calcul (Exclus)</option>
+                </select>
+                <select id="paymentFilterLink" title="Liaison BC">
+                  <option value="all">Toutes liaisons</option>
+                  <option value="linked">🔗 Liée à un BC</option>
+                  <option value="multi_bc">📦 Multi-BC groupée</option>
+                  <option value="unlinked">⚠️ Sans BC liée</option>
+                  <option value="ia_candidate">🤖 Candidat BC logique (IA)</option>
+                  <option value="direct">⚡ Dépense directe sans BC</option>
+                </select>
+                <select id="paymentFilterSupplier" title="Fournisseur / Bénéficiaire"><option value="all">Tous bénéficiaires</option></select>
+                <select id="paymentFilterMode" title="Mode de paiement">
+                  <option value="all">Tous modes</option>
+                  <option value="virement">Virement</option>
+                  <option value="cheque">Chèque</option>
+                  <option value="especes">Espèces</option>
+                  <option value="autre">Autre</option>
+                </select>
+                <input id="paymentDateFrom" type="date" title="Date début DP" />
+                <input id="paymentDateTo" type="date" title="Date fin DP" />
+                <select id="paymentSortField" title="Trier par">
+                  <option value="requestDate">Tri : date DP</option>
+                  <option value="paidDate">Tri : date paiement</option>
+                  <option value="amount">Tri : montant</option>
+                  <option value="paymentRef">Tri : réf DP</option>
+                  <option value="supplier">Tri : fournisseur</option>
+                  <option value="delay">Tri : délai</option>
+                </select>
+                <select id="paymentSortDir" title="Ordre">
+                  <option value="desc">Décroissant</option>
+                  <option value="asc">Croissant</option>
+                </select>
+                <button class="btn btn-soft" id="btnDedupeDps" type="button" onclick="ApproNextGen.runManualDpDedupe()" title="Fusionner les doublons DP">🧹 Dédoublonner DP</button>
+                <button class="btn btn-ghost" id="resetPaymentFiltersBtn" type="button">Réinitialiser filtres</button>
+              </div>
+
+              <!-- Live DP KPI Strip -->
+              <div id="dpSummaryBar" class="followup-summary-bar dp-summary-bar"></div>
+
+              <!-- Sticky Multi-DP Bulk Action Bar -->
+              <div id="dpBulkActionBar" class="bulk-action-bar dp-bulk-bar" style="display:none;">
+                <div class="dp-bulk-info">
+                  <span class="dp-bulk-count"><i class="fas fa-check-square me-1"></i> <strong id="dpSelectedCount">0</strong> DP sélectionnée(s)</span>
+                  <span class="dp-bulk-sep">·</span>
+                  <span class="dp-bulk-amt">Total : <strong id="dpSelectedTotalAmt">0,00 DZD</strong></span>
+                  <span class="dp-bulk-sep">·</span>
+                  <span class="dp-bulk-bcs"><strong id="dpSelectedLinkedBcCount">0</strong> BC associé(s)</span>
+                </div>
+                <div class="dp-bulk-btns">
+                  <button type="button" class="btn btn-sm dp-bulk-btn-paid" id="bulkMarkDpPaidBtn">
+                    <i class="fas fa-check-double me-1"></i> ✓ Marquer Payé (+ BC associés)
+                  </button>
+                  <button type="button" class="btn btn-sm dp-bulk-btn-pending" id="bulkMarkDpPendingBtn">
+                    <i class="fas fa-hourglass-half me-1"></i> ⏳ Marquer En attente
+                  </button>
+                  <button type="button" class="btn btn-sm dp-bulk-btn-ai" id="bulkAutoLinkDpBtn">
+                    <i class="fas fa-brain me-1"></i> 🧠 Rapprocher avec BC (IA)
+                  </button>
+                  <button type="button" class="btn btn-sm" id="bulkExcludeDpBtn" style="background:#f59e0b;color:#fff;border:none;">
+                    <i class="fas fa-ban me-1"></i> 🚫 Cas spécial (Exclure du calcul)
+                  </button>
+                  <button type="button" class="btn btn-sm" id="bulkDeleteDpBtn" style="background:#dc2626;color:#fff;border:none;">
+                    <i class="fas fa-trash me-1"></i> 🗑️ Supprimer sélection
+                  </button>
+                  <button type="button" class="btn btn-sm btn-ghost dp-bulk-btn-clear" id="bulkClearDpSelectionBtn">
+                    ✕ Tout désélectionner
+                  </button>
+                </div>
+              </div>
+
+              <div class="table-shell">
+                <table class="dense-table compact-table followup-table payments-table" id="paymentsTable">
+                  <thead>
+                    <tr>
+                      <th style="width:34px;text-align:center;"><input type="checkbox" id="selectAllPayments" title="Tout sélectionner" style="cursor:pointer;width:15px;height:15px;" /></th>
+                      <th>Réf DP</th>
+                      <th>Statut DP</th>
+                      <th>Liaison BC</th>
+                      <th>Fournisseur / Bénéficiaire</th>
+                      <th>Objet / Nature</th>
+                      <th>Date DP</th>
+                      <th>Date Paiement</th>
+                      <th>Montant</th>
+                      <th>Mode</th>
+                      <th>Délai</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="paymentsTableBody"></tbody>
+                </table>
+              </div>
+              <div class="table-meta-row">
+                <div id="paymentsCount" class="table-count muted">0 ligne</div>
+                <div id="paymentsPagination" class="pagination"></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+ 
+      <section class="page" id="page-finance">
+        <div class="page-header hero-panel">
+          <div>
+            <h2><i class="fas fa-landmark" style="color:var(--primary);margin-right:6px;font-size:16px;"></i>Intelligence Financière &amp; Gestion des Créances</h2>
+            <p>Pilotage exécutif : encours fournisseurs, prévisionnel de décaissement, consommation mensuelle et cadences de règlement.</p>
+          </div>
+          <div class="toolbar-actions wrap">
+            <button class="btn btn-soft" type="button" onclick="ApproNextGen.renderFinancialIntelligenceCockpit()">Actualiser</button>
+            <button class="btn btn-primary" type="button" onclick="ApproNextGen.exportFinancialReport()">Exporter Synthèse</button>
+          </div>
+        </div>
+
+        <div id="financialCockpitContainer"></div>
+      </section>
+
+      <section class="page" id="page-smart-match">
+        <div class="page-header sa-compact-hero">
+          <div class="sa-hero-inline">
+            <h2><i class="fas fa-brain" style="color:var(--primary);margin-right:6px;font-size:15px;"></i>Rapprochement IA Logique DP &harr; BC</h2>
+            <p>Moteur heuristique algérien : entités SARL/EURL/SPA, HT/TTC/TVA/Timbre 1%, multi-BC groupés et causalité temporelle.</p>
+          </div>
+          <div class="toolbar-actions wrap">
+            <button class="btn btn-success btn-compact" id="btnAutoLinkHighConf" type="button" onclick="window.SmartMatch && SmartMatch.autoLinkSureMatches()"><i class="fas fa-bolt me-1"></i> ⚡ Auto-lier les matchs sûrs (&ge;85%)</button>
+            <button class="btn btn-primary btn-compact" id="btnRunSmartMatch" type="button"><i class="fas fa-sync-alt me-1"></i> Recalculer IA</button>
+            <button class="btn btn-soft btn-compact" id="btnExportSmartMatch" type="button" onclick="window.SmartMatch && SmartMatch.exportReport()"><i class="fas fa-file-export me-1"></i> Exporter rapport</button>
+          </div>
+        </div>
+
+        <!-- 6-Card AI Rapprochement KPI Strip -->
+        <div id="smKpiStrip" class="followup-summary-bar sm-kpi-strip"></div>
+
+        <!-- Filter & Bulk Validation Bar -->
+        <div class="toolbar-row compact-toolbar filters-row filters-grid-compact sm-filter-bar" id="smFilterBar">
+          <input id="smSearchInput" type="search" placeholder="Rechercher réf DP, réf BC, fournisseur, objet, montant..." oninput="window.SmartMatch && SmartMatch.onFilterChange()" />
+          <select id="smTierFilter" onchange="window.SmartMatch && SmartMatch.onFilterChange()">
+            <option value="all">Confiance : Toutes suggestions (&ge;45%)</option>
+            <option value="sure">🟢 Matchs Sûrs (&ge;85%)</option>
+            <option value="probable">🔵 Probables (65% – 84%)</option>
+            <option value="possible">🟠 Possibles (45% – 64%)</option>
+            <option value="multi">📦 Multi-BC Groupés</option>
+            <option value="no_cand">⚠️ BC sans aucun candidat</option>
+          </select>
+          <button class="btn btn-primary btn-compact" id="btnValidateSelectedSm" type="button" onclick="window.SmartMatch && SmartMatch.validateSelected(false)">
+            <i class="fas fa-link me-1"></i> ✓ Valider les suggestions sélectionnées (<span id="smSelectedCount">0</span>)
+          </button>
+          <button class="btn btn-success btn-compact" id="btnValidateAndPaySelectedSm" type="button" onclick="window.SmartMatch && SmartMatch.validateSelected(true)">
+            <i class="fas fa-check-double me-1"></i> ✓ Valider &amp; Marquer Payé
+          </button>
+          <button class="btn btn-ghost btn-compact" type="button" onclick="window.SmartMatch && SmartMatch.resetFilters()">Réinitialiser</button>
+        </div>
+
+        <div id="smUnlinkedBcBanner" class="sm-alert-banner" style="display:none;"></div>
+        <div class="sm-section-grid">
+          <div class="panel sm-panel-full sa-dense-panel">
+            <div class="panel-title-row"><h3><i class="fas fa-brain text-primary me-1"></i> Suggestions Logiques IA (DP &harr; BC)</h3><span class="panel-tag" id="smSuggestCount">0 suggestions</span></div>
+            <div id="smSuggestionsTable" class="sm-table-wrap"></div>
+          </div>
+          <div class="panel sm-panel-half sa-dense-panel">
+            <div class="panel-title-row"><h3><i class="fas fa-triangle-exclamation text-warning me-1"></i> BCs non rapprochés</h3><span class="panel-tag" id="smUnlinkedBcCount">0</span></div>
+            <div id="smUnlinkedBcTable" class="sm-table-wrap"></div>
+          </div>
+          <div class="panel sm-panel-half sa-dense-panel">
+            <div class="panel-title-row"><h3><i class="fas fa-question-circle text-danger me-1"></i> DPs sans BC liée</h3><span class="panel-tag" id="smUnlinkedDpCount">0</span></div>
+            <div id="smUnlinkedDpTable" class="sm-table-wrap"></div>
+          </div>
+        </div>
+      </section>
+      <section class="page" id="page-reports">
+        <div class="page-header reports-page-header">
+          <div>
+            <div class="reports-header-badge"><i class="fas fa-building me-1"></i> SPA DOUROUB ELDJAZAIR &middot; Direction Générale &amp; Contrôle Financier</div>
+            <h2><i class="fas fa-chart-line" style="color:var(--primary);margin-right:6px;font-size:16px;"></i>Rapports &amp; Synthèse Exécutive</h2>
+            <p>Pilotage analytique des engagements, cadences de paiement, pipeline P2P et ventilation budgétaire.</p>
+          </div>
+          <div class="toolbar-actions wrap reports-export-bar">
+            <button class="btn btn-soft" type="button" id="printReportsBtn" onclick="window.print();" title="Imprimer ou enregistrer en PDF">
+              <i class="fas fa-print me-1"></i> Imprimer / PDF
+            </button>
+            <button class="btn btn-primary" type="button" id="exportExecSummaryBtn" title="Synthèse Exécutive Multi-Feuilles">
+              <i class="fas fa-file-excel me-1"></i> Synthèse Excel
+            </button>
+            <button class="btn btn-soft" type="button" id="exportGrandLivreBcBtn" title="Grand Livre complet des Bons de Commande">
+              <i class="fas fa-book me-1"></i> Grand Livre BC
+            </button>
+            <button class="btn btn-soft" type="button" id="exportBordereauDpBtn" title="Bordereau exhaustif des règlements DP">
+              <i class="fas fa-receipt me-1"></i> Bordereau DP
+            </button>
+          </div>
+        </div>
+
+        <!-- Segmented Report View Selector (Zero-Scroll Tabbed Sub-Sections) -->
+        <div class="sa-period-bar-container" style="margin-bottom: 1.25rem;">
+          <div class="sa-period-bar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span class="sa-period-label"><i class="fas fa-layer-group me-1"></i> SECTION :</span>
+            <div class="sa-period-pills" id="reportsPillBar">
+              <button type="button" class="sa-period-pill reports-sub-btn active" data-report-view="summary" onclick="switchReportsSubview('summary')">
+                <i class="fas fa-chart-pie me-1"></i> Synthèse Exécutive &amp; KPIs
+              </button>
+              <button type="button" class="sa-period-pill reports-sub-btn" data-report-view="pipeline" onclick="switchReportsSubview('pipeline')">
+                <i class="fas fa-diagram-project me-1"></i> Pipeline Procure-to-Pay (P2P)
+              </button>
+              <button type="button" class="sa-period-pill reports-sub-btn" data-report-view="departments" onclick="switchReportsSubview('departments')">
+                <i class="fas fa-building me-1"></i> Budgets par Département
+              </button>
+              <button type="button" class="sa-period-pill reports-sub-btn" data-report-view="suppliers" onclick="switchReportsSubview('suppliers')">
+                <i class="fas fa-handshake me-1"></i> Top Fournisseurs Partenaires
+              </button>
+              <button type="button" class="sa-period-pill reports-sub-btn" data-report-view="delays" onclick="switchReportsSubview('delays')">
+                <i class="fas fa-gauge-high me-1"></i> Cadences &amp; Délais de Règlement
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1. Executive Summary 4 High-Impact KPI Cards -->
+        <div class="reports-subview active" id="reportViewSummary">
+          <div class="reports-summary-grid" id="reportsSummaryGrid"></div>
+        </div>
+
+        <!-- 2. Procure-to-Pay Progress Pipeline -->
+        <div class="reports-subview" id="reportViewPipeline" style="display:none;">
+          <article class="panel reports-card p2p-pipeline-card">
+            <div class="panel-title-row">
+              <h3><i class="fas fa-diagram-project text-primary me-2"></i> Pipeline Procure-to-Pay (Cycle des Engagements)</h3>
+              <span class="panel-tag">Flux Opérationnel</span>
+            </div>
+            <div class="p2p-pipeline-container" id="reportsP2pPipeline"></div>
+          </article>
+        </div>
+
+        <!-- 3. Department Budget Breakdown -->
+        <div class="reports-subview" id="reportViewDepartments" style="display:none;">
+          <article class="panel reports-card">
+            <div class="panel-title-row">
+              <h3><i class="fas fa-building text-primary me-2"></i> Budget &amp; Dépenses par Département</h3>
+              <span class="panel-tag">Ventilation Structure</span>
+            </div>
+            <div id="reportsDeptBreakdown" class="reports-breakdown-content"></div>
+          </article>
+        </div>
+
+        <!-- 4. Top Suppliers Breakdown -->
+        <div class="reports-subview" id="reportViewSuppliers" style="display:none;">
+          <article class="panel reports-card">
+            <div class="panel-title-row">
+              <h3><i class="fas fa-handshake text-success me-2"></i> Top Fournisseurs Partenaires</h3>
+              <span class="panel-tag">Engagements TTC</span>
+            </div>
+            <div id="reportsSupplierBreakdown" class="reports-breakdown-content"></div>
+          </article>
+        </div>
+
+        <!-- 5. Executive Key Indicators Table -->
+        <div class="reports-subview" id="reportViewDelays" style="display:none;">
+          <article class="panel reports-card">
+            <div class="panel-title-row">
+              <h3><i class="fas fa-gauge-high text-info me-2"></i> Indicateurs Stratégiques &amp; Cadences de Règlement</h3>
+              <span class="panel-tag">Audit &amp; Performance</span>
+            </div>
+            <div id="reportsKeyMetricsGrid" class="reports-metrics-grid"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" id="page-settings">
+        <div class="page-header compact-head">
+          <div>
+            <h2>Paramètres</h2>
+            <p>Référentiels, week-end, jours fériés, numérotation et apparence.</p>
+          </div>
+          <div class="toolbar-actions"><button class="btn btn-primary" type="button" id="saveSettingsBtn">Sauvegarder</button></div>
+        </div>
+        <div class="settings-grid">
+          <article class="panel panel-entry">
+            <div class="panel-title-row"><h3>Général</h3><span class="panel-tag">Base</span></div>
+            <div class="dense-form two-cols no-form-gap">
+              <label class="field"><span>Titre application</span><input id="settingTitle" type="text" /></label>
+              <label class="field"><span>Sous-titre</span><input id="settingSubtitle" type="text" /></label>
+              <label class="field"><span>Préfixe BC</span><input id="settingBcPrefix" type="text" /></label>
+              <label class="field"><span>Prochaine séquence BC</span><input id="settingBcSequence" type="number" min="1" /></label>
+              <label class="field"><span>Préfixe DA</span><input id="settingDaPrefix" type="text" /></label>
+              <label class="field"><span>Prochaine séquence DA</span><input id="settingDaSequence" type="number" min="1" /></label>
+              <label class="field"><span>Délai appro par défaut (jours ouvrables)</span><input id="settingProcDays" type="number" min="0" /></label>
+              <label class="field"><span>Délai finance par défaut (jours ouvrables)</span><input id="settingFinDays" type="number" min="0" /></label>
+              <label class="field wide"><span>Logo (optionnel)</span><input id="settingLogo" type="file" accept="image/*" /></label>
+            </div>
+            <div class="logo-preview-row"><img id="logoPreview" alt="Logo" class="logo-preview hidden" /></div>
+          </article>
+          <article class="panel panel-muted">
+            <div class="panel-title-row"><h3>Jours non ouvrables</h3><span class="panel-tag">Délai</span></div>
+            <div class="checks-grid">
+              <label class="check-inline"><input class="weekend-checkbox" data-day="0" type="checkbox" /> <span>Dimanche</span></label>
+              <label class="check-inline"><input class="weekend-checkbox" data-day="1" type="checkbox" /> <span>Lundi</span></label>
+              <label class="check-inline"><input class="weekend-checkbox" data-day="2" type="checkbox" /> <span>Mardi</span></label>
+              <label class="check-inline"><input class="weekend-checkbox" data-day="3" type="checkbox" /> <span>Mercredi</span></label>
+              <label class="check-inline"><input class="weekend-checkbox" data-day="4" type="checkbox" /> <span>Jeudi</span></label>
+              <label class="check-inline"><input class="weekend-checkbox" data-day="5" type="checkbox" /> <span>Vendredi</span></label>
+              <label class="check-inline"><input class="weekend-checkbox" data-day="6" type="checkbox" /> <span>Samedi</span></label>
+            </div>
+            <div class="holiday-editor">
+              <input id="holidayDate" type="date" />
+              <input id="holidayLabel" type="text" placeholder="Jour férié" />
+              <button class="btn btn-soft" id="addHolidayBtn" type="button">Ajouter</button>
+            </div>
+            <div id="holidaysList" class="pill-list"></div>
+          </article>
+          <article class="panel panel-accent">
+            <div class="panel-title-row"><h3>Référentiels</h3><span class="panel-tag">Autofill</span></div>
+            <div class="reference-block">
+              <div class="reference-header">
+                <strong>Fournisseurs</strong>
+                <div class="inline-actions">
+                  <input id="newSupplierName" type="text" placeholder="Ajouter fournisseur" />
+                  <button class="btn btn-soft" id="addSupplierBtn" type="button">Ajouter</button>
+                </div>
+              </div>
+              <div id="suppliersManager" class="pill-list"></div>
+            </div>
+            <div class="reference-block">
+              <div class="reference-header">
+                <strong>Demandeurs / personnes</strong>
+                <div class="inline-actions">
+                  <input id="newRequesterName" type="text" placeholder="Ajouter personne" />
+                  <button class="btn btn-soft" id="addRequesterBtn" type="button">Ajouter</button>
+                </div>
+              </div>
+              <div id="requestersManager" class="pill-list"></div>
+            </div>
+          </article>
+          <article class="panel panel-muted">
+            <div class="panel-title-row"><h3>Départements / Structures</h3><span class="panel-tag">Organisation</span></div>
+            <div class="reference-block">
+              <div class="reference-header">
+                <strong>Structures demandeuses</strong>
+                <div class="inline-actions">
+                  <input id="newDepartmentName" type="text" placeholder="Ex: Structure Transport" />
+                  <button class="btn btn-soft" id="addDepartmentBtn" type="button">Ajouter</button>
+                </div>
+              </div>
+              <div id="departmentsManager" class="pill-list"></div>
+            </div>
+            <div class="reference-block" style="margin-top:0.75rem;">
+              <div class="reference-header">
+                <strong>Liaison Fournisseur → Département</strong>
+              </div>
+              <div class="dense-form two-cols no-form-gap" style="margin-top:0.5rem;">
+                <label class="field"><span>Fournisseur</span><select id="linkSupplierSelect"><option value="">Choisir fournisseur</option></select></label>
+                <label class="field"><span>Département</span><select id="linkDeptSelect"><option value="">Choisir département</option></select></label>
+              </div>
+              <div class="inline-actions" style="margin-top:0.5rem;">
+                <button class="btn btn-soft" id="linkSupplierDeptBtn" type="button">Lier fournisseur → département</button>
+              </div>
+              <div id="supplierDeptLinks" class="pill-list" style="margin-top:0.5rem;"></div>
+            </div>
+          </article>
+          <article class="panel panel-entry" id="panelUserSettings">
+            <div class="panel-title-row">
+              <h3>Utilisateurs & Droits d'Accès</h3>
+              <div class="inline-actions">
+                <button class="btn btn-primary" type="button" id="addNewUserBtn" style="padding:0.35rem 0.75rem;font-size:0.8rem;">+ Nouvel Utilisateur</button>
+              </div>
+            </div>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;">Gestion des comptes locaux, mots de passe et permissions de la plateforme.</p>
+            <div class="table-shell" style="max-height:260px;overflow-y:auto;">
+              <table class="data-table" style="font-size:0.85rem;width:100%;">
+                <thead>
+                  <tr>
+                    <th>Utilisateur</th>
+                    <th>Rôle Système</th>
+                    <th>Mot de passe</th>
+                    <th style="text-align:right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="usersSettingsTableBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article class="panel panel-danger">
+            <div class="panel-title-row"><h3>Sauvegarde</h3><span class="panel-tag">Sécurité</span></div>
+            <div class="danger-zone">
+              <button class="btn btn-soft" type="button" id="backupJsonBtn">Exporter sauvegarde JSON</button>
+              <label class="btn btn-soft pseudo-btn">Importer JSON<input id="restoreJsonInput" type="file" accept="application/json" hidden /></label>
+              <button class="btn btn-danger" type="button" id="resetAllBtn">Réinitialiser toutes les données</button>
+              <hr style="border-color:#fca5a5;margin:12px 0;">
+              <p style="color:#991b1b;font-size:12px;font-weight:600;margin-bottom:8px;">⚠️ Actions Serveur (MongoDB Atlas)</p>
+              <button class="btn btn-danger" type="button" id="resyncBcBtn" style="background:#7f1d1d;border-color:#7f1d1d;">
+                <span>🔄 Resync BC depuis JSON (purge + reimport)</span>
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+      <footer class="sa-app-footer" style="text-align:center;padding:18px 0;margin-top:24px;border-top:1px solid #e2e8f0;font-size:11.5px;color:#64748b;">SPA DOUROUB ELDJAZAIR · Système Suivi Achats &amp; BC &middot; <strong>ABDO INTELLIGENT SYSTEMS</strong> &middot; Developed by <strong style="color:#2563eb;">CHIKHAOUI ABDERRAHIME</strong></footer>
+      </main><!-- /sa-content -->
+    </div><!-- /sa-body -->
+  </div><!-- /appShell -->
+
+  <datalist id="suppliersList"></datalist>
+  <datalist id="requestersList"></datalist>
+  <datalist id="knownArticlesDatalist"></datalist>
+  <datalist id="knownTruckPlatesList"></datalist>
+  <datalist id="knownKmTiersList">
+    <option value="10000">
+    <option value="20000">
+    <option value="30000">
+    <option value="40000">
+    <option value="50000">
+    <option value="60000">
+    <option value="70000">
+    <option value="80000">
+    <option value="90000">
+    <option value="100000">
+    <option value="120000">
+    <option value="150000">
+  </datalist>
+
+  <div class="modal-backdrop hidden" id="chartModalBackdrop">
+    <div class="modal large-modal">
+      <div class="modal-head">
+        <div>
+          <h3 id="chartModalTitle">Graphique</h3>
+          <p id="chartModalSubtitle">Vue agrandie et interactive.</p>
+        </div>
+        <div class="inline-actions">
+          <button class="btn btn-soft" id="exportCurrentChartBtn" type="button">Exporter données</button>
+          <button class="icon-btn" id="closeChartModalBtn" type="button">×</button>
+        </div>
+      </div>
+      <div class="modal-body chart-modal-body">
+        <canvas id="chartModalCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="bcEditModalBackdrop">
+    <div class="modal edit-modal">
+      <div class="modal-head">
+        <div>
+          <h3>Modifier la BC</h3>
+          <p>La fenêtre s’ouvre directement depuis le bouton Modifier.</p>
+        </div>
+        <div class="inline-actions">
+          <button class="btn btn-primary" id="saveBcEditBtn" type="submit" form="bcEditForm">Enregistrer</button>
+          <button class="btn btn-success" id="validateBcDaBtn" type="button">Valider</button>
+          <button class="icon-btn" id="closeBcEditModalBtn" type="button">×</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="editBcStockAlert" class="hidden" style="margin-bottom:1rem;"></div>
+        <form id="bcEditForm" class="dense-form two-cols">
+          <input type="hidden" id="editBcId" />
+          <label class="field"><span>Réf. BC</span><input id="editBcRef" type="text" /></label>
+          <label class="field"><span>Réf. DA</span><input id="editBcDaRef" type="text" /></label>
+          <label class="field"><span>Date BC</span><input id="editBcDate" type="date" /></label>
+          <label class="field"><span>Fournisseur</span><input id="editBcSupplier" type="text" list="suppliersList" /></label>
+          <label class="field"><span>Montant HT</span><input id="editBcAmountHT" type="text" inputmode="decimal" placeholder="0,00" /></label>
+          <label class="field"><span>Montant TTC</span><input id="editBcAmount" type="text" inputmode="decimal" placeholder="0,00" /></label>
+          <label class="field"><span>TVA</span><input id="editBcTVA" type="text" inputmode="decimal" placeholder="0,00" /></label>
+          <label class="field"><span>Devise</span><input id="editBcCurrency" type="text" value="DZD" readonly /></label>
+          <label class="field"><span>Type</span><select id="editBcType"><option value="achat">Achat</option><option value="service">Service</option></select></label>
+          <label class="field"><span>Statut BC</span><select id="editBcStatus">
+              <option value="livre_paye">✓ Livré &amp; Payé</option>
+              <option value="livre">Livré / Réceptionné</option>
+              <option value="paye">Payé</option>
+              <option value="transmis">Transmis / En cours</option>
+              <option value="clos">Clôturé</option>
+              <option value="en_attente">En attente</option>
+              <option value="en_cours">En cours</option>
+              <option value="brouillon">Brouillon</option>
+            </select></label>
+          <label class="field"><span>Statut DA</span><select id="editBcDaStatus"><option value="draft">À vérifier</option><option value="validated">Validé</option></select></label>
+          <label class="field"><span>Date promise</span><input id="editBcPromisedDate" type="date" /></label>
+          <label class="field"><span>Date réception marchandise</span><input id="editBcGoodsDate" type="date" /></label>
+          <label class="field"><span>Date faite de service</span><input id="editBcServiceDate" type="date" /></label>
+          <label class="field"><span>Demandeur</span><input id="editBcRequester" type="text" list="requestersList" /></label>
+          <label class="field"><span>Conditions paiement</span><input id="editBcPaymentTerms" type="text" /></label>
+          <label class="field wide"><span>Description</span><input id="editBcDescription" type="text" /></label>
+          <div class="field wide" id="bcEditLineItemsBox" style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:0.75rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:6px;">
+              <span style="font-weight:700;color:#0f172a;font-size:0.85rem;"><i class="fas fa-boxes-stacked text-primary me-1"></i> Articles du BC (Base de Prix &amp; Historique)</span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <button type="button" class="btn btn-soft btn-compact" onclick="window.ArticlesPriceTracker && ArticlesPriceTracker.addBcFormLine('edit')" style="font-size:0.78rem;padding:3px 10px;">+ Ajouter Article</button>
+                <button type="button" class="btn btn-ghost btn-compact" onclick="window.ArticlesPriceTracker && ArticlesPriceTracker.syncTotalsFromLines('edit')" style="font-size:0.75rem;padding:3px 8px;" title="Calculer Montant HT/TTC depuis les lignes">∑ Calculer Total</button>
+              </div>
+            </div>
+            <div id="bcEditMtcNotice" class="hidden" style="background:#eff6ff;border:1px solid #93c5fd;color:#1e40af;border-radius:6px;padding:6px 10px;font-size:0.78rem;margin-bottom:6px;">
+              <i class="fas fa-truck-moving me-1"></i> <strong>Maghreb Trucks Company détecté :</strong> Ce BC sera automatiquement suivi dans <em>🚛 Suivi Vidanges &amp; Flotte</em> via la Remarque (exclu de la base de prix des articles).
+            </div>
+            <div id="bcEditLinesContainer" style="display:flex;flex-direction:column;gap:6px;"></div>
+          </div>
+          <label class="field"><span>Structure demandeuse</span><input id="editBcDepartment" type="text" list="departmentsList" /></label>
+          <label class="field wide"><span>Commentaire / justification</span><textarea id="editBcComments" rows="3"></textarea></label>
+          <label class="field wide"><span>Notes internes</span><input id="editBcNotes" type="text" /></label>
+          <div class="field wide" id="bcEditVidangeAssistantBox" style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:0.75rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+              <span style="font-weight:700;color:#166534;font-size:0.83rem;"><i class="fas fa-oil-can me-1"></i> Assistant Remarque Vidange / Camion (Maghreb Trucks &amp; Parc)</span>
+              <button type="button" class="btn btn-soft btn-compact" onclick="window.ArticlesPriceTracker && ArticlesPriceTracker.applyVidangeAssistant('edit')" style="font-size:0.76rem;padding:2px 9px;background:#16a34a;color:#fff;border:none;">⚡ Insérer dans Remarque</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:6px;">
+              <select id="bcAssistServiceEdit" style="font-size:0.8rem;padding:4px 6px;border-radius:6px;border:1px solid #bbf7d0;">
+                <option value="Vidange">Vidange</option>
+                <option value="Vidange + Filtres">Vidange + Filtres</option>
+                <option value="Révision">Révision</option>
+                <option value="Plaquettes de frein">Plaquettes / Freins</option>
+                <option value="Garnitures de frein">Garnitures de frein</option>
+                <option value="Entretien">Entretien</option>
+              </select>
+              <input type="text" id="bcAssistKmEdit" list="knownKmTiersList" placeholder="KM (ex: 50000)" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid #bbf7d0;" />
+              <select id="bcAssistVehicleTypeEdit" style="font-size:0.8rem;padding:4px 6px;border-radius:6px;border:1px solid #bbf7d0;">
+                <option value="Tracteur">Tracteur</option>
+                <option value="Camion">Camion</option>
+                <option value="Fourgon">Fourgon</option>
+                <option value="Véhicule">Véhicule</option>
+              </select>
+              <input type="text" id="bcAssistPlateEdit" list="knownTruckPlatesList" placeholder="IMM (ex: 000112-525-07)" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid #bbf7d0;" />
+            </div>
+            <div id="bcEditRemarqueParsePreview" style="margin-top:6px;font-size:0.76rem;color:#15803d;"></div>
+          </div>
+          <label class="field wide"><span>Remarques BC</span><textarea id="editBcRemarques" rows="2" placeholder="Ex: vidange 50000 pour Tracteur IMM: 000112-525-07"></textarea></label>
+          <div class="edit-modal-footer" style="grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.2rem; border-top: 1px solid var(--line);">
+            <button class="btn btn-ghost" id="cancelBcEditBottomBtn" type="button" style="padding: 0.65rem 1.4rem; font-size: 0.95rem;">Annuler</button>
+            <button class="btn btn-primary" id="saveBcEditBottomBtn" type="submit" style="padding: 0.65rem 1.8rem; font-weight: 700; font-size: 0.95rem; background: var(--primary, #3b82f6); color: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(59,130,246,0.3); cursor: pointer;">💾 Enregistrer les modifications</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="bcDetailModalBackdrop">
+    <div class="modal large-modal bc-review-cockpit-modal">
+      <div class="modal-head bc-review-modal-head">
+        <div>
+          <h3 id="bcDetailTitle">Revue Complète BC</h3>
+          <p id="bcDetailSubtitle">Audit complet, articles et liaison DP logique</p>
+        </div>
+        <div class="inline-actions bc-review-nav-bar">
+          <button class="btn btn-soft btn-compact" id="bcReviewPrevBtn" type="button" title="BC précédent (←)"><i class="fas fa-chevron-left"></i> BC Précédent</button>
+          <span class="bc-review-counter" id="bcReviewCounter">1 / 1</span>
+          <button class="btn btn-soft btn-compact" id="bcReviewNextBtn" type="button" title="BC suivant (→)">BC Suivant <i class="fas fa-chevron-right"></i></button>
+          <button class="icon-btn" id="closeBcDetailModalBtn" type="button" title="Fermer (Échap)">×</button>
+        </div>
+      </div>
+      <div class="modal-body bc-review-modal-body" id="bcDetailBody"></div>
+    </div>
+  </div>
+
+  <datalist id="departmentsList">
+    <option value="Direction Générale">
+    <option value="Maintenance & Parc">
+    <option value="Approvisionnements">
+    <option value="Exploitation">
+    <option value="Finances & Comptabilité">
+    <option value="Magasin Central">
+  </datalist>
+
+  <!-- Modal Validation DA -->
+  <div class="modal-backdrop hidden" id="validateDaModalBackdrop">
+    <div class="modal edit-modal" style="width: 480px;">
+      <div class="modal-head">
+        <div>
+          <h3 id="validateDaModalTitle">Validation DA & BC</h3>
+          <p id="validateDaModalSubtitle" class="muted">Définir la référence et date de validation DA</p>
+        </div>
+        <div class="inline-actions">
+          <button class="icon-btn" id="cancelValidateDaBtn" type="button" title="Fermer">×</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="validateDaBcId" />
+        <div style="background:var(--surface-2); padding:10px 14px; border-radius:8px; margin-bottom:1rem; font-size:0.88rem;">
+          <div style="font-weight:600; color:var(--text);" id="validateDaBcRef">BC N°...</div>
+          <div class="muted" id="validateDaBcSupplier">Fournisseur</div>
+        </div>
+        <label class="field" style="margin-bottom:0.75rem;">
+          <span>Référence Demande d'Achat (DA)</span>
+          <input type="text" id="validateDaRefInput" placeholder="Ex: DA N°12/2026" />
+        </label>
+        <label class="field" style="margin-bottom:0.75rem;">
+          <span>Date de validation DA</span>
+          <input type="date" id="validateDaDateInput" />
+        </label>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--line);">
+          <button class="btn btn-ghost" id="cancelValidateDaBtn2" type="button">Annuler</button>
+          <button class="btn btn-primary" id="confirmValidateDaBtn" type="button" style="padding:0.6rem 1.4rem; font-weight:700; background:var(--primary, #2563eb); color:#fff; border:none; border-radius:8px; cursor:pointer;">
+            ✓ Valider la DA
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Enregistrement Livraison / Réalisation -->
+  <div class="modal-backdrop hidden" id="deliverBcModalBackdrop">
+    <div class="modal edit-modal" style="width: 500px;">
+      <div class="modal-head">
+        <div>
+          <h3 id="deliverBcModalTitle">Enregistrer la livraison / réalisation</h3>
+          <p id="deliverBcModalSubtitle" class="muted">Calcul automatique du délai de livraison</p>
+        </div>
+        <div class="inline-actions">
+          <button class="icon-btn" id="cancelDeliverBcBtn" type="button" title="Fermer">×</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="deliverBcId" />
+        <div style="background:var(--surface-2); padding:10px 14px; border-radius:8px; margin-bottom:1rem; font-size:0.88rem; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:600; color:var(--text);" id="deliverBcRef">BC N°...</div>
+            <div class="muted" id="deliverBcSupplier">Fournisseur</div>
+          </div>
+          <div style="text-align:right;">
+            <span id="deliverBcTypeBadge" class="status-pill" style="font-size:0.75rem;">Achat</span>
+            <div class="muted" style="font-size:0.75rem; margin-top:2px;" id="deliverBcDateLabel">Date BC : --</div>
+          </div>
+        </div>
+        <label class="field" style="margin-bottom:0.75rem;">
+          <span id="deliverDateLabel">Date de réception / fin de prestation</span>
+          <input type="date" id="deliverDateInput" required />
+          <span style="font-size:0.75rem; color:var(--muted); margin-top:3px; display:block;">
+            💡 <em>Par défaut : <strong>+1 jour</strong> pour prestation de service, <strong>+2 jours</strong> pour achat matériel. Modifiable librement.</em>
+          </span>
+        </label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.75rem;">
+          <label class="field">
+            <span>Statut du BC</span>
+            <select id="deliverBcStatusInput">
+              <option value="livre_paye">✓ Livré &amp; Payé (Soldé &amp; Réglé)</option>
+              <option value="livre">Livré (En cours de paiement)</option>
+              <option value="clos">Clôturé (Soldé)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>N° BL / Preuve (optionnel)</span>
+            <input type="text" id="deliverBlInput" placeholder="Ex: BL-4092" />
+          </label>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--line);">
+          <button class="btn btn-ghost" id="cancelDeliverBcBtn2" type="button">Annuler</button>
+          <button class="btn btn-primary" id="confirmDeliverBcBtn" type="button" style="padding:0.6rem 1.4rem; font-weight:700; background:var(--primary, #3b82f6); color:#fff; border:none; border-radius:8px; cursor:pointer;">
+            💾 Enregistrer la réalisation
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Utilisateur / User Settings Modal -->
+  <div class="modal-backdrop hidden" id="userEditModalBackdrop">
+    <div class="modal edit-modal" style="width: 440px;">
+      <div class="modal-head">
+        <div>
+          <h3 id="userModalTitle">Paramètres Utilisateur</h3>
+          <p id="userModalSubtitle" class="muted">Modifier les informations du compte</p>
+        </div>
+        <div class="inline-actions">
+          <button class="icon-btn" id="closeUserModalBtn" type="button">×</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <form id="userEditForm" class="dense-form" onsubmit="event.preventDefault(); if(window.saveUserModal) window.saveUserModal();">
+          <input type="hidden" id="userModalOriginalUsername" />
+          <label class="field" style="margin-bottom:0.75rem;">
+            <span>Identifiant (Username)</span>
+            <input type="text" id="userModalUsername" required autocomplete="username" />
+          </label>
+          <label class="field" style="margin-bottom:0.75rem;">
+            <span>Nouveau Mot de passe</span>
+            <input type="password" id="userModalPassword" placeholder="Laisser vide si inchangé" autocomplete="new-password" />
+          </label>
+          <label class="field" style="margin-bottom:0.75rem;">
+            <span>Rôle & Permissions</span>
+            <select id="userModalRole" required>
+              <option value="admin">Administrateur (Dual Access Total)</option>
+              <option value="procurement">Acheteur / Approvisionnement</option>
+              <option value="finance">Responsable Finance & Trésorerie</option>
+              <option value="stock">Magasinier / Gestion Stock</option>
+              <option value="management">Direction Générale</option>
+            </select>
+          </label>
+          <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--line);">
+            <button class="btn btn-ghost" id="cancelUserModalBtn" type="button">Annuler</button>
+            <button class="btn btn-primary" type="submit" style="padding:0.6rem 1.4rem;font-weight:700;">💾 Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="data-preload.js"></script>
+  <script src="app.js"></script>
+      </body>
+</html>
