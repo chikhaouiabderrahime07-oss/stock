@@ -13882,14 +13882,24 @@ const ApproNextGen = window.ApproNextGen = {
       }
     }
 
-    // Scan line items
-    for (let r = 20; r <= Math.min(range.e.r, 100); r++) {
-      const descCell = getCellVal(r, 3) || getCellVal(r, 2);
-      if (descCell && !descCell.toUpperCase().includes('TOTAL') && !descCell.toUpperCase().includes('REMARQUE') && descCell.length > 2) {
-        const qty = parseFloat(getCellVal(r, 2).replace(/\s/g, '').replace(',', '.')) || 1;
-        const pu = parseFloat(getCellVal(r, 6).replace(/\s/g, '').replace(',', '.')) || 0;
-        const total = parseFloat(getCellVal(r, 7).replace(/\s/g, '').replace(',', '.')) || (qty * pu);
-        lineItems.push({ description: descCell, qty: qty, unit: 'U', unitPrice: pu, lineTotal: total });
+    // Scan line items (header-driven extractor, article by article)
+    try {
+      const dispRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+      const extracted = (window.ArticlesPriceTracker && window.ArticlesPriceTracker.extractLinesFromRows)
+        ? window.ArticlesPriceTracker.extractLinesFromRows(dispRows, rawRows).lineItems
+        : [];
+      extracted.forEach((li) => lineItems.push(li));
+    } catch (e) {}
+    if (!lineItems.length) {
+      for (let r = 20; r <= Math.min(range.e.r, 100); r++) {
+        const descCell = getCellVal(r, 3) || getCellVal(r, 2);
+        if (descCell && !descCell.toUpperCase().includes('TOTAL') && !descCell.toUpperCase().includes('REMARQUE') && descCell.length > 2) {
+          const qty = parseFloat(getCellVal(r, 2).replace(/\s/g, '').replace(',', '.')) || 1;
+          const pu = parseFloat(getCellVal(r, 6).replace(/\s/g, '').replace(',', '.')) || 0;
+          const total = parseFloat(getCellVal(r, 7).replace(/\s/g, '').replace(',', '.')) || (qty * pu);
+          lineItems.push({ description: descCell, qty: qty, unit: 'U', unitPrice: pu, lineTotal: total });
+        }
       }
     }
 
@@ -17387,6 +17397,7 @@ window.ArticlesPriceTracker = {
     const sortMap = {
       spend: (a, b) => b.totalSpend - a.totalSpend,
       count: (a, b) => b.purchaseCount - a.purchaseCount || b.totalSpend - a.totalSpend,
+      qty: (a, b) => b.purchaseCount - a.purchaseCount || b.totalQty - a.totalQty,
       latestDate: (a, b) => String(b.latestDate || '').localeCompare(String(a.latestDate || '')),
       diffPctDesc: (a, b) => b.priceDiffPct - a.priceDiffPct,
       diffPctAsc: (a, b) => a.priceDiffPct - b.priceDiffPct,
@@ -17427,6 +17438,12 @@ window.ArticlesPriceTracker = {
           <div style="font-size:0.74rem;color:#64748b;">${allArticles.reduce((s, a) => s + a.purchaseCount, 0)} ligne(s) d'achat analysées</div>
         </div>
       </div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:0.75rem 0.9rem;margin-bottom:1rem;">
+        <div style="font-size:0.78rem;font-weight:800;color:#c2410c;text-transform:uppercase;margin-bottom:6px;">🔥 Articles les plus demandés (hors Maghreb Trucks)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+          ${allArticles.slice().sort((a, b) => b.purchaseCount - a.purchaseCount || b.totalQty - a.totalQty).slice(0, 8).filter(a => a.purchaseCount > 0).map((a, i) => `<span style="background:#fff;border:1px solid #fdba74;border-radius:20px;padding:3px 10px;font-size:0.8rem;cursor:pointer;" onclick="ArticlesPriceTracker.search=this.dataset.n;ArticlesPriceTracker.renderSubview();" data-n="${escapeHtml(a.canonicalName)}"><strong>${i + 1}.</strong> ${escapeHtml(a.canonicalName)} · ${a.purchaseCount}× · Qté ${Number(a.totalQty).toLocaleString('fr-FR')}</span>`).join('') || '<span class="muted" style="font-size:0.8rem;">Aucun article extrait pour le moment.</span>'}
+        </div>
+      </div>
       <article class="panel panel-muted sa-dense-panel">
         <div class="toolbar-row compact-toolbar filters-row" style="display:flex;flex-wrap:wrap;gap:0.55rem;align-items:center;justify-content:space-between;margin-bottom:0.85rem;">
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;flex:1;">
@@ -17444,6 +17461,7 @@ window.ArticlesPriceTracker = {
             </select>
             <select onchange="ArticlesPriceTracker.sortBy=this.value;ArticlesPriceTracker.renderSubview();">
               <option value="spend" ${this.sortBy === 'spend' ? 'selected' : ''}>Tri : Volume engagé</option>
+              <option value="qty" ${this.sortBy === 'qty' ? 'selected' : ''}>🔥 Tri : Plus demandés</option>
               <option value="count" ${this.sortBy === 'count' ? 'selected' : ''}>Tri : Nb d'achats</option>
               <option value="diffPctDesc" ${this.sortBy === 'diffPctDesc' ? 'selected' : ''}>Tri : Plus forte hausse</option>
               <option value="diffPctAsc" ${this.sortBy === 'diffPctAsc' ? 'selected' : ''}>Tri : Plus forte baisse</option>
@@ -17452,6 +17470,7 @@ window.ArticlesPriceTracker = {
             </select>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:0.45rem;">
+            <button type="button" class="btn btn-primary btn-compact" onclick="ArticlesPriceTracker.openBulkExtractor()" title="Lire les fichiers Excel des BC article par article"><i class="fas fa-file-import me-1"></i> Extraire Articles des BC</button>
             <button type="button" class="btn btn-soft btn-compact" onclick="ArticlesPriceTracker.scanExistingDatabaseBcs(false)" title="Scanner et extraire tous les articles &amp; vidanges depuis les BC existants dans la base"><i class="fas fa-arrows-rotate me-1"></i> Scanner Base BC</button>
             <button type="button" class="btn btn-soft btn-compact" onclick="ArticlesPriceTracker.openMergeModal('')"><i class="fas fa-code-merge me-1"></i> Fusionner / Renommer</button>
             <button type="button" class="btn btn-soft btn-compact" onclick="ArticlesPriceTracker.openCustomArticleModal()"><i class="fas fa-plus me-1"></i> Nouvel Article</button>
@@ -18060,6 +18079,163 @@ window.ArticlesPriceTracker = {
       exportWorkbook(`suivi_vidanges_flotte_${todayYmd()}.xlsx`, [{ name: 'Suivi Par Camion', headers: truckHeaders, rows: truckRows }, { name: 'Journal Vidanges MTC', headers: logHeaders, rows: logRows }]);
       showToast(`Export Vidanges généré (${trucks.length} camions).`);
     }
+  },
+
+  extractLinesFromRows(displayRows, rawRows) {
+    const text = (v) => (typeof cellText === 'function' ? cellText(v) : String(v == null ? '' : v).trim());
+    const num = (v) => (typeof parseFlexibleNumber === 'function' ? parseFlexibleNumber(v) : (Number(v) || 0));
+    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    const reDesc = /D[EÉ]SIGNATION|DESCRIPTION|ARTICLE|LIBELL[EÉ]/i;
+    const reQty = /\bQT[EÉ]\b|QUANTIT[EÉ]|\bQTY\b/i;
+    const reUnit = /\bUNIT[EÉ]\b|\bUNIT\b/i;
+    const rePrice = /PRIX\s*(UNIT|U\b|HT)|\bP\.?\s?U\.?(\s*HT)?\b/i;
+    const reTotal = /MONTANT|TOTAL/i;
+    const reStop = /^(TOTAL\s*(HT|TTC|G[EÉ]N)|SOUS[\s-]*TOTAL|MONTANT\s+(HT|TTC)|REMISE|T\.?V\.?A\b|TIMBRE|REMARQUES?|ARR[EÊ]T[EÉ]|LE\s+DIRECTEUR|LE\s+PCA|CONDITIONS?)/i;
+    let headerIdx = -1;
+    let col = null;
+    for (let r = 0; r < Math.min(displayRows.length, 90) && headerIdx < 0; r += 1) {
+      const cells = (displayRows[r] || []).map(text);
+      const c = { desc: -1, qty: -1, unit: -1, price: -1, total: -1 };
+      cells.forEach((t, i) => {
+        if (!t || t.length > 40) return;
+        if (reDesc.test(t)) { if (c.desc < 0) c.desc = i; }
+        else if (rePrice.test(t)) { if (c.price < 0) c.price = i; }
+        else if (reQty.test(t)) { if (c.qty < 0) c.qty = i; }
+        else if (reUnit.test(t)) { if (c.unit < 0) c.unit = i; }
+        else if (reTotal.test(t)) { c.total = i; }
+      });
+      if (c.desc >= 0 && (c.qty >= 0 || c.price >= 0 || c.total >= 0)) { headerIdx = r; col = c; }
+    }
+    if (headerIdx < 0) return { lineItems: [], headerRow: -1 };
+    const lineItems = [];
+    let blanks = 0;
+    for (let r = headerIdx + 1; r < displayRows.length; r += 1) {
+      const disp = displayRows[r] || [];
+      const raw = rawRows[r] || [];
+      const cells = disp.map(text);
+      if (!cells.some(Boolean)) { blanks += 1; if (blanks >= 3 && lineItems.length) break; continue; }
+      blanks = 0;
+      if (cells.some((t) => t && t.length < 40 && reStop.test(t))) break;
+      let desc = (cells[col.desc] || '').replace(/\s+/g, ' ').trim();
+      if (!desc) continue;
+      if (/^[\d\s.,]+$/.test(desc) || reDesc.test(desc) && desc.length < 20) continue;
+      let qty = col.qty >= 0 ? num(raw[col.qty] !== undefined && raw[col.qty] !== '' ? raw[col.qty] : disp[col.qty]) : 0;
+      if (!(qty > 0)) qty = 1;
+      const unit = col.unit >= 0 ? (cells[col.unit] || '') : '';
+      let unitPrice = col.price >= 0 ? num(raw[col.price] !== undefined && raw[col.price] !== '' ? raw[col.price] : disp[col.price]) : 0;
+      let lineTotal = col.total >= 0 ? num(raw[col.total] !== undefined && raw[col.total] !== '' ? raw[col.total] : disp[col.total]) : 0;
+      if (!lineTotal && unitPrice) lineTotal = unitPrice * qty;
+      if (!unitPrice && lineTotal) unitPrice = lineTotal / qty;
+      lineItems.push({ description: desc, qty, unit: unit || 'U', unitPrice: round2(unitPrice), lineTotal: round2(lineTotal) });
+    }
+    return { lineItems, headerRow: headerIdx };
+  },
+
+  openBulkExtractor() {
+    this._bulkResults = [];
+    const html = `
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:0.8rem;margin-bottom:0.9rem;font-size:0.85rem;">
+        Sélectionnez le <strong>dossier</strong> (ou les fichiers) Excel des Bons de Commande. Chaque fichier est lu <strong>article par article</strong> (Désignation, Qté, Unité, P.U, Total) puis rattaché au BC déjà présent dans votre base. Statuts, paiements et DP ne sont pas modifiés.
+      </div>
+      <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+        <label class="btn btn-primary btn-compact" style="cursor:pointer;">📁 Choisir un dossier<input type="file" id="bulkBcFolderInput" webkitdirectory multiple style="display:none" onchange="ArticlesPriceTracker.runBulkExtraction(this.files)" /></label>
+        <label class="btn btn-soft btn-compact" style="cursor:pointer;">📄 Choisir des fichiers<input type="file" id="bulkBcFilesInput" accept=".xlsx,.xls" multiple style="display:none" onchange="ArticlesPriceTracker.runBulkExtraction(this.files)" /></label>
+      </div>
+      <div id="bulkExtractProgress" class="muted" style="font-size:0.82rem;margin-bottom:0.6rem;"></div>
+      <div id="bulkExtractResults"></div>`;
+    this.openTrackerModal('📥 Extraction des articles depuis les BC (Excel)', 'Lecture ligne par ligne · rattachement aux BC existants', html);
+  },
+
+  async runBulkExtraction(fileList) {
+    const files = Array.from(fileList || []).filter((f) => /\.xlsx?$/i.test(f.name) && !/^~\$/.test(f.name));
+    const prog = document.getElementById('bulkExtractProgress');
+    if (!files.length) { if (prog) prog.textContent = 'Aucun fichier Excel trouvé.'; return; }
+    if (typeof XLSX === 'undefined' || !XLSX.read) { if (prog) prog.textContent = 'Bibliothèque Excel indisponible.'; return; }
+    const keyIndex = new Map();
+    (state.bcRecords || []).forEach((bc) => { const k = getBcDedupKey(bc.ref, bc); if (k && !keyIndex.has(k)) keyIndex.set(k, bc); });
+    const results = [];
+    for (let i = 0; i < files.length; i += 1) {
+      if (prog) prog.textContent = `Lecture ${i + 1}/${files.length} : ${files[i].name}`;
+      try {
+        const wb = await readFileAsWorkbook(files[i]);
+        results.push(this.extractFromWorkbook(wb, files[i], keyIndex));
+      } catch (e) {
+        results.push({ fileName: files[i].name, error: e.message || 'Lecture impossible', items: [], bc: null });
+      }
+      if (i % 5 === 4) await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    this._bulkResults = results;
+    if (prog) prog.textContent = `${files.length} fichier(s) analysé(s).`;
+    this.renderBulkResults();
+  },
+
+  extractFromWorkbook(wb, file, keyIndex) {
+    const fileSerial = extractBcSerial(file.name);
+    let best = null;
+    wb.SheetNames.forEach((sn) => {
+      const cand = extractSheetCandidate(wb, sn, file.name);
+      if (!cand) return;
+      const ws = wb.Sheets[sn];
+      const displayRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+      let items = this.extractLinesFromRows(displayRows, rawRows).lineItems;
+      if (!items.length && Array.isArray(cand.lineItems)) items = cand.lineItems.filter((l) => l && l.description);
+      const candSerial = extractBcSerial(cand.ref);
+      const serialOk = fileSerial && candSerial && Number(fileSerial) === Number(candSerial);
+      const rank = cand.score + (serialOk ? 10 : 0) + (items.length ? 3 : 0);
+      if (!best || rank > best.rank) best = { rank, cand, items, sheetName: sn };
+    });
+    if (!best) return { fileName: file.name, error: 'Aucune feuille exploitable', items: [], bc: null };
+    let bc = keyIndex.get(getBcDedupKey(best.cand.ref, { sourceFile: file.name })) || null;
+    if (!bc && fileSerial) bc = keyIndex.get(`SERIAL_${Number(fileSerial)}`) || null;
+    return { fileName: file.name, sheetName: best.sheetName, ref: best.cand.ref, supplierName: best.cand.supplierName, remarques: best.cand.remarques || '', items: best.items, bc };
+  },
+
+  renderBulkResults() {
+    const box = document.getElementById('bulkExtractResults');
+    if (!box) return;
+    const res = this._bulkResults || [];
+    const applicable = res.filter((r) => r.bc && r.items.length);
+    const noMatch = res.filter((r) => !r.bc && !r.error);
+    const noItems = res.filter((r) => r.bc && !r.items.length);
+    const rows = res.map((r) => {
+      let badge = '<span style="color:#15803d;font-weight:700;">✅ Prêt</span>';
+      if (r.error) badge = `<span style="color:#b91c1c;font-weight:700;">❌ ${escapeHtml(r.error)}</span>`;
+      else if (!r.bc) badge = '<span style="color:#b45309;font-weight:700;">➕ BC absent de la base</span>';
+      else if (!r.items.length) badge = '<span style="color:#b45309;font-weight:700;">⚠️ Aucun article détecté</span>';
+      const detail = r.items.length ? `<details><summary style="cursor:pointer;color:#1d4ed8;">${r.items.length} article(s)</summary><table class="data-table" style="margin-top:6px;"><thead><tr><th>#</th><th>Désignation</th><th>Qté</th><th>Unité</th><th>P.U</th><th>Total</th></tr></thead><tbody>${r.items.map((l, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(l.description)}</td><td>${l.qty}</td><td>${escapeHtml(l.unit)}</td><td>${formatMoney(l.unitPrice, 'DZD')}</td><td>${formatMoney(l.lineTotal, 'DZD')}</td></tr>`).join('')}</tbody></table></details>` : '—';
+      return `<tr><td>${escapeHtml(r.fileName)}</td><td><strong>${escapeHtml(r.bc ? r.bc.ref : (r.ref || '—'))}</strong><div class="table-sub">${escapeHtml(r.bc ? r.bc.supplierName : (r.supplierName || ''))}</div></td><td>${badge}</td><td>${detail}</td></tr>`;
+    }).join('');
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.7rem;">
+        <div style="font-size:0.85rem;"><strong>${applicable.length}</strong> BC prêts · <strong>${noMatch.length}</strong> absents de la base · <strong>${noItems.length}</strong> sans article détecté</div>
+        <button type="button" class="btn btn-primary btn-compact" ${applicable.length ? '' : 'disabled'} onclick="ArticlesPriceTracker.applyBulkResults()">✅ Appliquer aux ${applicable.length} BC</button>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Fichier</th><th>BC</th><th>Statut</th><th>Articles extraits</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  },
+
+  applyBulkResults() {
+    let applied = 0;
+    let itemsTotal = 0;
+    (this._bulkResults || []).forEach((r) => {
+      if (!r.bc || !r.items.length) return;
+      r.bc.lineItems = r.items.map((l) => ({ ...l }));
+      r.bc.lineCount = r.items.length;
+      r.bc.totalQty = r.items.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+      if (!r.bc.remarques && r.remarques) r.bc.remarques = r.remarques;
+      r.bc.updatedAt = nowIso();
+      applied += 1;
+      itemsTotal += r.items.length;
+    });
+    if (!applied) return showToast('Aucun BC à mettre à jour.');
+    if (typeof saveState === 'function') saveState();
+    if (window.bcBridge && typeof window.bcBridge.syncBcToServer === 'function') window.bcBridge.syncBcToServer(true);
+    this.closeTrackerModal();
+    this._cachedArticles = this.buildArticlesDatabase();
+    this.updateBadges();
+    this.renderSubview();
+    this.renderVidangesSubview();
+    showToast(`✅ ${itemsTotal} article(s) extraits et enregistrés dans ${applied} BC.`);
   },
 
   async scanExistingDatabaseBcs(silent = false) {
